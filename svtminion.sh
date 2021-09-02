@@ -1,6 +1,13 @@
 #!/usr/bin/bash
 
-set -u
+## Salt VTtools Integration script
+##  integration with Component Manager and GuestStore Helper
+
+## Currently this script leverages the Salt Tiamat based SingleBinary Linux salt-minion
+## TBD to leverage the Salt Tiamat based OneDir Linux salt-minion, once it is available
+
+## set -u
+## set -xT
 set -o functrace
 set -o pipefail
 ## set -o errexit
@@ -8,7 +15,7 @@ set -o pipefail
 # using bash for now
 # run this script as root, as needed to run salt
 
-SCRIPT_VERSION='2021.09.01.01'
+SCRIPT_VERSION='2021.09.02.01'
 
 # definitions
 
@@ -38,6 +45,14 @@ for ((i=0; i<${scam}; i++)); do
     declare -r ${name}=$i
 done
 
+STATUS_CHK=0
+DEBUG_FLAG=0
+DEPS_CHK=0
+USAGE_HELP=0
+LOG_MODE='debug'
+INSTALL_FLAG=0
+UNINSTALL_FLAG=0
+VERBOSE_FLAG=0
 
 # helper functions
 
@@ -51,12 +66,12 @@ _log() {
 
 # Both echo and log
 _display() {
-    if [[ ${VERBOSE} ]]; then echo "$1"; fi
+    if [[ ${VERBOSE_FLAG} -eq 1 ]]; then echo "$1"; fi
     _log "$1"
 }
 
 _ddebug() {
-    if [[ ${DEBUG} ]]; then
+    if [[ ${DEBUG_FLAG} -eq 1 ]]; then
         echo "$1"
         _log "$1"
     fi
@@ -76,22 +91,6 @@ _warning() {
     echo "$(_timestamp) $msg" >>"${LOGGING}"
 }
 
-    [-c | --status]
-    [-e | --depends]
-    [-i | --install]
-    [-r | --remove]
-    [-v | --verbose]
-_usage() {
-    echo ""
-    echo "usage: ${0}  [-c|--status] [-d|--debug] [-e|--depends]"
-    echo "             [-i|--install] [-r|--remove] [-v|--verbose]"
-    echo ""
-    echo "  salt-minion vmtools integration script"
-    echo "      example: $0 --status"
-    echo ""
-}
-
-
 _yesno() {
 read -p "Continue (y/n)?" choice
 case "$choice" in
@@ -101,6 +100,22 @@ case "$choice" in
 esac
 }
 
+ _usage() {
+     echo ""
+     echo "usage: ${0}  [-c|--status] [-d|--debug] [-e|--depends]"
+     echo "             [-h|--help] [-i|--install] [-r|--remove] [-v|--verbose]"
+     echo ""
+     echo "  -c, --status    return status for this script"
+     echo "  -d, --debug     enable debugging logging"
+     echo "  -e, --depend    check dependencies required to run this script exist"
+     echo "  -h, --help      this message"
+     echo "  -i, --install   install and activate the salt-minion"
+     echo "  -r, --remove    deactivate and remove the salt-minion"
+     echo "  -v, --verbose   enable verbose logging and messages"
+     echo ""
+     echo "  salt-minion vmtools integration script"
+     echo "      example: $0 --status"
+}
 
 _cleanup() {
     # clean up any items if die and burn
@@ -121,25 +136,29 @@ trap _cleanup INT TERM EXIT
 
 _fetch_salt_minion() {
     # fetch the current salt-minion into specified location
+    # could check if alreasdy there but by always getting it
+    # ensure we are not using stale versions
+    local retn=0
     CURRENT_STATUS=${STATUS_CODES[${installing}]}
     mkdir -p ${salt_dir}
     cd ${salt_dir}
-    curl -fsSL ${salt_url}
+    curl -o "${salt_pkg_name}" -fsSL "${salt_url}"
     tar -xvzf ${salt_pkg_name}
-    if [[ -f ${salt_name} ]]; then
-        CURRENT_STATUS=${STATUS_CODES[${installed}]}
-    else
+    if [[ ! -f ${salt_name} ]]; then
         CURRENT_STATUS=${STATUS_CODES[${installFailed}]}
-        exit
+        retn=1
     fi
+    CURRENT_STATUS=${STATUS_CODES[${installed}]}
+    return ${retn}
 }
 
 _find_salt_pip() {
     # find the pid for salt if active
-    salt_pid=$(ps -ef | grep -v 'grep' | grep salt | head -n 1 | awk -F " " '{print $2}')
-    return ${salt_pid}
+    local salt_pid=$(ps -ef | grep -v 'grep' | grep salt | head -n 1 | awk -F " " '{print $2}')
+    echo ${salt_pid}
 }
 
+## Note: main command functions use return , not echo
 _status_fn() {
     # return status
     if [[ ${CURRENT_STATUS} -eq  ${STATUS_CODES[${installing}]}
@@ -158,45 +177,56 @@ _status_fn() {
 
 _deps_chk_fn() {
     # return dependency check
-    if [[ "${salt_dir}/{${salt_name}" ]]; then
+    local retn==0
+    if [[ -f "${salt_dir}/{${salt_name}" ]]; then
         CURRENT_STATUS=${STATUS_CODES[${installed}]}
+        retn=0
     else
         CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
+        retn=1
     fi
-    _debug "$SCRIPTNAME: _deps_chk_fn CURRENT_STATUS is ${CURRENT_STATUS}"
+   return ${retn} 
 }
 
 
 _install_fn () {
     # execute install of Salt minion
     _fetch_salt_minion
+    local retn=$?
 
     #TBD need to pull in args for master key, master IP or DNS, minion id
-    if [[ "${salt_dir}/{${salt_name}" ]]; then
-        cd "${salt_dir}/{${salt_name}"
-        ./salt&
+    if [[ ${retn} -eq 0 && -f "${salt_dir}/${salt_name}" ]]; then
+        echo "_install_fn starting ${salt_dir}/${salt_name} minion in bg"
+        $(nohup ${salt_dir}/${salt_name} "minion" &)
+        retn=0
     fi
+    return ${retn}
 }
 
 
 _uninstall_fn () {
-    # remove Salt minion
-    if [[ "${salt_dir}/{${salt_name}" ]]; then
+    # remove Salt miniona
+    local retn=0
+    if [[ -f "${salt_dir}/{${salt_name}" ]]; then
         CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
-        return
+        retn=1
     fi
     CURRENT_STATUS=${STATUS_CODES[${removing}]}
-    pid=_find_salt_pip
-    if [[ -n ${pid} ]]; then kill ${pid}; fi
-    ## given it a little time
-    sleep 1
-    pid=_find_salt_pip
-    if [[ -n ${pid} ]]; then
+    svpid=$(_find_salt_pip)
+    if [[ -n ${svpid} ]]; then
+        kill ${svpid} 
+        ## given it a little time
+        sleep 1 
+    fi
+    svpid=$(_find_salt_pip)
+    if [[ -n ${svpid} ]]; then
         CURRENT_STATUS=${STATUS_CODES[$removeFailed]}
+        retn=1
     else
         rm -fR ${base_salt_location}
         CURRENT_STATUS=${STATUS_CODES[$notInstalled]}
     fi
+    return ${retn}
 }
 
 
@@ -207,17 +237,25 @@ _uninstall_fn () {
 
 CURRDIR=$(pwd)
 
-VERBOSE=0
-DEBUG=False
-USAGE_HELP=False
-LOG_MODE='debug'
-
 # default status is notInstalled
 CURRENT_STATUS=${STATUS_CODES[$notInstalled]}
 
 ## build designation tag used for auto builds is YearMontDayHourMinuteSecondMicrosecond aka jid
 date_long=$(date +%Y%m%d%H%M%S%N)
 curr_date="${date_long::-2}"
+
+# set logging infomation
+## want verbose while developing
+LOGGING="/dev/null"
+SCRIPTNAME=$(basename "$0")
+log_file="/var/log/salt/$SCRIPTNAME-${curr_date}.log"
+
+if [[ ${VERBOSE_FLAG} -ne 0 ]];then
+    LOGGING="${log_file}"
+else
+    LOGGING="/dev/null"
+fi
+
 
 ## need support at a minimum for the following:
 ## depends
@@ -230,40 +268,27 @@ curr_date="${date_long::-2}"
 ##   postdeploy
 ##   preremove
 ##   postremove
-
-##    -l | --log )  LOG_MODE="$2"; shift 2 ;;
-##    -z | --nfs_absdir ) NFS_ABSDIR="$2"; shift 2 ;;
-
+##
+## ##    -l | --log )  LOG_MODE="$2"; shift 2 ;;
 
 while true; do
-  case "${1}" in
+  case "$1" in
     -c | --status ) STATUS_CHK=1; shift ;;
-    -d | --debug )  DEBUG=True; shift ;;
+    -d | --debug )  DEBUG_FLAG=1; shift ;;
     -e | --depends ) DEPS_CHK=1; shift ;;
-    -i | --install ) INSTALL=1; shift ;;
-    -r | --remove ) UNINSTALL=1; shift ;;
-    -v | --verbose ) VERBOSE=1; shift ;;
+    -h | --help ) USAGE_HELP=1; shift ;;
+    -i | --install ) INSTALL_FLAG=1; shift ;;
+    -r | --remove ) UNINSTALL_FLAG=1; shift ;;
+    -v | --verbose ) VERBOSE_FLAG=1; shift ;;
     -- ) shift; break ;;
     * ) break ;;
   esac
 done
 
 ## check if want help, display usage and exit
-[[ ${USAGE_HELP} = 'false' ]] || {
+if [[ ${USAGE_HELP} -eq 1 ]]; then
   _usage
   exit 0
-}
-
-# set logging infomation
-## want verbose while developing
-LOGGING="/dev/null"
-SCRIPTNAME=$(basename "$0")
-log_file="/var/log/salt/$SCRIPTNAME-${curr_date}.log"
-
-if [[ ${VERBOSE} -ne 0 ]];then
-    LOGGING="${log_file}"
-else
-    LOGGING="/dev/null"
 fi
 
 
@@ -273,23 +298,35 @@ _display "$SCRIPTNAME: autobuild started"
 
 # check if salt-minion is installed
 if [[ -f "${salt_dir}/{${salt_name}" ]]; then CURRENT_STATUS=${STATUS_CODES[$notInstalled]}; fi
-_debug "$SCRIPTNAME: CURRENT_STATUS on startup is ${CURRENT_STATUS}"
+_ddebug "$SCRIPTNAME: CURRENT_STATUS on startup is ${CURRENT_STATUS}"
 
-if [[ ${STATUS_CHK} ]]; then
-    retn=$(_status_fn)
+retn=0
+
+if [[ ${STATUS_CHK} -eq 1 ]]; then
+    _status_fn
+    retn=$?
     exit ${retn}
-elif [[ ${DEPS_CHK} ]]; then
-    retn=$(_deps_chk_fn)
+elif [[ ${DEPS_CHK} -eq 1 ]]; then
+    _deps_chk_fn
+    retn=$?
     exit ${retn}
-elif [[ ${INSTALL} ]]; then
-    retn=$(_install_fn)
+elif [[ ${INSTALL_FLAG} -eq 1 ]]; then
+    _install_fn
+    retn=$?
     exit ${retn}
-elif [[ ${UNINSTALL} ]]; then
-    retn=$(_uninstall_fn)
+elif [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
+    _uninstall_fn
+    retn=$?
     exit ${retn}
 else
-    usage
+    _usage
 fi
 
+# doing this until onedir and daemonization is available
+# exit is by Cntl-C
+while [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${installed}]} ]];
+do 
+    sleep 2
+done
 
 
