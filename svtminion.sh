@@ -196,8 +196,8 @@ _install_fn () {
 
     #TBD need to pull in args for master key, master IP or DNS, minion id
     if [[ ${retn} -eq 0 && -f "${salt_dir}/${salt_name}" ]]; then
-        echo "_install_fn starting ${salt_dir}/${salt_name} minion in bg"
-        $(nohup ${salt_dir}/${salt_name} "minion" &)
+        ## echo "_install_fn starting ${salt_dir}/${salt_name} minion in bg"
+        ## $(nohup ${salt_dir}/${salt_name} "minion" &)
         retn=0
     fi
     return ${retn}
@@ -305,28 +305,35 @@ retn=0
 if [[ ${STATUS_CHK} -eq 1 ]]; then
     _status_fn
     retn=$?
-    exit ${retn}
+##    exit ${retn}
 elif [[ ${DEPS_CHK} -eq 1 ]]; then
     _deps_chk_fn
     retn=$?
-    exit ${retn}
+##    exit ${retn}
 elif [[ ${INSTALL_FLAG} -eq 1 ]]; then
     _install_fn
     retn=$?
-    exit ${retn}
+##    exit ${retn}
 elif [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
     _uninstall_fn
     retn=$?
-    exit ${retn}
+##    exit ${retn}
 else
     _usage
 fi
 
 # doing this until onedir and daemonization is available
 # exit is by Cntl-C
+echo "before loop CURRENT_STATUS on startup is ${CURRENT_STATUS}"
+
+if [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${installed}]} ]]; then
+    echo "main loop starting ${salt_dir}/${salt_name} minion in bg"
+    $(nohup ${salt_dir}/${salt_name} "minion" &)
+fi
 while [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${installed}]} ]];
 do 
     sleep 2
 done
 
+exit ${retn}
 
