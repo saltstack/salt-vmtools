@@ -124,13 +124,21 @@ _cleanup() {
         CURRENT_STATUS=${STATUS_CODES[${installFailed}]}
     elif [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${removing}]} ]]; then
         CURRENT_STATUS=${STATUS_CODES[${removeFailed}]}
+        sleep 2
+        svpid=$(_find_salt_pip)
+        if [[ -z ${svpid} ]]; then
+            if [[ ! -d ${base_salt_location} ]]; then
+                CURRENT_STATUS=${STATUS_CODES[$notInstalled]}
+            fi
+        fi
     else
         CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
     fi
 }
 
 
-trap _cleanup INT TERM EXIT
+## trap _cleanup INT TERM EXIT
+trap _cleanup INT EXIT
 
 # work functions
 
@@ -205,7 +213,7 @@ _install_fn () {
 
 
 _uninstall_fn () {
-    # remove Salt miniona
+    # remove Salt minion
     local retn=0
     if [[ -f "${salt_dir}/{${salt_name}" ]]; then
         CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
@@ -331,8 +339,17 @@ if [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${installed}]} ]]; then
     $(nohup ${salt_dir}/${salt_name} "minion" &)
 fi
 while [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${installed}]} ]];
-do 
+do
+    echo "loop CURRENT_STATUS is '${CURRENT_STATUS}', code '${STATUS_CODES[${installed}]}'"
     sleep 2
+    ## check
+    svpid=$(_find_salt_pip)
+    if [[ -z ${svpid} ]]; then
+        CURRENT_STATUS=${STATUS_CODES[${removeFailed}]}
+        if [[ ! -d ${base_salt_location} ]]; then
+            CURRENT_STATUS=${STATUS_CODES[$notInstalled]}
+        fi
+    fi
 done
 
 exit ${retn}
