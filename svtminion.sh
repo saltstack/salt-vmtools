@@ -15,7 +15,7 @@ set -o pipefail
 # using bash for now
 # run this script as root, as needed to run salt
 
-SCRIPT_VERSION='2021.09.08.02'
+## SCRIPT_VERSION='2021.09.08.02'
 
 # definitions
 
@@ -29,7 +29,8 @@ readonly salt_pkg_name="${salt_name}-${salt_url_version}-linux-amd64.tar.gz"
 ## readonly base_url="https://repo.saltproject.io/salt/singlebin"
 readonly base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
 readonly salt_url="${base_url}/${salt_url_version}/${salt_pkg_name}"
-readonly salt_url_chksum="${base_url}/${salt_url_version}/${salt_name}-${salt_url_version}_SHA_512"
+readonly salt_url_chksum_file="${salt_name}-${salt_url_version}_SHA512"
+readonly salt_url_chksum="${base_url}/${salt_url_version}/${salt_url_chksum_file}"
 
 # Salt file and directory locations
 readonly base_salt_location="/opt/saltstack"
@@ -64,10 +65,6 @@ readonly vmtools_conf_file="tools.conf"
 readonly vmtools_salt_minion_section_name="salt_minion"
 
 
-## File manipulation File Descriptors
-read_fd=3
-
-
 ## Component Manager Installer/Script return codes
 # return Status codes
 #  0 => installed
@@ -78,16 +75,16 @@ read_fd=3
 #  5 => removeFailed
 readonly STATUS_CODES=(installed installing notInstalled installFailed removing removeFailed)
 scam=${#STATUS_CODES[@]}
-for ((i=0; i<${scam}; i++)); do
+for ((i=0; i<scam; i++)); do
     name=${STATUS_CODES[i]}
-    declare -r ${name}=$i
+    declare -r "${name}"="$i"
 done
 
 STATUS_CHK=0
 DEBUG_FLAG=0
 DEPS_CHK=0
 USAGE_HELP=0
-LOG_MODE='debug'
+## LOG_MODE='debug'
 INSTALL_FLAG=0
 UNINSTALL_FLAG=0
 VERBOSE_FLAG=0
@@ -130,7 +127,7 @@ _warning() {
 }
 
 _yesno() {
-read -p "Continue (y/n)?" choice
+read -r -p "Continue (y/n)?" choice
 case "$choice" in
   y|Y ) echo "yes";;
   n|N ) echo "no";;
@@ -174,25 +171,25 @@ esac
 _cleanup() {
     # clean up any items if die and burn
     # don't know the worth of setting the current status, since script died
-    if [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${installing}]} ]]; then
-        CURRENT_STATUS=${STATUS_CODES[${installFailed}]}
-    elif [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${installed}]} ]]; then
+    if [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}" ]]; then
+        CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+    elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installed}]}" ]]; then
         # normal case with exit 0, but double-check
         svpid=$(_find_salt_pid)
-        if [[ -z ${svpid} || ! -f ${test_exists_file} ]]; then
-            CURRENT_STATUS=${STATUS_CODES[${installFailed}]}
+        if [[ -z ${svpid} || ! -f "${test_exists_file}" ]]; then
+            CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
         fi
-    elif [[ ${CURRENT_STATUS} -eq ${STATUS_CODES[${removing}]} ]]; then
-        CURRENT_STATUS=${STATUS_CODES[${removeFailed}]}
+    elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}" ]]; then
+        CURRENT_STATUS="${STATUS_CODES[${removeFailed}]}"
         svpid=$(_find_salt_pid)
         if [[ -z ${svpid} ]]; then
-            if [[ ! -f ${test_exists_file} ]]; then
-                CURRENT_STATUS=${STATUS_CODES[$notInstalled]}
+            if [[ ! -f "${test_exists_file}" ]]; then
+                CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
             fi
         fi
     else
         # assume not installed
-        CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
+        CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
     fi
 }
 
@@ -202,7 +199,7 @@ trap _cleanup INT EXIT
 
 ## cheap trim relying on echo to convert tabs to spaces and all multiple spaces to a single space
 _trim() {
-    echo $1
+    echo "$1"
 }
 
 # work functions
@@ -234,8 +231,8 @@ _fetch_vmtools_salt_minion_conf() {
         while IFS= read -r line
         do
             line_value=$(_trim "${line}")
-            if [[ -n ${line_value} ]]; then
-                if [[ $(echo ${line_value} | grep '^\[')  ]]; then
+            if [[ -n "${line_value}" ]]; then
+                if [[ $(echo "${line_value}" | grep -q '^\[') ]]; then
                     if [[ ${salt_config_flag} -eq 1 ]]; then
                         # if new section after doing salt config, we are done
                         break;
@@ -250,8 +247,8 @@ _fetch_vmtools_salt_minion_conf() {
                     fi
                 elif [[ ${salt_config_flag} -eq 1 ]]; then
                     # read config here ahead of section check , better logic flow
-                    cfg_key=$(echo ${line} | cut -d '=' -f 1)
-                    cfg_value=$(echo ${line} | cut -d '=' -f 2)
+                    cfg_key=$(echo "${line}" | cut -d '=' -f 1)
+                    cfg_value=$(echo "${line}" | cut -d '=' -f 2)
                     # appending to salt-minion configuration file since it
                     # should be new and no configuration set
                     echo "${cfg_key}: ${cfg_value}" >> "${salt_minion_conf_file}"
@@ -281,18 +278,34 @@ _fetch_salt_minion() {
     # could check if alreasdy there but by always getting it
     # ensure we are not using stale versions
     local retn=0
-    local curdir=$(pwd)
-    CURRENT_STATUS=${STATUS_CODES[${installing}]}
+    local url_sha512sum=0
+    local calc_sha512sum=0
+    
+    CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
     mkdir -p ${base_salt_location}
-    cd ${base_salt_location}
+    cd ${base_salt_location} || return $?
     curl -o "${salt_pkg_name}" -fsSL "${salt_url}"
+    retn=$((retn|$?))
+    curl -o "${salt_url_chksum_file}" -fsSL "${salt_url_chksum}"
+    retn=$((retn|$?))
+    if [[ retn -ne 0 ]]; then
+        # bail early if download issues
+        return 4
+    fi
+    url_sha512sum=$(cat < "${salt_url_chksum_file}" | cut -d ' ' -f 1)
+    calc_sha512sum=$(sha512sum "./${salt_pkg_name}" | cut -d ' ' -f 1)
+    if [[ url_sha512sum -ne calc_sha512sum ]]; then
+        CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+        return 2
+    fi
+
     tar -xvzf ${salt_pkg_name}
     if [[ ! -f ${test_exists_file} ]]; then
-        CURRENT_STATUS=${STATUS_CODES[${installFailed}]}
-        retn=1
+        CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+        retn=3
     fi
-    CURRENT_STATUS=${STATUS_CODES[${installed}]}
-    cd ${curdir}
+    CURRENT_STATUS="${STATUS_CODES[${installed}]}"
+    cd "${CURRDIR}" || return $?
     return ${retn}
 }
 
@@ -308,8 +321,9 @@ _fetch_salt_minion() {
 
 _find_salt_pid() {
     # find the pid for salt-minion if active
-    local salt_pid=$(ps -ef | grep -v 'grep' | grep "${salt_name}\/run\/run minion" | head -n 1 | awk -F " " '{print $2}')
-    echo ${salt_pid}
+    local salt_pid=0
+    salt_pid=$(ps -ef | grep -v 'grep' | grep "${salt_name}\/run\/run minion" | head -n 1 | awk -F " " '{print $2}')
+    echo "${salt_pid}"
 }
 
 ## Note: main command functions use return , not echo
@@ -335,20 +349,37 @@ _find_salt_pid() {
 
 _status_fn() {
     # return status
-    local retn_status=${STATUS_CODES[${notInstalled}]}
-    if [[ ${CURRENT_STATUS} -eq  ${STATUS_CODES[${installing}]}
-        || ${CURRENT_STATUS} -eq ${STATUS_CODES[${installFailed}]}
-        || ${CURRENT_STATUS} -eq ${STATUS_CODES[${removing}]}
-        || ${CURRENT_STATUS} -eq ${STATUS_CODES[${removeFailed}]} ]]; then
-        retn_status=${CURRENT_STATUS}
+    local retn_status=${notInstalled}
+    if [[  "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}"
+        || "${CURRENT_STATUS}" = "${STATUS_CODES[${installFailed}]}"
+        || "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}"
+        || "${CURRENT_STATUS}" = "${STATUS_CODES[${removeFailed}]}" ]]; then
+
+        case "${CURRENT_STATUS}" in
+            "${STATUS_CODES[${installing}]}")
+                retn_status=${installing}
+                ;;
+            "${STATUS_CODES[${installFailed}]}")
+                retn_status=${installFailed}
+                ;;
+            "${STATUS_CODES[${removing}]}")
+                retn_status=${removing}
+                ;;
+            "${STATUS_CODES[${removeFailed}]}")
+                retn_status=${removeFailed}
+                ;;
+            *)
+                retn_status=${notInstalled}
+                ;;
+        esac 
     elif [[ -f "${test_exists_file}" ]]; then
-        CURRENT_STATUS=${STATUS_CODES[${installed}]}
-        retn_status=${CURRENT_STATUS}
+        CURRENT_STATUS="${STATUS_CODES[${installed}]}"
+        retn_status=${installed}
     else
-        CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
-        retn_status=${CURRENT_STATUS}
+        CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
+        retn_status=${notInstalled}
     fi
-    echo ${retn_status}
+    echo "${retn_status}"
     return 0
 }
 
@@ -367,15 +398,17 @@ _status_fn() {
 #
 _deps_chk_fn() {
     # return dependency check
-    local retn==0
-    if [[ -f "${test_exists_file}" ]]; then
-        CURRENT_STATUS=${STATUS_CODES[${installed}]}
-        retn=0
-    else
-        CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
-        retn=1
-    fi
-   return ${retn}
+    local retn=0
+    which "which" 1>/dev/null
+    retn=$((retn|$?))
+
+    which "sha512sum" 1>/dev/null
+    retn=$((retn|$?))
+
+    which "curl" 1>/dev/null
+    retn=$((retn|$?))
+
+    return ${retn}
 }
 
 
@@ -394,32 +427,35 @@ _deps_chk_fn() {
 
 _install_fn () {
     # execute install of Salt minion
-    local curdir=$(pwd)
     _fetch_salt_minion
     local retn=$?
 
     # get configuration for salt-minion from tools.conf
     _fetch_vmtools_salt_minion_conf
-    retn=$((${retn}|$?))
+    retn=$((retn|$?))
     if [[ ${retn} -eq 0 && -f "${test_exists_file}" ]]; then
         # copy helper script for /usr/bin
-        for idx in "${salt_usr_bin_file_list}"; do
-            cp -a ${idx} /usr/bin/
+        for idx in ${salt_usr_bin_file_list}
+        do
+            cp -a "${idx}" /usr/bin/
         done
 
         # install salt-minion systemd service script
-        for idx in "${salt_systemd_file_list}"; do
-            cp -a ${idx} /usr/lib/systemd/system/
-            cd /etc/systemd/system
-            ln -s /usr/lib/systemd/system/${idx} ${idx}
-            cd ${curdir}
+        for idx in ${salt_systemd_file_list}
+        do
+            cp -a "${idx}" /usr/lib/systemd/system/
+            cd /etc/systemd/system || return $?
+            rm -f "${idx}"
+            ln -s "/usr/lib/systemd/system/${idx}" "${idx}"
+            cd "${CURRDIR}" || return $?
 
             # start the salt-minion using systemd
             systemctl daemon-reload
-            retn=$((${retn}|$?))
-            local name_service=$(echo ${idx} | cut -d '.' -f 1)
-            systemctl restart ${name_service}
-            retn=$((${retn}|$?))
+            retn=$((retn|$?))
+            local name_service=''
+            name_service=$(echo "${idx}" | cut -d '.' -f 1)
+            systemctl restart "${name_service}"
+            retn=$((retn|$?))
         done
     fi
     return ${retn}
@@ -457,33 +493,32 @@ _uninstall_fn () {
     # remove Salt minion
     local retn=0
     if [[ ! -f "${test_exists_file}" ]]; then
-        CURRENT_STATUS=${STATUS_CODES[${notInstalled}]}
+        CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
         retn=1
     else
-        CURRENT_STATUS=${STATUS_CODES[${removing}]}
+        CURRENT_STATUS="${STATUS_CODES[${removing}]}"
         svpid=$(_find_salt_pid)
         if [[ -n ${svpid} ]]; then
             # stop the active salt-minion using systemd
             # and give it a little time to stop
             systemctl stop salt-minion
-            retn=$((${retn}|$?))
-            sleep 5
+            retn=$((retn|$?))
         fi
 
         if [[ ${retn} -eq 0 ]]; then
             svpid=$(_find_salt_pid)
             if [[ -n ${svpid} ]]; then
-                kill ${svpid}
+                kill "${svpid}"
                 ## given it a little time
                 sleep 5
             fi
             svpid=$(_find_salt_pid)
             if [[ -n ${svpid} ]]; then
-                CURRENT_STATUS=${STATUS_CODES[$removeFailed]}
+                CURRENT_STATUS="${STATUS_CODES[$removeFailed]}"
                 retn=1
             else
                 _remove_installed_files_dirs
-                CURRENT_STATUS=${STATUS_CODES[$notInstalled]}
+                CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
             fi
         fi
     fi
@@ -499,7 +534,7 @@ _uninstall_fn () {
 CURRDIR=$(pwd)
 
 # default status is notInstalled
-CURRENT_STATUS=${STATUS_CODES[$notInstalled]}
+CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
 
 ## build designation tag used for auto builds is YearMontDayHourMinuteSecondMicrosecond aka jid
 date_long=$(date +%Y%m%d%H%M%S%N)
@@ -533,17 +568,17 @@ fi
 ## ##    -l | --log )  LOG_MODE="$2"; shift 2 ;;
 
 while true; do
-  case "$1" in
-    -c | --status ) STATUS_CHK=1; shift ;;
-    -d | --debug )  DEBUG_FLAG=1; shift ;;
-    -e | --depend ) DEPS_CHK=1; shift ;;
-    -h | --help ) USAGE_HELP=1; shift ;;
-    -i | --install ) INSTALL_FLAG=1; shift ;;
-    -r | --remove ) UNINSTALL_FLAG=1; shift ;;
-    -v | --verbose ) VERBOSE_FLAG=1; shift ;;
-    -- ) shift; break ;;
-    * ) break ;;
-  esac
+    case "$1" in
+        -c | --status ) STATUS_CHK=1; shift ;;
+        -d | --debug )  DEBUG_FLAG=1; shift ;;
+        -e | --depend ) DEPS_CHK=1; shift ;;
+        -h | --help ) USAGE_HELP=1; shift ;;
+        -i | --install ) INSTALL_FLAG=1; shift ;;
+        -r | --remove ) UNINSTALL_FLAG=1; shift ;;
+        -v | --verbose ) VERBOSE_FLAG=1; shift ;;
+        -- ) shift; break ;;
+        * ) break ;;
+    esac
 done
 
 ## check if want help, display usage and exit
@@ -555,17 +590,14 @@ fi
 
 ##  MAIN BODY OF SCRIPT
 
-## _display "$SCRIPTNAME: autobuild started"
-
 # check if salt-minion is installed
-if [[ -f "${test_exists_file}" ]]; then CURRENT_STATUS=${STATUS_CODES[$notInstalled]}; fi
-## _ddebug "$SCRIPTNAME: CURRENT_STATUS on startup is ${CURRENT_STATUS}"
+if [[ -f "${test_exists_file}" ]]; then CURRENT_STATUS="${STATUS_CODES[$installed]}"; fi
 
 retn=0
 
 if [[ ${STATUS_CHK} -eq 1 ]]; then
     cur_status=$(_status_fn)
-    echo ${cur_status}
+    echo "${cur_status}"
     retn=$?
 elif [[ ${DEPS_CHK} -eq 1 ]]; then
     _deps_chk_fn
