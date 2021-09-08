@@ -1,0 +1,7 @@
+---
+stages:
+  - pre-commit
+
+include:
+  - project: saltstack/pop/cicd/ci-templates
+    file: /lint/pre-commit-run-all.yml
