@@ -470,7 +470,7 @@ fi
 ## deploy
 ## remove
 ## check
-## 
+##
 ## Optionals:
 ##   predeploy
 ##   postdeploy
@@ -553,4 +553,3 @@ do
 done
 
 exit ${retn}
-
