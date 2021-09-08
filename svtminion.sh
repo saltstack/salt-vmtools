@@ -29,18 +29,14 @@ readonly base_url="https://repo.saltproject.io/salt/singlebin"
 readonly salt_url="${base_url}/3003/${salt_pkg_name}"
 readonly salt_url_chksum="${base_url}/3003/salt-3003_SHA3_512"
 
+# Salt file and directory locations
 readonly base_salt_location="/opt/saltstack"
 readonly salt_dir="${base_salt_location}/salt"
-
 readonly test_exists_file="${salt_dir}/${salt_name}"
+readonly salt_conf_dir="/etc/salt"
+readonly salt_minion_conf_name="minion"
+readonly salt_minion_conf_file="${salt_conf_dir}/${salt_minion_conf_name}"
 
-## VMware file and directory locations
-vmware_base_dir_etc="/etc/vmware-tools"
-vmware_conf_file="tools.conf"
-
-
-
-## Configuration File Management
 readonly list_file_dirs_to_remove="${base_salt_location}
 /etc/salt
 /var/run/salt
@@ -49,6 +45,15 @@ readonly list_file_dirs_to_remove="${base_salt_location}
 /etc/init.d/salt*
 /usr/lib/systemd/system/salt*.service
 "
+
+## VMware file and directory locations
+readonly vmtools_base_dir_etc="/etc/vmware-tools"
+readonly vmtools_conf_file="tools.conf"
+readonly vmtools_salt_minion_section_name="salt_minion"
+
+
+## File manipulation File Descriptors
+read_fd=3
 
 
 ## Component Manager Installer/Script return codes
@@ -177,7 +182,70 @@ _cleanup() {
 ## trap _cleanup INT TERM EXIT
 trap _cleanup INT EXIT
 
+## cheap trim relying on echo to convert tabs to spaces and all multiple spaces to a single space
+## also gets rid of \ ' "
+_trim() {
+    echo "$1"
+}
+
 # work functions
+#
+# _fetch_vmtools_salt_minion_conf
+#
+#   Retrieve the configuration for salt-minion from vmtools configuration file
+#
+# Results:
+#   Exits with new vmtools configuration file if none found
+#   or salt-minion configuration file updated with configuration read from vmtools
+#   configuration file section for salt_minion
+#
+
+_fetch_vmtools_salt_minion_conf() {
+    # fetch the current configuration for section salt_minion
+    # from vmtoolsd configuration file
+    local retn=0
+    if [[ ! -f "${vmtools_base_dir_etc}/${vmtools_conf_file}" ]]; then
+        # conf file doesn't exist, create it
+        echo "[${vmtools_salt_minion_section_name}]" > "${vmtools_base_dir_etc}/${vmtools_conf_file}"
+        _warning "Creating empty configuration file ${vmtools_base_dir_etc}/${vmtools_conf_file}"
+    else
+        # need to extract configuration for salt-minion
+        # find section name ${vmtools_salt_minion_section_name}
+        # read configuration till next section, and output to salt-minion conf file
+
+        local salt_config_flag=0
+        while IFS= read -r line
+        do
+            line_value=$(_trim "${line}")
+            if [[ -n ${line_value} ]]; then
+                if [[ $(echo ${line_value} | grep '^\[')  ]]; then
+                    if [[ ${salt_config_flag} -eq 1 ]]; then
+                        # if new section after doing salt config, we are done
+                        break;
+                    fi
+                    if [[ ${line_value} = "[${vmtools_salt_minion_section_name}]" ]]; then
+                        # have section, get configuration values, set flag and
+                        #  start fresh salt-minion configuration file
+                        salt_config_flag=1
+                        mkdir -p "${salt_conf_dir}"
+                        echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
+                        echo "enable_fqdns_grains: False" >> "${salt_minion_conf_file}"
+                    fi
+                elif [[ ${salt_config_flag} -eq 1 ]]; then
+                    # read config here ahead of section check , better logic flow
+                    cfg_key=$(echo ${line} | cut -d '=' -f 1)
+                    cfg_value=$(echo ${line} | cut -d '=' -f 2)
+                    # appending to salt-minion configuration file since it
+                    # should be new and no configuration set
+                    echo "${cfg_key}: ${cfg_value}" >> "${salt_minion_conf_file}"
+                else
+                    echo "skipping line '${line}'"
+                fi
+            fi
+        done < "${vmtools_base_dir_etc}/${vmtools_conf_file}"
+    fi
+    return ${retn}
+}
 
 #
 # _fetch_salt_minion
@@ -307,7 +375,9 @@ _install_fn () {
     _fetch_salt_minion
     local retn=$?
 
-    #TBD need to pull in args for master key, master IP or DNS, minion id
+    # get configuration for salt-minion from tools.conf
+    _fetch_vmtools_salt_minion_conf
+    retn=$((${retn}|$?))
     if [[ ${retn} -eq 0 && -f "${test_exists_file}" ]]; then
         ## echo "_install_fn starting ${test_exists_file} minion in bg"
         ## $(nohup ${salt_dir}/${salt_name} "minion" &)
