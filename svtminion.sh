@@ -59,6 +59,11 @@ readonly list_file_dirs_to_remove="${base_salt_location}
 /etc/systemd/system/salt-minion.service
 "
 
+readonly salt_dep_file_list="systemctl
+curl
+sha512sum
+"
+
 ## VMware file and directory locations
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
 readonly vmtools_conf_file="tools.conf"
@@ -96,7 +101,7 @@ _timestamp() {
 }
 
 _log() {
-    echo "$1" | sed "s/^/$(_timestamp) /" >>"${LOGGING}"
+    echo "$(_timestamp) $1" >>"${LOGGING}"
 }
 
 # Both echo and log
@@ -232,7 +237,7 @@ _fetch_vmtools_salt_minion_conf() {
         do
             line_value=$(_trim "${line}")
             if [[ -n "${line_value}" ]]; then
-                if [[ $(echo "${line_value}" | grep -q '^\[') ]]; then
+                if echo "${line_value}" | grep -q '^\[' ; then
                     if [[ ${salt_config_flag} -eq 1 ]]; then
                         # if new section after doing salt config, we are done
                         break;
@@ -280,29 +285,27 @@ _fetch_salt_minion() {
     local retn=0
     local url_sha512sum=0
     local calc_sha512sum=0
-    
+
     CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
-    curl -o "${salt_pkg_name}" -fsSL "${salt_url}"
-    retn=$((retn|$?))
-    curl -o "${salt_url_chksum_file}" -fsSL "${salt_url_chksum}"
-    retn=$((retn|$?))
-    if [[ retn -ne 0 ]]; then
-        # bail early if download issues
-        return 4
-    fi
+    curl -o "${salt_pkg_name}" -fsSL "${salt_url}" || {
+        _error "$0:${FUNCNAME[0]} failed to download file '${salt_url}', retcode '$?'";
+    }
+    curl -o "${salt_url_chksum_file}" -fsSL "${salt_url_chksum}" || {
+        _error "$0:${FUNCNAME[0]} failed to download file '${salt_url_chksum}', retcode '$?'";
+    }
     url_sha512sum=$(cat < "${salt_url_chksum_file}" | cut -d ' ' -f 1)
     calc_sha512sum=$(sha512sum "./${salt_pkg_name}" | cut -d ' ' -f 1)
     if [[ url_sha512sum -ne calc_sha512sum ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
-        return 2
+        _error "$0:${FUNCNAME[0]} downloaded file '${salt_url}' failed to match checksum in file '${salt_url_chksum}'"
     fi
 
     tar -xvzf ${salt_pkg_name}
     if [[ ! -f ${test_exists_file} ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
-        retn=3
+        _error "$0:${FUNCNAME[0]} expansiion of downloaded file '${salt_url}' failed to provide critical file '${test_exists_file}'"
     fi
     CURRENT_STATUS="${STATUS_CODES[${installed}]}"
     cd "${CURRDIR}" || return $?
@@ -322,7 +325,7 @@ _fetch_salt_minion() {
 _find_salt_pid() {
     # find the pid for salt-minion if active
     local salt_pid=0
-    salt_pid=$(ps -ef | grep -v 'grep' | grep "${salt_name}\/run\/run minion" | head -n 1 | awk -F " " '{print $2}')
+    salt_pid=$(pgrep -f "${salt_name}\/run\/run minion" | head -n 1 | awk -F " " '{print $1}')
     echo "${salt_pid}"
 }
 
@@ -371,7 +374,7 @@ _status_fn() {
             *)
                 retn_status=${notInstalled}
                 ;;
-        esac 
+        esac
     elif [[ -f "${test_exists_file}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installed}]}"
         retn_status=${installed}
@@ -399,15 +402,12 @@ _status_fn() {
 _deps_chk_fn() {
     # return dependency check
     local retn=0
-    which "which" 1>/dev/null
-    retn=$((retn|$?))
-
-    which "sha512sum" 1>/dev/null
-    retn=$((retn|$?))
-
-    which "curl" 1>/dev/null
-    retn=$((retn|$?))
-
+    for idx in ${salt_dep_file_list}
+    do
+        command -v "${idx}" 1>/dev/null || {
+            _error "$0:${FUNCNAME[0]} failed to find required dependency '${idx}', retcode '$?'";
+        }
+    done
     return ${retn}
 }
 
@@ -427,35 +427,49 @@ _deps_chk_fn() {
 
 _install_fn () {
     # execute install of Salt minion
-    _fetch_salt_minion
-    local retn=$?
+    local retn=0
+
+    # fetch salt-minion form repository
+    _fetch_salt_minion || {
+        _error "$0:${FUNCNAME[0]} failed to fetch salt-minion from repository , retcode '$?'";
+    }
 
     # get configuration for salt-minion from tools.conf
-    _fetch_vmtools_salt_minion_conf
-    retn=$((retn|$?))
+    _fetch_vmtools_salt_minion_conf || {
+        _error "$0:${FUNCNAME[0]} failed , read configuration for salt-minion from tools.conf, retcode '$?'";
+    }
+
     if [[ ${retn} -eq 0 && -f "${test_exists_file}" ]]; then
         # copy helper script for /usr/bin
         for idx in ${salt_usr_bin_file_list}
         do
-            cp -a "${idx}" /usr/bin/
+            cp -a "${idx}" /usr/bin/ || {
+                _error "$0:${FUNCNAME[0]} failed to copy helper file '${idx}' to directory /usr/bin, retcode '$?'";
+            }
         done
 
         # install salt-minion systemd service script
         for idx in ${salt_systemd_file_list}
         do
-            cp -a "${idx}" /usr/lib/systemd/system/
+            cp -a "${idx}" /usr/lib/systemd/system/ || {
+                _error "$0:${FUNCNAME[0]} failed to copy systemd service file '${idx}' to directory /usr/lib/systemd/system, retcode '$?'";
+            }
             cd /etc/systemd/system || return $?
             rm -f "${idx}"
-            ln -s "/usr/lib/systemd/system/${idx}" "${idx}"
+            ln -s "/usr/lib/systemd/system/${idx}" "${idx}" || {
+                _error "$0:${FUNCNAME[0]} failed to symbolic link systemd service file '${idx}' in directory /etc/systemd/system, retcode '$?'";
+            }
             cd "${CURRDIR}" || return $?
 
             # start the salt-minion using systemd
-            systemctl daemon-reload
-            retn=$((retn|$?))
+            systemctl daemon-reload || {
+                _error "$0:${FUNCNAME[0]} reloading the systemd daemon failed , retcode '$?'";
+            }
             local name_service=''
             name_service=$(echo "${idx}" | cut -d '.' -f 1)
-            systemctl restart "${name_service}"
-            retn=$((retn|$?))
+            systemctl restart "${name_service}" || {
+                _error "$0:${FUNCNAME[0]} starting the salt-minion using systemctl failed , retcode '$?'";
+            }
         done
     fi
     return ${retn}
@@ -469,10 +483,14 @@ _install_fn () {
 #
 
  _remove_installed_files_dirs() {
+    local retn=0
     for idx in ${list_file_dirs_to_remove}
     do
-        rm -fR "${idx}"
+        rm -fR "${idx}" || {
+            _error "$0:${FUNCNAME[0]} failed to remove file or directory '${idx}' , retcode '$?'";
+        }
     done
+    return ${retn}
 }
 
 
@@ -494,15 +512,20 @@ _uninstall_fn () {
     local retn=0
     if [[ ! -f "${test_exists_file}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
-        retn=1
+
+        # assumme rest is gone
+        # TBD enhancement, could loop thru and check all of files to remove and if salt_pid empty
+        #   but we error out if issues when uninstalling, so safe for now.
+        retn=0
     else
         CURRENT_STATUS="${STATUS_CODES[${removing}]}"
         svpid=$(_find_salt_pid)
         if [[ -n ${svpid} ]]; then
             # stop the active salt-minion using systemd
             # and give it a little time to stop
-            systemctl stop salt-minion
-            retn=$((retn|$?))
+            systemctl stop salt-minion || {
+                _error "$0:${FUNCNAME[0]} failed to stop salt-minion using systemctl, retcode '$?'";
+            }
         fi
 
         if [[ ${retn} -eq 0 ]]; then
@@ -515,9 +538,11 @@ _uninstall_fn () {
             svpid=$(_find_salt_pid)
             if [[ -n ${svpid} ]]; then
                 CURRENT_STATUS="${STATUS_CODES[$removeFailed]}"
-                retn=1
+                _error "$0:${FUNCNAME[0]} failed to kill the salt-minion, pid '${svpid}' during uninstall"
             else
-                _remove_installed_files_dirs
+                _remove_installed_files_dirs || {
+                    _error "$0:${FUNCNAME[0]} failed to remove all installed salt-minion files and directories, retcode '$?'";
+                }
                 CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
             fi
         fi

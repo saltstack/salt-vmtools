@@ -1,0 +1,38 @@
+{
+   "version": "0.1",
+   "type": "component",
+   "description": "Salt vmtools install / removal script",
+   "compversion": "0.1.0",
+   "files": [{
+      "name": "vtminion.sh",
+      "description": "Bash script to install/remove/status of salt-minion",
+      "version": "0.1.0",
+      "sha-256": "60773ec317fd4283be1fb9d86907ce23afc58077de2272d71359633f7a499563"
+   },
+   {
+      "name": "salt-call",
+      "description": "Helper script in directory /usr/bin to perform salt-call functionality for a Tiamat based Python 3 salt-minion",
+      "version": "1.0.0",
+      "sha-256": "8ee2383ec381a166ebd0835638843f53201eb5bac1f3677ec9f2a3891d6e759a"
+   },
+   {
+      "name": "salt-minion",
+      "description": "Helper script installed in directory /usr/bin to perform salt-minion functionality for a Tiamat based Python 3 salt-minion",
+      "version": "1.0.0",
+      "sha-256": "8d945014e8fa5ba83eabd5836fef62e9844cf260b935ec35b630288f7dfa0814"
+   },
+   {
+      "name": "salt-minion.service",
+      "description": "Systemd service file installed to allow for salt-minion to be utilized with systemd",
+      "version": "1.0.0",
+      "sha-256": "ccb8d8aec2d5d9c91575354149166d70e5684443851144202493d26fe703c882"
+   }],
+   "depends": [ "sha512sum", "curl", "systemctl" ],
+   "predeploy": [],
+   "deploy": [ "svtminion.sh", "--install" ],
+   "postdeploy": [],
+   "preremove": [ "systemctl stop salt-minion" ],
+   "remove": [ "svtminion.sh", "--remove" ],
+   "postremove": [],
+   "check": [ "svtminion.sh", "--status" ]
+}
