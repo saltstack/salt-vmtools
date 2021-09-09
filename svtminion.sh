@@ -538,7 +538,7 @@ _uninstall_fn () {
             svpid=$(_find_salt_pid)
             if [[ -n ${svpid} ]]; then
                 CURRENT_STATUS="${STATUS_CODES[$removeFailed]}"
-                _error "$0:${FUNCNAME[0]} failed to kill the salt-minion, pid '${svpid}' dueing uninstall"
+                _error "$0:${FUNCNAME[0]} failed to kill the salt-minion, pid '${svpid}' during uninstall"
             else
                 _remove_installed_files_dirs || {
                     _error "$0:${FUNCNAME[0]} failed to remove all installed salt-minion files and directories, retcode '$?'";
