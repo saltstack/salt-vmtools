@@ -285,7 +285,7 @@ _fetch_salt_minion() {
     local retn=0
     local url_sha512sum=0
     local calc_sha512sum=0
-    
+
     CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
@@ -374,7 +374,7 @@ _status_fn() {
             *)
                 retn_status=${notInstalled}
                 ;;
-        esac 
+        esac
     elif [[ -f "${test_exists_file}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installed}]}"
         retn_status=${installed}
@@ -513,7 +513,7 @@ _uninstall_fn () {
     if [[ ! -f "${test_exists_file}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
 
-        # assumme rest is gone, 
+        # assumme rest is gone
         # TBD enhancement, could loop thru and check all of files to remove and if salt_pid empty
         #   but we error out if issues when uninstalling, so safe for now.
         retn=0
