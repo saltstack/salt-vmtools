@@ -101,7 +101,7 @@ _timestamp() {
 }
 
 _log() {
-    echo "$1" | sed "s/^/$(_timestamp) /" >>"${LOGGING}"
+    echo "$(_timestamp) $1" >>"${LOGGING}"
 }
 
 # Both echo and log
@@ -237,7 +237,7 @@ _fetch_vmtools_salt_minion_conf() {
         do
             line_value=$(_trim "${line}")
             if [[ -n "${line_value}" ]]; then
-                if [[ $(echo "${line_value}" | grep -q '^\[') ]]; then
+                if echo "${line_value}" | grep -q '^\[' ; then
                     if [[ ${salt_config_flag} -eq 1 ]]; then
                         # if new section after doing salt config, we are done
                         break;
@@ -325,7 +325,7 @@ _fetch_salt_minion() {
 _find_salt_pid() {
     # find the pid for salt-minion if active
     local salt_pid=0
-    salt_pid=$(ps -ef | grep -v 'grep' | grep "${salt_name}\/run\/run minion" | head -n 1 | awk -F " " '{print $2}')
+    salt_pid=$(pgrep -f "${salt_name}\/run\/run minion" | head -n 1 | awk -F " " '{print $1}')
     echo "${salt_pid}"
 }
 
