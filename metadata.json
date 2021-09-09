@@ -7,7 +7,7 @@
       "name": "vtminion.sh",
       "description": "Bash script to install/remove/status of salt-minion",
       "version": "0.1.0",
-      "sha-256": "4f0aa2a435d4faf70a6e03e12f3d707b25f22ee2d99b46efe4ce29643de97c4c"
+      "sha-256": "60773ec317fd4283be1fb9d86907ce23afc58077de2272d71359633f7a499563"
    },
    {
       "name": "salt-call",
