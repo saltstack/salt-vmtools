@@ -39,6 +39,7 @@ readonly test_exists_file="${salt_dir}/run/run"
 readonly salt_conf_dir="/etc/salt"
 readonly salt_minion_conf_name="minion"
 readonly salt_minion_conf_file="${salt_conf_dir}/${salt_minion_conf_name}"
+readonly salt_master_sign_dir="${salt_conf_dir}/pki/${salt_minion_conf_name}"
 
 readonly salt_usr_bin_file_list="salt-minion
 salt-call
@@ -430,7 +431,16 @@ _fetch_vmtools_salt_minion_conf() {
         do
             # appending to salt-minion configuration file since it
             # should be new and no configuration set
-            echo "${minion_conf_keys[${chk_idx}]}: ${minion_conf_values[${chk_idx}]}" >> "${salt_minion_conf_file}"
+
+            # check for special case of signed master's public key
+            # verify_master_pubkey_sign=master_sign.pub
+            if [[ "${minion_conf_keys[${chk_idx}]}" = "verify_master_pubkey_sign" ]]; then
+                echo "${minion_conf_keys[${chk_idx}]}: True" >> "${salt_minion_conf_file}"
+                mkdir -p "/etc/salt/pki/minion"
+                cp -f "${minion_conf_values[${chk_idx}]}" "${salt_master_sign_dir}/"
+            else
+                echo "${minion_conf_keys[${chk_idx}]}: ${minion_conf_values[${chk_idx}]}" >> "${salt_minion_conf_file}"
+            fi
         done
     fi
     return ${retn}
