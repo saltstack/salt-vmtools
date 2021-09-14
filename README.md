@@ -35,6 +35,10 @@ Linux Environment:
     Middle preference:
         guestVars   guestinfo.vmware.components.salt_minion.args
 
+        For example:
+        [root@fedora]# vmtoolsd --cmd "info-get guestinfo.vmware.components.salt_minion.args"
+        master=192.168.0.121 id=fc34gvars
+
     Highest preference:
         script command line install options, for example:
 
@@ -48,5 +52,19 @@ Linux Environment:
           of '192.168.0.118' since the script command line install arguments
           have higher precedence than those read from 'tools.conf'.
 
+    Note: At all times preference is given to actions presented on the
+          command line, over those available from guest variables or
+          from tools.conf.
+
+          For example:
+            on the command line:
+                svtminion.sh --install
+
+            guest variable
+                guestinfo.vmware.components.salt_minion
+                    returns 'remove'
+
+            Preference will be given to the command line argument and
+            the salt-minion shall be installed.
 
 Windows Environment:
