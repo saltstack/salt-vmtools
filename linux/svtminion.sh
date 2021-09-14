@@ -26,7 +26,6 @@ set -o pipefail
 readonly salt_name="salt"
 readonly salt_url_version="3003.3-1"
 readonly salt_pkg_name="${salt_name}-${salt_url_version}-linux-amd64.tar.gz"
-## readonly base_url="https://repo.saltproject.io/salt/singlebin"
 readonly base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
 readonly salt_url="${base_url}/${salt_url_version}/${salt_pkg_name}"
 readonly salt_url_chksum_file="${salt_name}-${salt_url_version}_SHA512"
@@ -68,6 +67,15 @@ sha512sum
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
 readonly vmtools_conf_file="tools.conf"
 readonly vmtools_salt_minion_section_name="salt_minion"
+
+## VMware guestVars file and directory locations
+## readonly guestvars_base_dir="guestinfo.vmware.components"
+# for test purposes
+readonly guestvars_base_dir="guestinfo.david.components"
+
+readonly guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
+readonly guestvars_salt_args="${guestvars_salt_dir}.args"
+
 
 # Array for minion configuration keys and values
 # allows for updates from number of configuration sources before final write to /etc/salt/minion
@@ -331,51 +339,26 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
 
 _fetch_vmtools_salt_minion_conf_guestvars() {
     # fetch the current configuration for section salt_minion
-    # from vmtoolsd configuration file
-
-    ### TBD  ###
+    # from  guest variables args
 
     local retn=0
-    if [[ ! -f "${vmtools_base_dir_etc}/${vmtools_conf_file}" ]]; then
-        # conf file doesn't exist, create it
-        echo "[${vmtools_salt_minion_section_name}]" > "${vmtools_base_dir_etc}/${vmtools_conf_file}"
-        _warning "Creating empty configuration file ${vmtools_base_dir_etc}/${vmtools_conf_file}"
-    else
-        # need to extract configuration for salt-minion
-        # find section name ${vmtools_salt_minion_section_name}
-        # read configuration till next section, and output to salt-minion conf file
+    local gvar_args=""
 
-        local salt_config_flag=0
-        while IFS= read -r line
-        do
-            line_value=$(_trim "${line}")
-            if [[ -n "${line_value}" ]]; then
-                if echo "${line_value}" | grep -q '^\[' ; then
-                    if [[ ${salt_config_flag} -eq 1 ]]; then
-                        # if new section after doing salt config, we are done
-                        break;
-                    fi
-                    if [[ ${line_value} = "[${vmtools_salt_minion_section_name}]" ]]; then
-                        # have section, get configuration values, set flag and
-                        #  start fresh salt-minion configuration file
-                        salt_config_flag=1
-                        mkdir -p "${salt_conf_dir}"
-                        echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
-                        echo "enable_fqdns_grains: False" >> "${salt_minion_conf_file}"
-                    fi
-                elif [[ ${salt_config_flag} -eq 1 ]]; then
-                    # read config here ahead of section check , better logic flow
-                    cfg_key=$(echo "${line}" | cut -d '=' -f 1)
-                    cfg_value=$(echo "${line}" | cut -d '=' -f 2)
-                    _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
-                        _error "$0:${FUNCNAME[0]} error updating minioin configuration array with key '${cfg_key}' and value '${cfg_value}', retcode '$?'";
-                    }
-                else
-                    echo "skipping line '${line}'"
-                fi
-            fi
-        done < "${vmtools_base_dir_etc}/${vmtools_conf_file}"
-    fi
+    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}") || {
+        _warning "unable to retrieve arguments from guest variables location ${guestvars_salt_args}, retcode '$?'";
+    }
+
+    if [[ -z "${gvar_args}" ]]; then return ${retn}; fi
+
+    for idx in ${gvar_args}
+    do
+        cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
+        cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
+        _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
+            _error "$0:${FUNCNAME[0]} error updating minion configuration array with key '${cfg_key}' and value '${cfg_value}', retcode '$?'";
+        }
+    done
+
     return ${retn}
 }
 
@@ -393,21 +376,18 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
 
 _fetch_vmtools_salt_minion_conf_cli_args() {
     local retn=0
-    local cli_args=$@
-    local cli_no_args=$#
-    if [[ ${cli_no_args} -ne 0 ]]; then
-        if [[ ! -f "${salt_minion_conf_file}" ]]; then
-            mkdir -p "${salt_conf_dir}"
-            echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
-            echo "enable_fqdns_grains: False" >> "${salt_minion_conf_file}"
-        fi
+    local cli_args=""
+    local cli_no_args=0
 
+    cli_args="$*"
+    cli_no_args=$#
+    if [[ ${cli_no_args} -ne 0 ]]; then
         for idx in ${cli_args}
         do
             cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
             cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
             _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
-                _error "$0:${FUNCNAME[0]} error updating minioin configuration array with key '${cfg_key}' and value '${cfg_value}', retcode '$?'";
+                _error "$0:${FUNCNAME[0]} error updating minion configuration array with key '${cfg_key}' and value '${cfg_value}', retcode '$?'";
             }
         done
     fi
@@ -437,7 +417,7 @@ _fetch_vmtools_salt_minion_conf() {
     _fetch_vmtools_salt_minion_conf_guestvars || {
         _error "$0:${FUNCNAME[0]} failed to process guest variable arguments, retcode '$?'";
     }
-    _fetch_vmtools_salt_minion_conf_cli_args $@ || {
+    _fetch_vmtools_salt_minion_conf_cli_args "$*" || {
         _error "$0:${FUNCNAME[0]} failed to process command line arguments, retcode '$?'";
     }
 
@@ -447,6 +427,11 @@ _fetch_vmtools_salt_minion_conf() {
     if [[ "${mykey_ary_sz}" -ne "${myvalue_ary_sz}" ]]; then
         _error "$0:${FUNCNAME[0]} key '${mykey_ary_sz}' and value '${myvalue_ary_sz}' array sizes for minion_conf don't match"
     else
+        if [[ ! -f "${salt_minion_conf_file}" ]]; then
+            mkdir -p "${salt_conf_dir}"
+            echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
+            echo "enable_fqdns_grains: False" >> "${salt_minion_conf_file}"
+        fi
         for ((chk_idx=0; chk_idx<mykey_ary_sz; chk_idx++))
         do
             # appending to salt-minion configuration file since it
@@ -626,7 +611,7 @@ _install_fn () {
     }
 
     # get configuration for salt-minion from tools.conf
-    _fetch_vmtools_salt_minion_conf $@ || {
+    _fetch_vmtools_salt_minion_conf "$@" || {
         _error "$0:${FUNCNAME[0]} failed , read configuration for salt-minion from tools.conf, retcode '$?'";
     }
 
@@ -819,7 +804,7 @@ elif [[ ${DEPS_CHK} -eq 1 ]]; then
     _deps_chk_fn
     retn=$?
 elif [[ ${INSTALL_FLAG} -eq 1 ]]; then
-    _install_fn
+    _install_fn "$@"
     retn=$?
 elif [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
     _uninstall_fn
