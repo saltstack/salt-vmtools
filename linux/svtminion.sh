@@ -395,7 +395,7 @@ _fetch_vmtools_salt_minion_conf_cli_args() {
     local retn=0
     local cli_args=$@
     local cli_no_args=$#
-    if [[ ${cli_no_args} -ne 0]]; then
+    if [[ ${cli_no_args} -ne 0 ]]; then
         if [[ ! -f "${salt_minion_conf_file}" ]]; then
             mkdir -p "${salt_conf_dir}"
             echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
