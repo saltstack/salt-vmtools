@@ -804,7 +804,33 @@ elif [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
     _uninstall_fn
     retn=$?
 else
-    _usage
+    # check if guest variables have an action
+    # since none presented on the command line
+    gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}") || {
+        _warning "unable to retrieve any action arguments from guest variables ${guestvars_salt_dir}, retcode '$?'";
+    }
+
+    if [[ -z "${gvar_action}" ]]; then
+        _usage
+    else
+        case "${gvar_action}" in
+            depend)
+                _deps_chk_fn
+                ;;
+            add)
+                _install_fn
+                ;;
+            remove)
+                _uninstall_fn
+                ;;
+            status)
+                cur_status=$(_status_fn)
+                echo "${cur_status}"
+                ;;
+            *)
+                ;;
+        esac
+    fi
 fi
 
 exit ${retn}
