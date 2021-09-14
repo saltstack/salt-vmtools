@@ -69,10 +69,7 @@ readonly vmtools_conf_file="tools.conf"
 readonly vmtools_salt_minion_section_name="salt_minion"
 
 ## VMware guestVars file and directory locations
-## readonly guestvars_base_dir="guestinfo.vmware.components"
-# for test purposes
-readonly guestvars_base_dir="guestinfo.david.components"
-
+readonly guestvars_base_dir="guestinfo.vmware.components"
 readonly guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
 readonly guestvars_salt_args="${guestvars_salt_dir}.args"
 
@@ -306,17 +303,14 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
                         # have section, get configuration values, set flag and
                         #  start fresh salt-minion configuration file
                         salt_config_flag=1
-                        mkdir -p "${salt_conf_dir}"
-                        echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
-                        echo "enable_fqdns_grains: False" >> "${salt_minion_conf_file}"
                     fi
                 elif [[ ${salt_config_flag} -eq 1 ]]; then
                     # read config here ahead of section check , better logic flow
                     cfg_key=$(echo "${line}" | cut -d '=' -f 1)
                     cfg_value=$(echo "${line}" | cut -d '=' -f 2)
-                    # appending to salt-minion configuration file since it
-                    # should be new and no configuration set
-                    echo "${cfg_key}: ${cfg_value}" >> "${salt_minion_conf_file}"
+                    _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
+                        _error "$0:${FUNCNAME[0]} error updating minion configuration array with key '${cfg_key}' and value '${cfg_value}', retcode '$?'";
+                    }
                 else
                     echo "skipping line '${line}'"
                 fi
