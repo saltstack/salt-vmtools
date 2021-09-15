@@ -36,8 +36,8 @@ build-salt-vmtools:
       - metadata.json
       - svtminion.sh
     expire_in: 120 days
-    reports:
-      dotenv: build.env
+#    reports:
+#      dotenv: build.env
   image: centos:7
          ## almalinux:8
   script:
@@ -63,9 +63,9 @@ build-salt-vmtools:
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
 
   rules:
-    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
-      when: always
-    - when: never
+    - if: $CI_COMMIT_TAG
+      when: never
+    - when: on_success
 
 
 build-tags-salt-vmtools:
@@ -76,8 +76,8 @@ build-tags-salt-vmtools:
       - metadata.json
       - svtminion.sh
     expire_in: 120 days
-    reports:
-      dotenv: build.env
+#    reports:
+#      dotenv: build.env
   image: centos:7
          ## almalinux:8
   script:
