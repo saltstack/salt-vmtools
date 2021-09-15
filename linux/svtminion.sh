@@ -15,9 +15,11 @@ set -o pipefail
 # using bash for now
 # run this script as root, as needed to run salt
 
-## SCRIPT_VERSION='2021.09.08.02'
+## SCRIPT_VERSION='2021.09.15.01'
 
 # definitions
+
+CURL_DOWNLOAD_RETRY_COUNT=5
 
 ## TBD these definitions will parse repo.json for 'latest' and download that when available
 ## these value in use for poc
@@ -463,16 +465,36 @@ _fetch_salt_minion() {
     local retn=0
     local url_sha512sum=0
     local calc_sha512sum=0
+    local download_retry_failed=1       # assume issues
 
     CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
-    curl -o "${salt_pkg_name}" -fsSL "${salt_url}" || {
+    for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
+    do
+        curl -o "${salt_pkg_name}" -fsSL "${salt_url}" || {
+            _warning "$0:${FUNCNAME[0]} failed to download file '${salt_url}' on '${i}' attempt, retcode '$?'";
+        } && {
+            download_retry_failed=0
+            break
+        }
+    done
+    if [[ ${download_retry_failed} -ne 0 ]]; then
         _error "$0:${FUNCNAME[0]} failed to download file '${salt_url}', retcode '$?'";
-    }
-    curl -o "${salt_url_chksum_file}" -fsSL "${salt_url_chksum}" || {
+    fi
+    download_retry_failed=1       # assume issues
+    for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
+    do
+        curl -o "${salt_url_chksum_file}" -fsSL "${salt_url_chksum}" || {
+            _warning "$0:${FUNCNAME[0]} failed to download file '${salt_url_chksum}' on '${i}' attempt, retcode '$?'";
+        } && {
+            download_retry_failed=0
+            break
+        }
+    done
+    if [[ ${download_retry_failed} -ne 0 ]]; then
         _error "$0:${FUNCNAME[0]} failed to download file '${salt_url_chksum}', retcode '$?'";
-    }
+    fi
     url_sha512sum=$(cat < "${salt_url_chksum_file}" | cut -d ' ' -f 1)
     calc_sha512sum=$(sha512sum "./${salt_pkg_name}" | cut -d ' ' -f 1)
     if [[ url_sha512sum -ne calc_sha512sum ]]; then
@@ -480,7 +502,7 @@ _fetch_salt_minion() {
         _error "$0:${FUNCNAME[0]} downloaded file '${salt_url}' failed to match checksum in file '${salt_url_chksum}'"
     fi
 
-    tar -xvzf ${salt_pkg_name}
+    tar -xvzf ${salt_pkg_name} 1>/dev/null
     if [[ ! -f ${test_exists_file} ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
         _error "$0:${FUNCNAME[0]} expansiion of downloaded file '${salt_url}' failed to provide critical file '${test_exists_file}'"
@@ -606,6 +628,18 @@ _deps_chk_fn() {
 _install_fn () {
     # execute install of Salt minion
     local retn=0
+    local existing_chk=""
+    # check if salt-minion or salt-master (salt-cloud etc req master)
+    # and log warning that they will be overwritten
+    existing_chk=$(pgrep -l "salt-minion|salt-master" | cut -d ' ' -f 2 | uniq)
+    if [[ -n  "${existing_chk}" ]]; then
+        for idx in ${existing_chk}
+        do
+            local salt_fn=""
+            salt_fn="$(basename "${idx}")"
+            _warning "existing salt functionality ${salt_fn} shall be stopped and replaced when new salt-minion is installed"
+        done
+    fi
 
     # fetch salt-minion form repository
     _fetch_salt_minion || {
@@ -625,7 +659,18 @@ _install_fn () {
                 _error "$0:${FUNCNAME[0]} failed to copy helper file '${idx}' to directory /usr/bin, retcode '$?'";
             }
         done
-
+        if [[ -n  "${existing_chk}" ]]; then
+            # be nice and stop any current salt functionalty found
+            for idx in ${existing_chk}
+            do
+                local salt_fn=""
+                salt_fn="$(basename "${idx}")"
+                _warning "stopping salt functionality ${salt_fn} as it is replaced with new installed salt-minion"
+                systemctl stop "${salt_fn}" || {
+                    _warning "$0:${FUNCNAME[0]} stopping existing salt functionality ${salt_fn} encountered difficulties using systemctl, it will be over-written with the new installed salt-minion regarlessly, retcode '$?'";
+                }
+            done
+        fi
         # install salt-minion systemd service script
         for idx in ${salt_systemd_file_list}
         do
