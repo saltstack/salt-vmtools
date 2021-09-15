@@ -55,7 +55,6 @@ readonly list_file_dirs_to_remove="${base_salt_location}
 /var/run/salt
 /var/cache/salt
 /var/log/salt
-/etc/init.d/salt*
 /usr/bin/salt-*
 /usr/lib/systemd/system/salt-minion.service
 /etc/systemd/system/salt-minion.service
