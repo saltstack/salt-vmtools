@@ -124,25 +124,25 @@ test-salt-script:
     - pwd
     - id
     - ls -alh svtminion.sh
-    - mystatus=$(./svtminion.sh --depend)
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
-    - ./svtminion --install
-    - ls -alh /opt/saltstack/salt/run/
-    - ls -alh /usr/bin/salt-call
-    - ls -alh /usr/bin/salt-minion
-    - sudo -u root /usr/bin/salt-call --local test.versions
-    - sudo -u root /usr/bin/salt-call --local grains.items
-    - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 0 ]]; then echo "should be installed"; exit 1; fi
-    - ./svtminion --remove
-    - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
-    - for idx in ${list_dirs_to _chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
-    - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
-    - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
+#    - mystatus=$(./svtminion.sh --depend)
+#    - mystatus=$(./svtminion.sh --status)
+#    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
+#    - ./svtminion --install
+#    - ls -alh /opt/saltstack/salt/run/
+#    - ls -alh /usr/bin/salt-call
+#    - ls -alh /usr/bin/salt-minion
+#    - sudo -u root /usr/bin/salt-call --local test.versions
+#    - sudo -u root /usr/bin/salt-call --local grains.items
+#    - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
+#    - mystatus=$(./svtminion.sh --status)
+#    - if [[ "${mystatus}" -ne 0 ]]; then echo "should be installed"; exit 1; fi
+#    - ./svtminion --remove
+#    - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
+#    - for idx in ${list_dirs_to _chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
+#    - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
+#    - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
+#    - mystatus=$(./svtminion.sh --status)
+#    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -162,25 +162,25 @@ test-tags-salt-script:
     - pwd
     - id
     - ls -alh svtminion.sh
-    - mystatus=$(./svtminion.sh --depend)
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
-    - ./svtminion --install
-    - ls -alh /opt/saltstack/salt/run/
-    - ls -alh /usr/bin/salt-call
-    - ls -alh /usr/bin/salt-minion
-    - sudo -u root /usr/bin/salt-call --local test.versions
-    - sudo -u root /usr/bin/salt-call --local grains.items
-    - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 0 ]]; then echo "should be installed"; exit 1; fi
-    - ./svtminion --remove
-    - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
-    - for idx in ${list_dirs_to _chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
-    - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
-    - for idx in ${list_files_to_chk_removed}; do; if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
+#    - mystatus=$(./svtminion.sh --depend)
+#    - mystatus=$(./svtminion.sh --status)
+#    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
+#    - ./svtminion --install
+#    - ls -alh /opt/saltstack/salt/run/
+#    - ls -alh /usr/bin/salt-call
+#    - ls -alh /usr/bin/salt-minion
+#    - sudo -u root /usr/bin/salt-call --local test.versions
+#    - sudo -u root /usr/bin/salt-call --local grains.items
+#    - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
+#    - mystatus=$(./svtminion.sh --status)
+#    - if [[ "${mystatus}" -ne 0 ]]; then echo "should be installed"; exit 1; fi
+#    - ./svtminion --remove
+#    - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
+#    - for idx in ${list_dirs_to _chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
+#    - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
+#    - for idx in ${list_files_to_chk_removed}; do; if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
+#    - mystatus=$(./svtminion.sh --status)
+#    - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
