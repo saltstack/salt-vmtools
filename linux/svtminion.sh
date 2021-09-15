@@ -138,7 +138,7 @@ _error() {
 
 _warning() {
     msg="WARNING: $1"
-    echo "$msg" 1>&2
+    if [[ ${VERBOSE_FLAG} -eq 1 ]]; then echo "$msg" 1>&2; fi
     echo "$(_timestamp) $msg" >>"${LOGGING}"
 }
 
@@ -422,11 +422,9 @@ _fetch_vmtools_salt_minion_conf() {
     if [[ "${mykey_ary_sz}" -ne "${myvalue_ary_sz}" ]]; then
         _error "$0:${FUNCNAME[0]} key '${mykey_ary_sz}' and value '${myvalue_ary_sz}' array sizes for minion_conf don't match"
     else
-        if [[ ! -f "${salt_minion_conf_file}" ]]; then
-            mkdir -p "${salt_conf_dir}"
-            echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
-            echo "enable_fqdns_grains: False" >> "${salt_minion_conf_file}"
-        fi
+        mkdir -p "${salt_conf_dir}"
+        echo "# Minion configuration file - created by vmtools salt script" > "${salt_minion_conf_file}"
+        echo "enable_fqdns_grains: False" >> "${salt_minion_conf_file}"
         for ((chk_idx=0; chk_idx<mykey_ary_sz; chk_idx++))
         do
             # appending to salt-minion configuration file since it

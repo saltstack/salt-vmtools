@@ -2,6 +2,7 @@
 stages:
   - pre-commit
   - build
+  - test
 
 variables:
   PLUGIN_PACKAGES: "*.sh"
@@ -38,7 +39,6 @@ build-script:
   image: centos:7
          ## almalinux:8
   script:
-    - gitlab-runner --version
     # assumes running as root
     - oldpwd=$(pwd)
     # setup environment vars
