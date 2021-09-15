@@ -1,9 +1,10 @@
 
 ---
 stages:
+  - lint
   - pre-commit
-  - build
-  - test
+  - build_svt
+  - test_svt
 
 variables:
   PLUGIN_PACKAGES: "*.sh"
@@ -27,8 +28,8 @@ default:
     - mkdir /root/ || true
     - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
 
-build-salt-script:
-  stage: build
+build-salt-vmtools:
+  stage: build_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     paths:
@@ -67,8 +68,8 @@ build-salt-script:
     - when: never
 
 
-build-tags-salt-script:
-  stage: build
+build-tags-salt-vmtools:
+  stage: build_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     paths:
@@ -112,13 +113,13 @@ build-tags-salt-script:
     - when: on_success
 
 
-test-salt-script:
-  stage: test
+test-salt-vmtools:
+  stage: test_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
   needs:
-    - job: build-salt-script
+    - job: build-salt-vmtools
   image: centos:7
   script:
     - pwd
@@ -150,13 +151,13 @@ test-salt-script:
     - when: on_success
 
 
-test-tags-salt-script:
-  stage: test
+test-tags-salt-vmtools:
+  stage: test_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
   needs:
-    - job: build-tags-salt-script
+    - job: build-tags-salt-vmtools
   image: centos:7
   script:
     - pwd
