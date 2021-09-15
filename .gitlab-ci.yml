@@ -117,7 +117,8 @@ test-salt-script:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
-  needs: [ "build-salt-script" ]
+  needs:
+    - job: build-salt-script
   image: centos:7
   script:
     - pwd
@@ -149,7 +150,8 @@ test-tags-salt-script:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
-  needs: [ "build-tags-salt-script" ]
+  needs:
+    - job: build-tags-salt-script
   image: centos:7
   script:
     - pwd
