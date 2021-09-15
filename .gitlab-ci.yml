@@ -122,9 +122,11 @@ test-salt-vmtools:
     - job: build-salt-vmtools
   image: centos:7
   script:
-    - pwd
+    - oldpwd=$(pwd)
     - id
     - ls -alh svtminion.sh
+    - yum makecache
+    - yum install open-vm-tools
     - mystatus=$(./svtminion.sh --depend)
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
@@ -163,6 +165,8 @@ test-tags-salt-vmtools:
     - oldpwd=$(pwd)
     - id
     - ls -alh svtminion.sh
+    - yum makecache
+    - yum install open-vm-tools
     - mystatus=$(./svtminion.sh --depend)
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi

@@ -63,6 +63,7 @@ readonly list_file_dirs_to_remove="${base_salt_location}
 readonly salt_dep_file_list="systemctl
 curl
 sha512sum
+vmtoolsd
 "
 
 ## VMware file and directory locations
