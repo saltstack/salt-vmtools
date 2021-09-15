@@ -35,6 +35,9 @@ build-salt-vmtools:
     paths:
       - metadata.json
       - svtminion.sh
+      - salt-call
+      - salt-minion
+      - salt-minion.service
     expire_in: 120 days
 #    reports:
 #      dotenv: build.env
@@ -61,6 +64,9 @@ build-salt-vmtools:
     - cat metadata.json
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
+    - cp -f salt-call ${oldpwd}/salt-call
+    - cp -f salt-minion ${oldpwd}/salt-minion
+    - cp -f salt-minion.service ${oldpwd}/salt-minion.service
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -75,6 +81,9 @@ build-tags-salt-vmtools:
     paths:
       - metadata.json
       - svtminion.sh
+      - salt-call
+      - salt-minion
+      - salt-minion.service
     expire_in: 120 days
 #    reports:
 #      dotenv: build.env
@@ -106,6 +115,9 @@ build-tags-salt-vmtools:
     - cat metadata.json
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
+    - cp -f salt-call ${oldpwd}/salt-call
+    - cp -f salt-minion ${oldpwd}/salt-minion
+    - cp -f salt-minion.service ${oldpwd}/salt-minion.service
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
@@ -131,7 +143,7 @@ test-salt-vmtools:
     - mystatus=$(./svtminion.sh --depend)
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
-    - ./svtminion.sh --install
+    - bash -xvT ./svtminion.sh --install
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
