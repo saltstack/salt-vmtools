@@ -118,6 +118,8 @@ test-salt-vmtools:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
+  needs:
+    - job: build-salt-vmtools
   image: centos:7
   script:
     - pwd
@@ -126,7 +128,7 @@ test-salt-vmtools:
     - mystatus=$(./svtminion.sh --depend)
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
-    - ./svtminion --install
+    - bash -xvT ./svtminion --install
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
@@ -154,9 +156,11 @@ test-tags-salt-vmtools:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
+  needs:
+    - job: build-tags-salt-vmtools
   image: centos:7
   script:
-    - pwd
+    - oldpwd=$(pwd)
     - id
     - ls -alh svtminion.sh
     - mystatus=$(./svtminion.sh --depend)

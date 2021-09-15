@@ -692,6 +692,9 @@ _install_fn () {
             systemctl restart "${name_service}" || {
                 _error "$0:${FUNCNAME[0]} starting the salt-minion using systemctl failed , retcode '$?'";
             }
+            systemctl enable "${name_service}" || {
+                _error "$0:${FUNCNAME[0]} enabling the salt-minion using systemctl failed , retcode '$?'";
+            }
         done
     fi
     return ${retn}
@@ -747,6 +750,9 @@ _uninstall_fn () {
             # and give it a little time to stop
             systemctl stop salt-minion || {
                 _error "$0:${FUNCNAME[0]} failed to stop salt-minion using systemctl, retcode '$?'";
+            }
+            systemctl disable "${name_service}" || {
+                _error "$0:${FUNCNAME[0]} disabling the salt-minion using systemctl failed , retcode '$?'";
             }
         fi
 
