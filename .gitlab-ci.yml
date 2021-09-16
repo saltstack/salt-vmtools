@@ -132,7 +132,9 @@ test-salt-vmtools:
     expire_in: 120 days
   needs:
     - job: build-salt-vmtools
-  image: centos:7
+  ## image: centos:7
+  tags:
+    - centos7
   script:
     - oldpwd=$(pwd)
     - id
