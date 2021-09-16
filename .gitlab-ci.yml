@@ -1,7 +1,10 @@
+
 ---
 stages:
+  - lint
   - pre-commit
-  - build
+  - build_svt
+  - test_svt
 
 variables:
   PLUGIN_PACKAGES: "*.sh"
@@ -25,20 +28,22 @@ default:
     - mkdir /root/ || true
     - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
 
-build-script:
-  stage: build
+build-salt-vmtools:
+  stage: build_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     paths:
       - metadata.json
       - svtminion.sh
+      - salt-call
+      - salt-minion
+      - salt-minion.service
     expire_in: 120 days
-    reports:
-      dotenv: build.env
+#    reports:
+#      dotenv: build.env
   image: centos:7
          ## almalinux:8
   script:
-    - gitlab-runner --version
     # assumes running as root
     - oldpwd=$(pwd)
     # setup environment vars
@@ -59,23 +64,29 @@ build-script:
     - cat metadata.json
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
+    - cp -f salt-call ${oldpwd}/salt-call
+    - cp -f salt-minion ${oldpwd}/salt-minion
+    - cp -f salt-minion.service ${oldpwd}/salt-minion.service
 
   rules:
-    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
-      when: always
-    - when: never
+    - if: $CI_COMMIT_TAG
+      when: never
+    - when: on_success
 
 
-build-tags-script:
-  stage: build
+build-tags-salt-vmtools:
+  stage: build_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     paths:
       - metadata.json
       - svtminion.sh
+      - salt-call
+      - salt-minion
+      - salt-minion.service
     expire_in: 120 days
-    reports:
-      dotenv: build.env
+#    reports:
+#      dotenv: build.env
   image: centos:7
          ## almalinux:8
   script:
@@ -104,8 +115,96 @@ build-tags-script:
     - cat metadata.json
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
+    - cp -f salt-call ${oldpwd}/salt-call
+    - cp -f salt-minion ${oldpwd}/salt-minion
+    - cp -f salt-minion.service ${oldpwd}/salt-minion.service
+
+  rules:
+    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
+      when: always
+    - when: never
+
+
+test-salt-vmtools:
+  stage: test_svt
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    expire_in: 120 days
+  needs:
+    - job: build-salt-vmtools
+  ## image: centos:7
+  tags:
+    - centos7
+  script:
+    - oldpwd=$(pwd)
+    - id
+    - ls -alh svtminion.sh
+    - date
+    - yum makecache
+    - yum -y install open-vm-tools
+    - mystatus=$(./svtminion.sh --depend)
+    - mystatus=$(./svtminion.sh --status)
+    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+    - ./svtminion.sh --install
+    - ls -alh /opt/saltstack/salt/run/
+    - ls -alh /usr/bin/salt-call
+    - ls -alh /usr/bin/salt-minion
+    - sudo -u root /usr/bin/salt-call --local test.versions
+    - sudo -u root /usr/bin/salt-call --local grains.items
+    - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
+    - mystatus=$(./svtminion.sh --status)
+    - if [[ "${mystatus}" -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
+    - ./svtminion.sh --remove
+    - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
+    - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
+    - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
+    - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
+    - mystatus=$(./svtminion.sh --status)
+    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
 
   rules:
     - if: $CI_COMMIT_TAG
       when: never
     - when: on_success
+
+
+test-tags-salt-vmtools:
+  stage: test_svt
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    expire_in: 120 days
+  needs:
+    - job: build-tags-salt-vmtools
+  tags:
+    - centos7
+  script:
+    - oldpwd=$(pwd)
+    - id
+    - ls -alh svtminion.sh
+    - date
+    - yum makecache
+    - yum -y install open-vm-tools
+    - mystatus=$(./svtminion.sh --depend)
+    - mystatus=$(./svtminion.sh --status)
+    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+    - ./svtminion.sh --install
+    - ls -alh /opt/saltstack/salt/run/
+    - ls -alh /usr/bin/salt-call
+    - ls -alh /usr/bin/salt-minion
+    - sudo -u root /usr/bin/salt-call --local test.versions
+    - sudo -u root /usr/bin/salt-call --local grains.items
+    - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
+    - mystatus=$(./svtminion.sh --status)
+    - if [[ "${mystatus}" -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
+    - ./svtminion.sh --remove
+    - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
+    - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
+    - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
+    - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
+    - mystatus=$(./svtminion.sh --status)
+    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+
+  rules:
+    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
+      when: always
+    - when: never

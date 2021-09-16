@@ -27,7 +27,7 @@
       "version": "1.0.0",
       "sha-256": "SALT_MINION_SERVICE_SHA256"
    }],
-   "depends": [ "sha512sum", "curl", "systemctl" ],
+   "depends": [ "sha512sum", "curl", "systemctl", "vmtoolsd" ],
    "predeploy": [],
    "deploy": [ "svtminion.sh", "--install" ],
    "postdeploy": [],
