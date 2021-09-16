@@ -30,27 +30,31 @@ Linux Environment:
         For example:
             [salt_minion]
             master=192.168.0.118
-            id=myminion
 
     Middle preference:
         guestVars   guestinfo.vmware.components.salt_minion.args
 
         For example:
         [root@fedora]# vmtoolsd --cmd "info-get guestinfo.vmware.components.salt_minion.args"
-        master=192.168.0.121 id=fc34gvars
+        master=192.168.0.121
 
     Highest preference:
         script command line install options, for example:
 
-        svtminion.sh --install master=192.168.0.121 id=myminion
+        svtminion.sh --install master=192.168.0.121
 
 
-    Note: subsequent configuration parameters, if specified will update
+    Note: Subsequent configuration parameters, if specified will update
           previously set values.  For example: in the configuration
           preference examples outlined above, the final value for
           master is '192.168.0.121' which updates the previous value
           of '192.168.0.118' since the script command line install arguments
           have higher precedence than those read from 'tools.conf'.
+
+    Note: A minion identifier is automatically generated for the salt-minion,
+          however one can be specified using key=value, for example:
+
+            id=myminion
 
     Note: At all times preference is given to actions presented on the
           command line, over those available from guest variables or
