@@ -143,6 +143,8 @@ test-salt-vmtools:
     - mystatus=$(./svtminion.sh --depend)
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "should be not installed"; exit 1; fi
+    - cat /etc/redhat-release
+    - ls -alh /etc/selinux/*
     - cat /etc/selinux/config
     - bash -xvT ./svtminion.sh --install
     - ls -alh /opt/saltstack/salt/run/
