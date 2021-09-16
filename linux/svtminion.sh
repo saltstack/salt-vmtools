@@ -615,11 +615,11 @@ _deps_chk_fn() {
     for idx in ${salt_dep_file_list}
     do
         command -v "${idx}" 1>/dev/null || {
-            [[ -z "${error_missing_deps}" ]] && {
+            if [[ -z "${error_missing_deps}" ]]; then
                 error_missing_deps="${idx}"
-            } || {
+            else
                 error_missing_deps="${error_missing_deps} ${idx}"
-            }
+            fi
         }
     done
     if [[ -n "${error_missing_deps}" ]]; then
