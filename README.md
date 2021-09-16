@@ -52,9 +52,9 @@ Linux Environment:
           have higher precedence than those read from 'tools.conf'.
 
     Note: A minion identifier is automatically generated for the salt-minion,
-          however one can be specified using key=value, for example:
+          however one can be specified using key=value.
 
-            id=myminion
+            For example: id=myminion
 
     Note: At all times preference is given to actions presented on the
           command line, over those available from guest variables or

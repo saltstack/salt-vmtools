@@ -446,6 +446,37 @@ _fetch_vmtools_salt_minion_conf() {
     return ${retn}
 }
 
+
+#
+# _curl_download
+#
+#   Retrieve file from specifed url to specific file
+#
+# Results:
+#   Exits with ${retn}
+#
+
+_curl_download() {
+    local file_name="$1"
+    local file_url="$2"
+    local download_retry_failed=1       # assume issues
+
+    for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
+    do
+        curl -o "${file_name}" -fsSL "${file_url}" || {
+            _warning "$0:${FUNCNAME[0]} failed to download file '${file_url}' on '${i}' attempt, retcode '$?'";
+        } && {
+            download_retry_failed=0
+            break
+        }
+    done
+    if [[ ${download_retry_failed} -ne 0 ]]; then
+        _error "$0:${FUNCNAME[0]} failed to download file '${file_url}', retcode '$?'";
+    fi
+    return ${retn}
+}
+
+
 #
 # _fetch_salt_minion
 #
@@ -470,31 +501,8 @@ _fetch_salt_minion() {
     CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
-    for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
-    do
-        curl -o "${salt_pkg_name}" -fsSL "${salt_url}" || {
-            _warning "$0:${FUNCNAME[0]} failed to download file '${salt_url}' on '${i}' attempt, retcode '$?'";
-        } && {
-            download_retry_failed=0
-            break
-        }
-    done
-    if [[ ${download_retry_failed} -ne 0 ]]; then
-        _error "$0:${FUNCNAME[0]} failed to download file '${salt_url}', retcode '$?'";
-    fi
-    download_retry_failed=1       # assume issues
-    for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
-    do
-        curl -o "${salt_url_chksum_file}" -fsSL "${salt_url_chksum}" || {
-            _warning "$0:${FUNCNAME[0]} failed to download file '${salt_url_chksum}' on '${i}' attempt, retcode '$?'";
-        } && {
-            download_retry_failed=0
-            break
-        }
-    done
-    if [[ ${download_retry_failed} -ne 0 ]]; then
-        _error "$0:${FUNCNAME[0]} failed to download file '${salt_url_chksum}', retcode '$?'";
-    fi
+    _curl_download "${salt_pkg_name}" "${salt_url}"
+    _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
     url_sha512sum=$(cat < "${salt_url_chksum_file}" | cut -d ' ' -f 1)
     calc_sha512sum=$(sha512sum "./${salt_pkg_name}" | cut -d ' ' -f 1)
     if [[ url_sha512sum -ne calc_sha512sum ]]; then
@@ -602,12 +610,21 @@ _status_fn() {
 _deps_chk_fn() {
     # return dependency check
     local retn=0
+    local error_missing_deps=""
+
     for idx in ${salt_dep_file_list}
     do
         command -v "${idx}" 1>/dev/null || {
-            _error "$0:${FUNCNAME[0]} failed to find required dependency '${idx}', retcode '$?'";
+            [[ -z "${error_missing_deps}" ]] && {
+                error_missing_deps="${idx}"
+            } || {
+                error_missing_deps="${error_missing_deps} ${idx}"
+            }
         }
     done
+    if [[ -n "${error_missing_deps}" ]]; then
+        _error "$0:${FUNCNAME[0]} failed to find required dependenices '${error_missing_deps}', retcode '$?'";
+    fi
     return ${retn}
 }
 

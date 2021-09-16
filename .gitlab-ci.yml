@@ -145,7 +145,9 @@ test-salt-vmtools:
     - mystatus=$(./svtminion.sh --depend)
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
-    - ./svtminion.sh --install
+    - ./svtminion.sh --install master=192.168.0.5
+    ## - cat /etc/salt/minion | grep 'master: 192.168.0.5' 1>/dev/null
+    - cat /etc/salt/minion \| grep 'master:\ 192.168.0.5'
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
@@ -187,7 +189,8 @@ test-tags-salt-vmtools:
     - mystatus=$(./svtminion.sh --depend)
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
-    - ./svtminion.sh --install
+    - ./svtminion.sh --install master=192.168.0.5
+    ## - cat /etc/salt/minion | grep 'master: 192.168.0.5' 1>/dev/null
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
