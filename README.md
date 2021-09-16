@@ -10,6 +10,13 @@ The salt-minion is a Tiamat based Python 3 salt-minion leveraging
 PyInstaller's onedir option internally. The salt-minion is fully
 self-contained and requires no additional dependencies.
 
+Pre-requisties:
+    The following utilities are expected to be available on the system:
+        systemctl
+        curl
+        sha512sum
+        vmtoolsd
+
 Linux Environment:
     The script can install, remove and check the status of an installed
     salt-minion either by direct command line option or via VMware's use
@@ -52,9 +59,9 @@ Linux Environment:
           have higher precedence than those read from 'tools.conf'.
 
     Note: A minion identifier is automatically generated for the salt-minion,
-          however one can be specified using key=value, for example:
+          however one can be specified using key=value.
 
-            id=myminion
+            For example: id=myminion
 
     Note: At all times preference is given to actions presented on the
           command line, over those available from guest variables or
@@ -70,5 +77,23 @@ Linux Environment:
 
             Preference will be given to the command line argument and
             the salt-minion shall be installed.
+
+
+    Usage for the script svtminion.sh
+
+        usage: ./svtminion.sh  [-c|--status] [-d|--debug] [-e|--depend]
+                     [-h|--help] [-i|--install] [-r|--remove] [-v|--verbose]
+
+          -c, --status    return status for this script
+          -d, --debug     enable debugging logging
+          -e, --depend    check dependencies required to run this script exist
+          -h, --help      this message
+          -i, --install   install and activate the salt-minion
+          -r, --remove    deactivate and remove the salt-minion
+          -v, --verbose   enable verbose logging and messages
+
+          salt-minion vmtools integration script
+              example: ./svtminion.sh --status
+
 
 Windows Environment:
