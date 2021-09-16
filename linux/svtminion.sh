@@ -752,7 +752,7 @@ _uninstall_fn () {
             systemctl stop salt-minion || {
                 _error "$0:${FUNCNAME[0]} failed to stop salt-minion using systemctl, retcode '$?'";
             }
-            systemctl disable "${name_service}" || {
+            systemctl disable salt-minion || {
                 _error "$0:${FUNCNAME[0]} disabling the salt-minion using systemctl failed , retcode '$?'";
             }
         fi
