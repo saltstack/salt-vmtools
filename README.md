@@ -1,4 +1,5 @@
-# salt-vm-tools
+salt-vm-tools
+=============
 
 VMTools salt integration script to install/remove/check status for a
 salt-minion in a VMware controled Virtual Machine environment
@@ -11,13 +12,16 @@ PyInstaller's onedir option internally. The salt-minion is fully
 self-contained and requires no additional dependencies.
 
 Pre-requisties:
+---------------
     The following utilities are expected to be available on the system:
-        systemctl
-        curl
-        sha512sum
-        vmtoolsd
+
+        - systemctl
+        - curl
+        - sha512sum
+        - vmtoolsd
 
 Linux Environment:
+------------------
     The script can install, remove and check the status of an installed
     salt-minion either by direct command line option or via VMware's use
     of Guest Variables, commonly referred to as guestVars.
@@ -97,3 +101,4 @@ Linux Environment:
 
 
 Windows Environment:
+--------------------
