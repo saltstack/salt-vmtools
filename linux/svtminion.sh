@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 ## Salt VTtools Integration script
 ##  integration with Component Manager and GuestStore Helper
@@ -15,7 +15,7 @@ set -o pipefail
 # using bash for now
 # run this script as root, as needed to run salt
 
-## SCRIPT_VERSION='2021.09.15.01'
+## SCRIPT_VERSION='2021.09.20.01'
 
 # definitions
 
