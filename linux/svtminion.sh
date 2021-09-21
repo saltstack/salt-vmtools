@@ -170,7 +170,7 @@ esac
      echo "  -e, --depend    check dependencies required to run this script exist"
      echo "  -h, --help      this message"
      echo "  -i, --install   install and activate the salt-minion"
-     echo "  -k, --clear     clear previous minion identifer and keys"
+     echo "  -k, --clear     clear previous minion identifer and keys, and set specified identifer if present"
      echo "  -r, --remove    deactivate and remove the salt-minion"
      echo "  -v, --verbose   enable verbose logging and messages"
      echo ""
@@ -415,7 +415,7 @@ _randomize_minion_id() {
     local ip_string="$1"
 
     if [[ -z "${ip_string}" ]]; then
-        minion_id="minion_${RANDOM:0:5}"
+        ran_minion="minion_${RANDOM:0:5}"
     else
         #provided input
         ran_minion="${ip_string}_${RANDOM:0:5}"
@@ -590,20 +590,16 @@ _ensure_id_or_fqdn () {
 
     local retn=0
     local minion_fqdn=""
-    local minion_id=""
 
-    minion_fqdn=$(salt-call --local grains.get fqdn | grep -v 'local:')
-    if [[ "${minion_fqdn}" != "Unknown.example.org" ]]; then
+    minion_fqdn=$(/usr/bin/salt-call --local grains.get fqdn | grep -v 'local:' | xargs)
+    if [[ -n "${minion_fqdn}" && "${minion_fqdn}" != "Unknown.example.org" ]]; then
         return ${retn}
     fi
 
     # default FQDN, check if id specified
     grep '^id:' < "${salt_minion_conf_file}" 1>/dev/null || {
         # no id is specified, generate one and update conf file
-        minion_id=$(_generate_minion_id)
-
-        # add new minion id to bottom of minion configuration file
-        echo "id: ${minion_id}" >> "${salt_minion_conf_file}"
+        echo "id: $(_generate_minion_id)" >> "${salt_minion_conf_file}"
     }
 
     return ${retn}
@@ -907,6 +903,8 @@ _clear_id_key_fn () {
 
     rm -fR "${salt_conf_dir}/minion_id"
     rm -fR "${salt_conf_dir}/pki/${salt_minion_conf_name}"
+    # always comment out what was there
+    sed -i 's/^id/# id/g' "${salt_minion_conf_file}"
 
     if [[ -z "${minion_ip_id}" ]] ;then
         minion_id=$(_generate_minion_id)

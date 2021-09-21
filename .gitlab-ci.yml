@@ -148,8 +148,8 @@ test-salt-vmtools:
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
     - ./svtminion.sh --install master=192.168.0.5
-    ## - cat /etc/salt/minion | grep 'master: 192.168.0.5'
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
@@ -158,6 +158,11 @@ test-salt-vmtools:
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
+    - ./svtminion.sh --clear myminion
+    - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
+    - ./svtminion.sh --clear
+    - cat /etc/salt/minion | grep '# id:\ myminion' 1>/dev/null
+    - cat /etc/salt/minion | grep 'id:\ myminion_' 1>/dev/null
     - ./svtminion.sh --remove
     - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
@@ -165,6 +170,7 @@ test-salt-vmtools:
     - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -194,7 +200,8 @@ test-tags-salt-vmtools:
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
     - ./svtminion.sh --install master=192.168.0.5
-    ## - cat /etc/salt/minion | grep 'master: 192.168.0.5' 1>/dev/null
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
@@ -203,6 +210,11 @@ test-tags-salt-vmtools:
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
+    - ./svtminion.sh --clear myminion
+    - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
+    - ./svtminion.sh --clear
+    - cat /etc/salt/minion | grep '# id:\ myminion' 1>/dev/null
+    - cat /etc/salt/minion | grep 'id:\ myminion_' 1>/dev/null
     - ./svtminion.sh --remove
     - list_dirs_to_chk_removed="/opt/saltstack /etc/salt /var/run/salt /var/cache/salt /var/log/salt"
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
