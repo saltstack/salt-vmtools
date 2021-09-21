@@ -918,7 +918,7 @@ _clear_id_key_fn () {
     if [[ ${salt_minion_pre_active_flag} -eq 1 ]]; then
         # restart the stopped salt-minion using systemd
         systemctl restart salt-minion || {
-            _error "$0:${FUNCNAME[0]} failed to irestart salt-minion using systemctl, retcode '$?'";
+            _error "$0:${FUNCNAME[0]} failed to restart salt-minion using systemctl, retcode '$?'";
         }
     fi
 
