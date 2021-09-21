@@ -104,6 +104,7 @@ DEPS_CHK=0
 USAGE_HELP=0
 ## LOG_MODE='debug'
 INSTALL_FLAG=0
+CLEAR_ID_KEYS_FLAG=0
 UNINSTALL_FLAG=0
 VERBOSE_FLAG=0
 
@@ -169,6 +170,7 @@ esac
      echo "  -e, --depend    check dependencies required to run this script exist"
      echo "  -h, --help      this message"
      echo "  -i, --install   install and activate the salt-minion"
+     echo "  -k, --clear     clear previous minion identifer and keys"
      echo "  -r, --remove    deactivate and remove the salt-minion"
      echo "  -v, --verbose   enable verbose logging and messages"
      echo ""
@@ -315,7 +317,7 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
                         _error "$0:${FUNCNAME[0]} error updating minion configuration array with key '${cfg_key}' and value '${cfg_value}', retcode '$?'";
                     }
                 else
-                    echo "skipping line '${line}'"
+                    _display "skipping line '${line}'"
                 fi
             fi
         done < "${vmtools_base_dir_etc}/${vmtools_conf_file}"
@@ -393,6 +395,35 @@ _fetch_vmtools_salt_minion_conf_cli_args() {
 
 
 # work functions
+
+#
+# _randomize_minion_id
+#
+#   Added 5 digit random number to input minion identifier
+#
+# Input:
+#       String to add random number to
+#       if no input, default string 'minion_' used
+#
+# Results:
+#   exit, return value etc
+#
+
+_randomize_minion_id() {
+
+    local ran_minion=""
+    local ip_string="$1"
+
+    if [[ -z "${ip_string}" ]]; then
+        minion_id="minion_${RANDOM:0:5}"
+    else
+        #provided input
+        ran_minion="${ip_string}_${RANDOM:0:5}"
+    fi
+    echo "${ran_minion}"
+}
+
+
 #
 # _fetch_vmtools_salt_minion_conf
 #
@@ -537,6 +568,48 @@ _find_salt_pid() {
     echo "${salt_pid}"
 }
 
+#
+# _ensure_id_or_fqdn
+#
+#   Ensures that a valid minion identifier has been specified, and if not
+#   a valid Fully Qualified Domain Name exists (not the default Unknown.example.org)
+#   else generates a minion id to use.
+#
+# Note: this function should only be run before starting the salt-minion via systemd
+#       after it has been installed
+#
+# Side Effect:
+#   Updates salt-minion configuration file with generated identifer if no valid FQDN
+#
+# Results:
+#   salt-minion configuration contains a valid identifier or FQDN to use.
+#
+
+_ensure_id_or_fqdn () {
+    # ensure minion id or fqdn for salt-minion
+
+    local retn=0
+    local minion_fqdn=""
+    local minion_id=""
+
+    minion_fqdn=$(salt-call --local grains.get fqdn | grep -v 'local:')
+    if [[ "${minion_fqdn}" != "Unknown.example.org" ]]; then
+        return ${retn}
+    fi
+
+    # default FQDN, check if id specified
+    grep '^id:' < "${salt_minion_conf_file}" 1>/dev/null || {
+        # no id is specified, generate one and update conf file
+        minion_id=$(_generate_minion_id)
+
+        # add new minion id to bottom of minion configuration file
+        echo "id: ${minion_id}" >> "${salt_minion_conf_file}"
+    }
+
+    return ${retn}
+}
+
+
 ## Note: main command functions use return , not echo
 
 #
@@ -668,6 +741,9 @@ _install_fn () {
         _error "$0:${FUNCNAME[0]} failed , read configuration for salt-minion from tools.conf, retcode '$?'";
     }
 
+    # ensure minion id or fqdn for salt-minion
+    _ensure_id_or_fqdn
+
     if [[ ${retn} -eq 0 && -f "${test_exists_file}" ]]; then
         # copy helper script for /usr/bin
         for idx in ${salt_usr_bin_file_list}
@@ -716,6 +792,138 @@ _install_fn () {
         done
     fi
     return ${retn}
+}
+
+#
+# _generate_minion_id
+#
+#   Searchs salt-minion configuration file for current id, and disables it
+#   and generates a new id based from the existng id found,
+#   or an older commented out id, and provides it with a randomized 5 digit
+#   postpended to it, for example:  myminion_12345
+#
+#   if no previous id found, a generated minion_<random number> is output
+#
+# Side Effects:
+#   Disables any id found in minion configuration file
+#
+# Result:
+#   Outputs randomized minion id for use in a minion configuration file
+
+_generate_minion_id () {
+
+    local retn=0
+    local salt_id_flag=0
+    local minion_id=""
+    local cfg_value=""
+    local ifield=""
+    local tfields=""
+
+    # always comment out what was there
+    sed -i 's/^id/# id/g' "${salt_minion_conf_file}"
+
+    while IFS= read -r line
+    do
+        line_value=$(_trim "${line}")
+        if [[ -n "${line_value}" ]]; then
+            if echo "${line_value}" | grep -q '^# id:' ; then
+                # get value and write out value_<random>
+                cfg_value=$(echo "${line_value}" | cut -d ' ' -f 3)
+                if [[ -n "${cfg_value}" ]]; then
+                    salt_id_flag=1
+                    minion_id=$(_randomize_minion_id "${cfg_value}")
+                fi
+            elif echo "${line_value}" | grep -q -w 'id:' ; then
+                # might have commented out id, get value and write out value_<random>
+                tfields=$(sed 's/^[[:space:]]*//' <<< $(echo "${line_value}" | awk -F ':' '{print $2}'))
+                ifield=$(echo "${tfields}" | cut -d ' ' -f 1)
+                if [[ -n ${ifield} ]]; then
+                    minion_id=$(_randomize_minion_id "${ifield}")
+                    salt_id_flag=1
+                fi
+            else
+                _display "skipping line '${line}'"
+            fi
+        fi
+    done < "${salt_minion_conf_file}"
+
+    if [[ ${salt_id_flag} -eq 0 ]]; then
+        # no id field found, write minion_<random?
+        minion_id=$(_randomize_minion_id)
+    fi
+    echo "${minion_id}"
+    return ${retn}
+}
+
+
+#
+# _clear_id_key_fn
+#
+#   Executes scripts to clear the minion identifer and keys and re-generates new identifer
+#   allows for a VM containing a salt-minion, to be cloned and not have conflicting id and keys
+#   salt-minion is stopped, id and keys cleared, and restarted if it was previously running
+#
+# Input:
+#   Optional specified input ID to be used, default generate randomized value
+#
+# Note:
+#   Normally a salt-minion if no id is specified will rely on it's Fully Qualified Domain Name
+#   but with VM Cloning, there is no surety that the FQDN will have been altered, and duplicates
+#   can occur. Also if there is no FQDN, then default 'Unknown.example.org' is used, again with
+#   the issue of duplicates for multiple salt-minions with no FQDN specified
+#
+# Side Effects:
+#   New minion identifier in configuration file and keys for the salt-minion
+#
+# Results:
+#   Exits with ${retn}
+#
+
+_clear_id_key_fn () {
+    # execute clearing of Salt minion id and keys
+    local retn=0
+    local salt_minion_pre_active_flag=0
+    local salt_id_flag=0
+    local minion_id=""
+    local minion_ip_id=""
+
+    if [[ ! -f "${test_exists_file}" ]]; then
+        # salt-minion is not installed, nothing to do
+        return ${retn}
+    fi
+
+    # get any minion identifier in case specified
+    minion_ip_id="$1"
+    svpid=$(_find_salt_pid)
+    if [[ -n ${svpid} ]]; then
+        # stop the active salt-minion using systemd
+        # and give it a little time to stop
+        systemctl stop salt-minion || {
+            _error "$0:${FUNCNAME[0]} failed to stop salt-minion using systemctl, retcode '$?'";
+        }
+        salt_minion_pre_active_flag=1
+    fi
+
+    rm -fR "${salt_conf_dir}/minion_id"
+    rm -fR "${salt_conf_dir}/pki/${salt_minion_conf_name}"
+
+    if [[ -z "${minion_ip_id}" ]] ;then
+        minion_id=$(_generate_minion_id)
+    else
+        minion_id="${minion_ip_id}"
+    fi
+
+    # add new minion id to bottom of minion configuration file
+    echo "id: ${minion_id}" >> "${salt_minion_conf_file}"
+
+    if [[ ${salt_minion_pre_active_flag} -eq 1 ]]; then
+        # restart the stopped salt-minion using systemd
+        systemctl restart salt-minion || {
+            _error "$0:${FUNCNAME[0]} failed to irestart salt-minion using systemctl, retcode '$?'";
+        }
+    fi
+
+    exit ${retn}
 }
 
 
@@ -845,6 +1053,7 @@ while true; do
         -e | --depend ) DEPS_CHK=1; shift ;;
         -h | --help ) USAGE_HELP=1; shift ;;
         -i | --install ) INSTALL_FLAG=1; shift ;;
+        -k | --clear ) CLEAR_ID_KEYS_FLAG=1; shift ;;
         -r | --remove ) UNINSTALL_FLAG=1; shift ;;
         -v | --verbose ) VERBOSE_FLAG=1; shift ;;
         -- ) shift; break ;;
@@ -875,6 +1084,9 @@ elif [[ ${DEPS_CHK} -eq 1 ]]; then
     retn=$?
 elif [[ ${INSTALL_FLAG} -eq 1 ]]; then
     _install_fn "$@"
+    retn=$?
+elif [[ ${CLEAR_ID_KEYS_FLAG} -eq 1 ]]; then
+    _clear_id_key_fn "$@"
     retn=$?
 elif [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
     _uninstall_fn

@@ -2,7 +2,7 @@
    "version": "SALT_SCRIPT_VERION",
    "type": "component",
    "description": "Salt vmtools install / removal script",
-   "compversion": "SALT_SCRIPT_COMP_VERION",
+   "compversion": "SALT_SCRIPT_COMP_VERSION",
    "files": [{
       "name": "svtminion.sh",
       "description": "Bash script to install/remove/status of salt-minion",
