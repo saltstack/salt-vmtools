@@ -86,13 +86,16 @@ Linux Environment:
     Usage for the script svtminion.sh
 
         usage: ./svtminion.sh  [-c|--status] [-d|--debug] [-e|--depend]
-                     [-h|--help] [-i|--install] [-r|--remove] [-v|--verbose]
+                    [-h|--help] [-i|--install] [-k|--clear] [-r|--remove]
+                    [-v|--verbose]
 
           -c, --status    return status for this script
           -d, --debug     enable debugging logging
           -e, --depend    check dependencies required to run this script exist
           -h, --help      this message
           -i, --install   install and activate the salt-minion
+          -k, --clear     clear previous minion identifer and keys,
+                            and set specified identifer if present
           -r, --remove    deactivate and remove the salt-minion
           -v, --verbose   enable verbose logging and messages
 
