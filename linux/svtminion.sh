@@ -835,7 +835,8 @@ _generate_minion_id () {
                 fi
             elif echo "${line_value}" | grep -q -w 'id:' ; then
                 # might have commented out id, get value and write out value_<random>
-                tfields=$(sed 's/^[[:space:]]*//' <<< $(echo "${line_value}" | awk -F ':' '{print $2}'))
+                ## tfields=$(sed 's/^[[:space:]]*//' <<< "$(echo "${line_value}" | awk -F ':' '{print $2}')")
+                tfields=$(echo "${line_value}" | awk -F ':' '{print $2}' | xargs)
                 ifield=$(echo "${tfields}" | cut -d ' ' -f 1)
                 if [[ -n ${ifield} ]]; then
                     minion_id=$(_randomize_minion_id "${ifield}")
