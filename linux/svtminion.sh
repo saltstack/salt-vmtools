@@ -526,8 +526,7 @@ _fetch_salt_minion() {
     # could check if alreasdy there but by always getting it
     # ensure we are not using stale versions
     local retn=0
-    local url_sha512sum=0
-    local calc_sha512sum=0
+    local calc_sha512sum=1
     local download_retry_failed=1       # assume issues
 
     CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
@@ -535,9 +534,8 @@ _fetch_salt_minion() {
     cd ${base_salt_location} || return $?
     _curl_download "${salt_pkg_name}" "${salt_url}"
     _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
-    url_sha512sum=$(cat < "${salt_url_chksum_file}" | cut -d ' ' -f 1)
-    calc_sha512sum=$(sha512sum "./${salt_pkg_name}" | cut -d ' ' -f 1)
-    if [[ url_sha512sum -ne calc_sha512sum ]]; then
+    calc_sha512sum=$(grep "${salt_pkg_name}" ${salt_url_chksum_file} | sha512sum --check --status)
+    if [[ $calc_sha512sum -ne 0 ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
         _error "$0:${FUNCNAME[0]} downloaded file '${salt_url}' failed to match checksum in file '${salt_url_chksum}'"
     fi
