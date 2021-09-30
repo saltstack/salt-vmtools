@@ -87,14 +87,14 @@ $salt_hash_url = "$base_url/$salt_version/$salt_hash_name"
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
 $salt_dir = "$base_salt_install_location\$salt_name"
-$salt_bin = "$salt_dir/salt/salt.exe"
-$ssm_bin = "$salt_dir/ssm.exe"
+$salt_bin = "$salt_dir\salt\salt.exe"
+$ssm_bin = "$salt_dir\ssm.exe"
 
 $base_salt_config_location = "$env:ProgramData\Salt Project"
 $salt_config_dir = "$base_salt_config_location\$salt_name\conf"
 $salt_config_name = "minion"
-$salt_config_file = "$salt_config_dir/$salt_config_name"
-$salt_pki_dir = "$salt_config_dir/pki/$salt_config_name"
+$salt_config_file = "$salt_config_dir\$salt_config_name"
+$salt_pki_dir = "$salt_config_dir\pki\$salt_config_name"
 
 # Files/Dirs to remove
 $file_dirs_to_remove = [System.Collections.ArrayList]::new()
@@ -194,7 +194,7 @@ function Write-Log {
 }
 
 
-function Get-ScriptRunningStatus ([ref]$data){
+function Get-ScriptRunningStatus {
     # Try to detect if a this script is already running
     #
     # Sets the $script_running_status variable to True if running, otherwise False
@@ -214,10 +214,10 @@ function Get-ScriptRunningStatus ([ref]$data){
     }
     if ($process_found) {
         Write-Log "Found running instance in PID: $process_pid" -Level debug
-        $data.Value = $true
+        $true
     } else {
         Write-Log "Running instance not detected" -Level debug
-        $data.Value = $false
+        $false
     }
 }
 
@@ -226,22 +226,20 @@ function Get-Status {
     # Read the status out of the registry
     # If the key is missing that means notInstalled
     # Returns the error level number
-    $script_running_status = $null
-    Get-ScriptRunningStatus ([ref]$script_running_status)
+    $script_running_status = Get-ScriptRunningStatus
 
-    Write-Log "Getting status from $vmtools_base_reg\$vmtools_salt_minion_status_name" -Level debug
+    Write-Log "Getting status" -Level info
     $Error.Clear()
     try {
         $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
         Write-Log "Found status code: $current_status" -Level debug
     } catch {
         Write-Log "Key not set, not installed : $Error" -Level debug
-        return 2
+        $current_status = 2
     }
 
     # If status is 1 or 4 (installing or removing) but there isn't another script
     # running, then the status is installFailed or removeFailed
-    Write-Log "Checking for failed install or remove operation" -Level debug
     if ((1, 4 -contains $current_status) -and !($script_running_status)) {
         switch ($current_status) {
             1 {
@@ -258,8 +256,8 @@ function Get-Status {
     $Error.Clear()
     try {
         $status_lookup = $STATUS_CODES[$current_status]
-        Write-Log "Found status: $status_lookup" -Level info
-        return $current_status
+        Write-Log "Found status: $status_lookup" -Level debug
+        $current_status
     } catch {
         Write-Log "Unknown status found: $current_status : $Error" -Level error
         exit 1
@@ -585,22 +583,36 @@ function Remove-FileOrFolder {
         [Parameter(Mandatory=$true)]
         [String] $Path
     )
-    if (Test-Path -Path "$Path") {
-        $Error.Clear()
-        try {
-            Write-Log "Removing $Path" -Level debug
-            Remove-Item -Path $Path -Force -Recurse
-            if (Test-Path -Path "$Path") {
-                Write-Log "Failed to remove $Path" -Level error
-                Set-FailedStatus
-                exit 1
-            } else {
-                Write-Log "Finished removing $Path" -Level debug
+    $tries = 1
+    $max_tries = 5
+    $success = $false
+    Write-Log "Taking ownership: $Path" -Level debug
+    & takeown /a /r /d Y /f $Path *> $null
+    if (Test-Path -Path $Path) {
+        while (!($success)) {
+            $Error.Clear()
+            try {
+                # Remove the file/dir
+                Write-Log "Removing (try: $tries/$max_tries): $Path" -Level debug
+                Remove-Item -Path $Path -Force -Recurse
+            } catch {
+                Write-Log "Error removing: $Path" -Level warning
+                Write-Log "Error message: $Error" -Level warning
+            } finally {
+                if (!(Test-Path -Path $Path)) {
+                    Write-Log "Finished removing $Path" -Level debug
+                    $success = $true
+                } else {
+                    $tries++
+                    if ($tries -gt $max_tries) {
+                        Write-Log "Retry count exceeded" -Level error
+                        Set-FailedStatus
+                        exit 1
+                    }
+                    Write-Log "Trying again after 5 seconds" -Level warning
+                    Start-Sleep -Seconds 5
+                }
             }
-        } catch {
-            Write-Log "Failed to remove $Path : $Error" -Level error
-            Set-FailedStatus
-            exit 1
         }
     } else {
         Write-Log "Path not found: $Path" -Level warning
@@ -647,8 +659,8 @@ function Get-GuestVars {
     $exitcode = $Process.ExitCode
 
     if (($exitcode -eq 0) -and !($stdout.Trim() -eq "")) {
-        Write-Log "Value found for $GuestVarsPath : '$stdout'" -Level debug
-        return $stdout.Trim()
+        Write-Log "Value found for $GuestVarsPath : $($stdout.Trim())" -Level debug
+        $stdout.Trim()
     } else {
         $msg = "No value found for $GuestVarsPath : $stderr"
         Write-Log $msg -Level debug
@@ -697,7 +709,7 @@ function _parse_config {
 }
 
 
-function Get-ConfigCLI ([ref]$data){
+function Get-ConfigCLI {
     # Get salt-minion configuration options from arguments passed on the
     # command line. These key/value pairs are already in the ConfigOptions
     # variable populated by the powershell cli parser. They should be a space
@@ -705,26 +717,26 @@ function Get-ConfigCLI ([ref]$data){
     #
     # Used by:
     # - Get-MinionConfig
+    Write-Log "Checking for CLI config options" -Level debug
     if ($ConfigOptions) {
-        Write-Log "Loading CLI config options" -Level debug
-        $data.Value = _parse_config -KeyValues $ConfigOptions
+        _parse_config $ConfigOptions
     } else {
         Write-Log "Minion config not passed on CLI" -Level warning
     }
 }
 
 
-function Get-ConfigGuestVars ([ref]$data) {
+function Get-ConfigGuestVars {
     # Get salt-minion configuration options defined in the guestvars. That
     # should be a space delimited list of options in the key=value format.
     #
     # Used by:
     # - Get-MinionConfig
+    Write-Log "Checking for GuestVars config options" -Level debug
     $config_options = Get-GuestVars -GuestVarsPath $guestvars_salt_args
     if ($config_options) {
-        Write-Log "Loading GuestVars config options" -Level debug
         $config_options = $config_options.Split()
-        $data.Value = _parse_config $config_options
+        _parse_config $config_options
     } else {
         Write-Log "Minion config not defined in guestvars" -Level warning
     }
@@ -765,27 +777,29 @@ function Read-IniContent {
             $ini[$section][$key] = $value
         }
     }
-    return $ini
+    $ini
 }
 
 
-function Get-ConfigToolsConf ([ref]$data){
+function Get-ConfigToolsConf {
     # Get config from tools.conf
     # Return hashtable
     #
     # Used by:
     # - Get-MinionConfig
-    $config_values = Read-IniContent -FilePath $vmtools_conf_file | Out-Null
+    $config_options = Read-IniContent -FilePath $vmtools_conf_file
+    Write-Log "Checking for tools.conf config options" -Level debug
     if ($config_options) {
-        Write-Log "Loading tools.conf config options" -Level debug
-        $data.Value = _parse_config $config_options[$guestvars_section]
+        $count = $config_options[$guestvars_section].Count
+        Write-Log "Found $count config options" -Level debug
+        $config_options[$guestvars_section]
     } else {
         Write-Log "Minion config not defined in tools.conf" -Level warning
     }
 }
 
 
-function Get-MinionConfig ([ref]$config_options){
+function Get-MinionConfig {
     # Get the minion config values to be place in the minion config file. The
     # Order of priority is as follows:
     # - Get config from the CLI (options passed to the script)
@@ -795,21 +809,16 @@ function Get-MinionConfig ([ref]$config_options){
     #
     # Used by:
     # - Add-MinionConfig
-    Get-ConfigCLI -data $config_options
-    if ($config_options) {
-        Write-Log "Found minion config on the CLI" -Level debug
-        return
+    Write-Log "Getting minion config" -Level info
+    $config_options = $null
+    $config_options = Get-ConfigCLI
+    if (!($config_options)) {
+        $config_options = Get-ConfigGuestVars
     }
-    Get-ConfigGuestVars -data $config_options
-    if ($config_options) {
-        Write-Log "Found minion config in GuestVars" -Level debug
-        return
+    if (!($config_options)) {
+        $config_options = Get-ConfigToolsConf
     }
-    Get-ConfigToolsConf -data $config_options
-    if ($config_options) {
-        Write-Log "Found minion config in tools.conf" -Level debug
-        return
-    }
+    $config_options
 }
 
 
@@ -822,8 +831,7 @@ function Add-MinionConfig {
         New-Item -Path $salt_config_dir -ItemType Directory | Out-Null
     }
     # Get the minion config
-    $config_options = $null
-    Get-MinionConfig ([ref]$config_options)
+    $config_options = Get-MinionConfig
 
     if ($config_options) {
         $new_content = [System.Collections.ArrayList]::new()
@@ -833,7 +841,7 @@ function Add-MinionConfig {
         $config_content = $new_content -join "`n"
         $Error.Clear()
         try {
-            Write-Log "Writing minion config" -Level debug
+            Write-Log "Writing minion config" -Level info
             Set-Content -Path $salt_config_file -Value $config_content
             Write-Log "Finished writing minion config" -Level debug
         } catch {
@@ -1034,18 +1042,12 @@ function Install-SaltMinion {
 
     # 3. Register the service
     Write-Log "Installing salt-minion service" -Level info
-    $arguments = "install salt-minion `"$salt_bin`" minion -c `"$salt_config_dir`""
-    Start-Process "$ssm_bin" -ArgumentList $arguments -Wait -NoNewWindow | Out-Null
-    $arguments = "set salt-minion Description Salt Minion from VMtools"
-    Start-Process "$ssm_bin" -ArgumentList $arguments -Wait -NoNewWindow | Out-Null
-    $arguments = "set salt-minion Start SERVICE_AUTO_START"
-    Start-Process "$ssm_bin" -ArgumentList $arguments -Wait -NoNewWindow | Out-Null
-    $arguments = "set salt-minion AppStopMethodConsole 24000"
-    Start-Process "$ssm_bin" -ArgumentList $arguments -Wait -NoNewWindow | Out-Null
-    $arguments = "set salt-minion AppStopMethodWindow 2000"
-    Start-Process "$ssm_bin" -ArgumentList $arguments -Wait -NoNewWindow | Out-Null
-    $arguments = "set salt-minion AppRestartDelay 60000"
-    Start-Process "$ssm_bin" -ArgumentList $arguments -Wait -NoNewWindow | Out-Null
+    & $ssm_bin install salt-minion "$salt_bin" "minion -c """"$salt_config_dir""""" *> $null
+    & $ssm_bin set salt-minion Description Salt Minion from VMtools *> $null
+    & $ssm_bin set salt-minion Start SERVICE_AUTO_START *> $null
+    & $ssm_bin set salt-minion AppStopMethodConsole 24000 *> $null
+    & $ssm_bin set salt-minion AppStopMethodWindow 2000 *> $null
+    & $ssm_bin set salt-minion AppRestartDelay 60000 *> $null
     if (!(Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
         Write-Log "Failed to install salt-minion service" -Level error
         Set-FailedStatus
@@ -1085,8 +1087,8 @@ function Remove-SaltMinion {
 
         # Delete the service
         Write-Log "Uninstalling salt-minion service" -Level debug
-        $arguments = "delete salt-minion"
-        Start-Process sc -ArgumentList $arguments -Wait -NoNewWindow | Out-Null
+        $service = Get-WmiObject -Class Win32_Service -Filter "Name='salt-minion'"
+        $service.delete() *> $null
         if ((Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
             Write-Log "Failed to uninstall salt-minion service" -Level error
             Set-FailedStatus

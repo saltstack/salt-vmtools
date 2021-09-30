@@ -4,9 +4,13 @@
 :: Script for starting the Salt-Minion
 :: Accepts all parameters that Salt-Minion Accepts
 @ echo off
+net session >nul 2>&1
+if %errorLevel%==0 (
+    :: Define Variables
+    Set SaltBin=%~dp0\salt\salt.exe
 
-:: Define Variables
-Set SaltBin=%~dp0\salt\salt.exe
-
-:: Launch Script
-"%SaltBin%" minion %*
+    :: Launch Script
+    "%SaltBin%" minion %*
+) else (
+    echo ***** This script must be run as Administrator *****
+)
