@@ -1,54 +1,123 @@
 # Copyright (c) 2021 VMware, Inc. All rights reserved.
 # VMware Confidential
 
+<#
+.SYNOPSIS
+VMtools script for managing the salt minion on a Windows guest
+
+.DESCRIPTION
+This script manages the salt minion on a Windows guest. The minion is a tiamat
+build hosted on https://repo.saltproject.io/salt/vmware-tools-onedir. You can
+install the minion, remove it, check script dependencies, get the script status,
+and reset the minion.
+
+When this script is run without any parameters the options will be obtained from
+guestVars if present. If not they will be obtained from tools.conf. This
+includes the action (install, remove, etc) and the minion config options
+(master=192.168.10.10, etc.). The order of precedence is CLI options, then
+guestVars, and finally tools.conf.
+
+.EXAMPLE
+PS>svtminion.ps1 -install
+PS>svtminion.ps1 -install -version 3004-1 master=192.168.10.10 id=vmware_minion
+
+.EXAMPLE
+PS>svtminion.ps1 -clear -prefix new_minion
+
+.EXAMPLE
+PS>svtminion.ps1 -status
+
+.EXAMPLE
+PS>svtminion.ps1 -depend
+
+.EXAMPLE
+PS>svtminion.ps1 -remove -loglevel debug
+
+#>
+
+
 # Salt VMware Tools Integration script for Windows
 # for useage run this script with the -h option:
 #    powershell -file svtminion.ps1 -h
+[CmdletBinding(DefaultParameterSetName = "Install")]
 param(
-    [Parameter(Mandatory=$false)]
-    [Alias("h")]
-    [Switch] $Help,
 
-    [Parameter(Mandatory=$false)]
-    [ValidateSet("status", "add", "remove", "reset", "depend")]
-    [Alias("a")]
-    [String] $Action,
-
-    [Parameter(Mandatory=$false)]
-    [Alias("l")]
-    [ValidateSet("error", "info", "warning", "debug", IgnoreCase=$true)]
-    [String] $LogLevel = "error",
-
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("i")]
+    # Download, install, and start the salt-minion service.
     [Switch] $Install,
 
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("v")]
+    # The version of salt minion to install. Default is 3003.3-1.
     [String] $Version="3003.3-1",
 
-    [Parameter(Mandatory=$false)]
-    [Alias("s")]
-    [Switch] $Status,
+    [Parameter(Mandatory=$false, ParameterSetName="Install",
+            Position=0, ValueFromRemainingArguments=$true)]
+    # Any number of minion config options specified by the name of the config
+    # option as found in salt documentation. All options will be lower-cased and
+    # written to the minion config as passed. All values are in the key=value.
+    # format. eg: master=localhost
+    [String[]] $ConfigOptions,
 
-    [Parameter(Mandatory=$false)]
-    [Alias("d")]
-    [Switch] $Depend,
-
-    [Parameter(Mandatory=$false)]
-    [Alias("c")]
-    [Switch] $Clear,
-
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory=$false, ParameterSetName="Remove")]
     [Alias("r")]
+    # Stop and uninstall the salt-minion service.
     [Switch] $Remove,
 
-    # This paramater must be first or else you have to specify all the other
-    # parameters explicitely on the cli
-    [Parameter(Mandatory=$false,
-               Position=0,
-               ValueFromRemainingArguments=$true)]
-    [String[]] $ConfigOptions
+    [Parameter(Mandatory=$false, ParameterSetName="Clear")]
+    [Alias("c")]
+    # Reset the salt-minion. Randomize the minion id and remove the minion keys.
+    [Switch] $Clear,
+
+    [Parameter(Mandatory=$false, ParameterSetName="Clear")]
+    [Alias("p")]
+    # The prefix to apply to the randomized minion id. The randomized minion id
+    # will be the previx, an underscore, and 5 random digits. The default is
+    # "minion". Therfore, the default randomized name will be something like
+    # "minion_dkE9l".
+    [String] $Prefix = "minion",
+
+    [Parameter(Mandatory=$false, ParameterSetName="Status")]
+    [Alias("s")]
+    # Get the status of the salt minion installation. This returns a numeric
+    # value that corresponds as follows:
+    # 0 - installed
+    # 1 - installing
+    # 2 - notInstalled
+    # 3 - installFailed
+    # 4 - removing
+    # 5 - removeFailed
+    [Switch] $Status,
+
+    [Parameter(Mandatory=$false, ParameterSetName="Depend")]
+    [Alias("d")]
+    # Ensure the required dependencies are available. Exits with an error code
+    # if any dependencies are missing.
+    [Switch] $Depend,
+
+    [Parameter(Mandatory=$false, ParameterSetName="Install")]
+    [Parameter(ParameterSetName="Clear")]
+    [Parameter(ParameterSetName="Status")]
+    [Parameter(ParameterSetName="Depend")]
+    [Parameter(ParameterSetName="Remove")]
+    [Alias("l")]
+    [ValidateSet("error", "info", "warning", "debug", IgnoreCase=$true)]
+    [String]
+    # Sets the log level to display and log
+    $LogLevel = "error",
+
+    [Parameter(Mandatory=$false, ParameterSetName="Help")]
+    [Parameter(ParameterSetName="Install")]
+    [Parameter(ParameterSetName="Clear")]
+    [Parameter(ParameterSetName="Status")]
+    [Parameter(ParameterSetName="Depend")]
+    [Parameter(ParameterSetName="Remove")]
+    [Alias("h")]
+    [Switch]
+    # Displays help for this script.
+    $Help
+
 )
 
 
@@ -76,7 +145,6 @@ $script_log_dir = "$env:ProgramData\VMware\logs"
 ################################# VARIABLES ####################################
 # Repository locations and names
 $salt_name = "salt"
-#TODO: Set this back to valid version
 $salt_version = $Version
 $base_url = "https://repo.saltproject.io/salt/vmware-tools-onedir"
 $salt_web_file_name = "$salt_name-$salt_version-windows-amd64.zip"
@@ -91,7 +159,8 @@ $salt_bin = "$salt_dir\salt\salt.exe"
 $ssm_bin = "$salt_dir\ssm.exe"
 
 $base_salt_config_location = "$env:ProgramData\Salt Project"
-$salt_config_dir = "$base_salt_config_location\$salt_name\conf"
+$salt_root_dir = "$base_salt_config_location\$salt_name"
+$salt_config_dir = "$salt_root_dir\conf"
 $salt_config_name = "minion"
 $salt_config_file = "$salt_config_dir\$salt_config_name"
 $salt_pki_dir = "$salt_config_dir\pki\$salt_config_name"
@@ -122,12 +191,6 @@ $vmtools_base_dir = Get-ItemPropertyValue -Path $vmtools_base_reg -Name "Install
 $vmtools_conf_dir = "$env:ProgramData\VMware\VMware Tools"
 $vmtools_conf_file = "$vmtools_conf_dir\tools.conf"
 $vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
-
-# Files required by this script
-$salt_dep_files = @{}
-$salt_dep_files["vmtoolsd.exe"] = $vmtools_base_dir
-$salt_dep_files["salt-call.bat"] = $PSScriptRoot
-$salt_dep_files["salt-minion.bat"] = $PSScriptRoot
 
 ## VMware guestVars file and directory locations
 $guestvars_base = "guestinfo.vmware.components"
@@ -195,9 +258,9 @@ function Write-Log {
 
 
 function Get-ScriptRunningStatus {
-    # Try to detect if a this script is already running
+    # Try to detect if this script is already running under another process
     #
-    # Sets the $script_running_status variable to True if running, otherwise False
+    # Returns True if running, otherwise False
 
     #Get all running powershell processes
     # $PsScriptsRunning = get-wmiobject win32_process | where{$_.processname -eq 'powershell.exe'} | select-object commandline,ProcessId
@@ -223,8 +286,9 @@ function Get-ScriptRunningStatus {
 
 
 function Get-Status {
-    # Read the status out of the registry
-    # If the key is missing that means notInstalled
+    # Read the status out of the registry. If the key is missing that means
+    # notInstalled
+    #
     # Returns the error level number
     $script_running_status = Get-ScriptRunningStatus
 
@@ -266,8 +330,8 @@ function Get-Status {
 
 
 function Set-Status {
-    # Set the numeric value of the status in the registry
-    # notInstalled means to remove the key
+    # Set the numeric value of the status in the registry. notInstalled means to
+    # remove the key
     #
     # Args:
     #     NewStatus (string):
@@ -312,6 +376,8 @@ function Set-Status {
 
 
 function Set-FailedStatus {
+    # Sets the status if either add or remove fails, each sets a different
+    # status if it fails
     switch ($Action.ToLower()) {
         "add" { Set-Status installFailed }
         "remove" { Set-Status removeFailed }
@@ -567,7 +633,8 @@ function Remove-SystemPathValue {
 
 
 function Remove-FileOrFolder {
-    # Removes a file or a folder recursively from the system
+    # Removes a file or a folder recursively from the system. Takes ownership
+    # of the file or directory before removing
     #
     # Used by:
     # - Remove-SaltMinion
@@ -587,7 +654,11 @@ function Remove-FileOrFolder {
     $max_tries = 5
     $success = $false
     Write-Log "Taking ownership: $Path" -Level debug
-    & takeown /a /r /d Y /f $Path *> $null
+    try {
+        & takeown /a /r /d Y /f $Path *> $null
+    } catch {
+        Write-Log "Directory does not exist" -Level debug
+    }
     if (Test-Path -Path $Path) {
         while (!($success)) {
             $Error.Clear()
@@ -669,8 +740,8 @@ function Get-GuestVars {
 
 
 function _parse_config {
-    # Parse config options that are in the format key=value
-    # These can be passed on the cli, guestvars, or tools.conf
+    # Parse config options that are in the format key=value. These can be passed
+    # on the cli, guestvars, or tools.conf
     #
     # Used by:
     # - Get-ConfigCLI
@@ -717,6 +788,8 @@ function Get-ConfigCLI {
     #
     # Used by:
     # - Get-MinionConfig
+    #
+    # Return hashtable
     Write-Log "Checking for CLI config options" -Level debug
     if ($ConfigOptions) {
         _parse_config $ConfigOptions
@@ -732,6 +805,8 @@ function Get-ConfigGuestVars {
     #
     # Used by:
     # - Get-MinionConfig
+    #
+    # Return hashtable
     Write-Log "Checking for GuestVars config options" -Level debug
     $config_options = Get-GuestVars -GuestVarsPath $guestvars_salt_args
     if ($config_options) {
@@ -782,11 +857,14 @@ function Read-IniContent {
 
 
 function Get-ConfigToolsConf {
-    # Get config from tools.conf
-    # Return hashtable
+    # Get salt-minion configuration options defined in tools.conf. That should
+    # be all keys/value pairs under the [salt_minion] section of the tools.conf
+    # ini file.
     #
     # Used by:
     # - Get-MinionConfig
+    #
+    # Return hashtable
     $config_options = Read-IniContent -FilePath $vmtools_conf_file
     Write-Log "Checking for tools.conf config options" -Level debug
     if ($config_options) {
@@ -804,11 +882,13 @@ function Get-MinionConfig {
     # Order of priority is as follows:
     # - Get config from the CLI (options passed to the script)
     # - Get config from GuestVars (defined by VMtools)
-    # - Get config from tools.conf (older method)
-    # - Use salt minion defaults (master: salt, id: hostname)
+    # - Get config from tools.conf (defined by VMtools - older method)
+    # - No config found, use salt minion defaults (master: salt, id: hostname)
     #
     # Used by:
     # - Add-MinionConfig
+    #
+    # Returns a hash table of options or null if no options found
     Write-Log "Getting minion config" -Level info
     $config_options = $null
     $config_options = Get-ConfigCLI
@@ -833,24 +913,26 @@ function Add-MinionConfig {
     # Get the minion config
     $config_options = Get-MinionConfig
 
-    if ($config_options) {
-        $new_content = [System.Collections.ArrayList]::new()
-        foreach ($key in $config_options.keys) {
-            $new_content.Add("$($key): $($config_options[$key])") | Out-Null
-        }
-        $config_content = $new_content -join "`n"
-        $Error.Clear()
-        try {
-            Write-Log "Writing minion config" -Level info
-            Set-Content -Path $salt_config_file -Value $config_content
-            Write-Log "Finished writing minion config" -Level debug
-        } catch {
-            Write-Log "Failed to write minion config: $config_content : $Error" -Level error
-            Set-FailedStatus
-            exit 1
-        }
-    } else {
+    if (!($config_options)) {
         Write-Log "No minion config found. Defaults will be used" -Level warning
+    }
+
+    # Add file_roots to point to ProgramData
+    $config_options["file_roots"] = $salt_root_dir
+    $new_content = [System.Collections.ArrayList]::new()
+    foreach ($key in $config_options.keys) {
+        $new_content.Add("$($key): $($config_options[$key])") | Out-Null
+    }
+    $config_content = $new_content -join "`n"
+    $Error.Clear()
+    try {
+        Write-Log "Writing minion config" -Level info
+        Set-Content -Path $salt_config_file -Value $config_content
+        Write-Log "Finished writing minion config" -Level debug
+    } catch {
+        Write-Log "Failed to write minion config: $config_content : $Error" -Level error
+        Set-FailedStatus
+        exit 1
     }
 }
 
@@ -873,7 +955,6 @@ function Start-MinionService {
 
 function Stop-MinionService {
     # Stop the salt-minion service
-
     Write-Log "Stopping the salt-minion service" -Level info
     Stop-Service -Name salt-minion | Out-Null
 
@@ -888,53 +969,28 @@ function Stop-MinionService {
 }
 
 
-############################### MAIN FUNCTIONS #################################
+function Get-RandomizedMinionId {
+    # Generate a randomized minion id
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Prefix = "minion",
 
-
-function Show-Usage {
-    # Display the usage text
-    $whitespace = " " * "usage: $script_name".Length
-    Write-Output ""
-    Write-Output "Salt VMware Tools Integration Script for Windows"
-    Write-Output ""
-    Write-Output "usage: $script_name [-h|-help] [-a|-action <value>] [-l|-loglevel <value>]"
-    Write-Output "$whitespace [-<config_key> <config_value>...]"
-    Write-Output ""
-    Write-Output "  -h, -Help   Display this help message"
-    Write-Output ""
-    Write-Output "  -a, -Action [Depend|Add|Remove|Reset|Status]"
-    Write-Output "              Set the action this script is to perform. Valid"
-    Write-Output "              options are as follows:"
-    Write-Output "              - Depend: Ensure required dependencies are available"
-    Write-Output "              - Add: Install and start the salt-minion service"
-    Write-Output "              - Remove: Stop and uninstall the salt-minion service"
-    Write-Output "              - Reset: Reset the salt config and keys"
-    Write-Output "              - Status: Return the status for this script"
-    Write-Output ""
-    Write-Output "  -l, -LogLevel [Error|Info|Warning|Debug]"
-    Write-Output "              Set the log level for the script. Default is Error"
-    Write-Output ""
-    Write-Output "  [ConfigOptionName]=[ConfigOptionValue]"
-    Write-Output "              Any number of minion config options specified"
-    Write-Output "              by the name of the config option as found in"
-    Write-Output "              salt docs and its value. All options will be"
-    Write-Output "              lower-cased and written to the minion config as"
-    Write-Output "              passed. Only applies when the Action is install"
-    Write-Output ""
-    Write-Output "              eg: Master=192.168.0.10 Minion_Id=dev11"
-    Write-Output ""
-    Write-Output "  salt-minion vmtools integration script"
-    Write-Output ""
-    Write-Output "      example: $script_name -Status -LogLevel Debug"
-    Write-Output ""
-    Write-Output "      example: $script_name -Action Add Master=192.168.0.10 Minion_Id=test_box"
-    Write-Output ""
-    Write-Output $args
+        [Parameter(Mandatory=$true)]
+        [String] $Length = 5
+    )
+    $chars = (0x30..0x39) + ( 0x41..0x5A) + ( 0x61..0x7A)
+    $rand_string = ( -join ($chars | Get-Random -Count $Length | % {[char]$_} ) )
+    -join ($Prefix, "_", $rand_string)
 }
 
 
+############################### MAIN FUNCTIONS #################################
+
+
 function Confirm-Dependencies {
-    # Check that the required binaries for this script are present on the system
+    # Check that the required dependencies for this script are present on the
+    # system
     #
     # Error:
     #     Exitcode 1 if missing dependencies
@@ -956,8 +1012,14 @@ function Confirm-Dependencies {
     }
 
     # VMtools files
+    # Files required by this script
+    $salt_dep_files = @{}
+    $salt_dep_files["vmtoolsd.exe"] = $vmtools_base_dir
+    $salt_dep_files["salt-call.bat"] = $PSScriptRoot
+    $salt_dep_files["salt-minion.bat"] = $PSScriptRoot
+
     foreach ($file in $salt_dep_files.Keys) {
-        Write-Log "Looking for: $file in $($salt_dep_files[$file])" -Level debug
+        Write-Log "Looking for $file in $($salt_dep_files[$file])" -Level debug
         if(!(Test-Path("$($salt_dep_files[$file])\$file"))) {
             Write-Log "Unable to find $file in $($salt_dep_files[$file])" -Level error
             exit 1
@@ -1056,8 +1118,6 @@ function Install-SaltMinion {
         Write-Log "Finished installing salt-minion service" -Level debug
     }
 
-    # TODO: Add the registry entries (salt 3004)
-
     # 4. Modify the system path
     Write-Log "Adding salt to the path" -Level info
     Add-SystemPathValue -Path $salt_dir
@@ -1104,8 +1164,6 @@ function Remove-SaltMinion {
         Remove-FileOrFolder -Path $item
     }
 
-    # TODO: Remove the registry entries (salt 3004)
-
     # 4. Remove entry from the path
     Remove-SystemPathValue -Path $salt_dir
 }
@@ -1115,8 +1173,8 @@ function Reset-SaltMinion {
     # Resets the salt-minion environment in preperation for imaging. Performs
     # the following steps:
     # - Remove minion_id file
-    # - Comment out the minion id in the minion config
-    # - Removes the minion public and private keys
+    # - Randomize the minion id in the minion config
+    # - Remove the minion public and private keys
 
     Remove-FileOrFolder "$salt_config_file\minion_id"
 
@@ -1124,10 +1182,12 @@ function Reset-SaltMinion {
     $new_content = [System.Collections.ArrayList]::new()
     if (Test-Path -Path "$salt_config_file") {
         Write-Log "Searching minion config file for id" -Level debug
+        $random_id = Get-RandomizedMinionId
         foreach ($line in Get-Content $salt_config_file) {
             if ($line -match "^id:.*$") {
                 Write-Log "Commenting out the id" -Level debug
                 $new_content.Add("#" + $line) | Out-Null
+                $new_content.Add("id: $random_id") | Out-Null
             } else {
                 $new_content.Add($line) | Out-Null
             }
@@ -1153,28 +1213,37 @@ function Reset-SaltMinion {
 
 # Check for help switch
 if ($help) {
-    Show-Usage
+    # Get the full script name
+    $this_script = & {$myInvocation.ScriptName}
+    Get-Help $this_script -Detailed
     exit 0
 }
 
+# Let's confirm dependencies
+Confirm-Dependencies
+
 # Check for Action. If not specified on the command line, get it from guestVars
-if ($Action) {
-    Write-Log "Action from CLI: $Action" -Level debug
-} else {
-    if ($Install) { $Action = "add" }
-    if ($Status) { $Action = "status" }
-    if ($Depend) { $Action = "depend" }
-    if ($Clear) { $Action = "reset" }
-    if ($Remove) { $Action = "remove" }
-    if (!($Action)) {
-        $Action = Get-GuestVars -GuestVarsPath $guestvars_salt
-        Write-Log "Action from GuestVars: $Action" -Level debug
-    }
+if ($Install) { $Action = "add" }
+if ($Status) { $Action = "status" }
+if ($Depend) { $Action = "depend" }
+if ($Clear) { $Action = "reset" }
+if ($Remove) { $Action = "remove" }
+if (!($Action)) {
+    $Action = Get-GuestVars -GuestVarsPath $guestvars_salt
+    Write-Log "Action from GuestVars: $Action" -Level debug
 }
+
+# Validate the action
+if ("add", "status", "depend", "reset", "remove" -notcontains $Action) {
+    Write-Error "Invalid action: $Action" -Level error
+    exit 1
+}
+
 if ($Action) {
     switch ($Action.ToLower()) {
         "depend" {
-            Confirm-Dependencies
+            # If we've gotten this far, dependencies have been confirmed
+            exit 0
         }
         "add" {
             # If status is installed(0), installing(1), or removing(4), bail out
@@ -1183,7 +1252,6 @@ if ($Action) {
                 Write-Log "Installation will not continue"
                 exit 0
             }
-            Confirm-Dependencies
             Set-Status installing
             Get-SaltFromWeb
             Install-SaltMinion
@@ -1204,9 +1272,9 @@ if ($Action) {
             Set-Status notInstalled
         }
         "reset" {
-            # If status is installing(1), notInstalled(2), or removing(4), bail out
+            # If not installed (0), bail out
             $current_status = Get-Status
-            if (1, 2, 4 -contains $current_status) {
+            if ($current_status -ne 0) {
                 Write-Log "Reset will not continue"
                 exit 0
             }
