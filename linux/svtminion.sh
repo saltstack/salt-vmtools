@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 ## Salt VTtools Integration script
 ##  integration with Component Manager and GuestStore Helper
 
