@@ -1,5 +1,4 @@
 :: Copyright (c) 2021 VMware, Inc. All rights reserved.
-:: VMware Confidential
 
 :: Script for starting the Salt-Minion
 :: Accepts all parameters that Salt-Minion Accepts
