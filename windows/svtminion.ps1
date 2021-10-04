@@ -126,7 +126,8 @@ param(
 $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $Principal = New-Object System.Security.Principal.WindowsPrincipal($Identity)
 if (!($Principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator))) {
-    throw "This script must run as Administrator"
+    Write-Host "This script must run as Administrator" -ForegroundColor Red
+    exit 1
 }
 
 
@@ -880,9 +881,9 @@ function Get-ConfigToolsConf {
 function Get-MinionConfig {
     # Get the minion config values to be place in the minion config file. The
     # Order of priority is as follows:
-    # - Get config from the CLI (options passed to the script)
-    # - Get config from GuestVars (defined by VMtools)
     # - Get config from tools.conf (defined by VMtools - older method)
+    # - Get config from GuestVars (defined by VMtools), overwrites matching tools.conf
+    # - Get config from the CLI (options passed to the script), overwrites matching guestVars
     # - No config found, use salt minion defaults (master: salt, id: hostname)
     #
     # Used by:
@@ -890,13 +891,33 @@ function Get-MinionConfig {
     #
     # Returns a hash table of options or null if no options found
     Write-Log "Getting minion config" -Level info
-    $config_options = $null
-    $config_options = Get-ConfigCLI
-    if (!($config_options)) {
-        $config_options = Get-ConfigGuestVars
+    $config_options = @{}
+    # Get tools.conf config first
+    $tc_config = Get-ConfigToolsConf
+    if ($tc_config) {
+        foreach ($row in $tc_config.GetEnumerator()) {
+            if ($row.Value) {
+                $config_options[$row.Name] = $row.Value
+            }
+        }
     }
-    if (!($config_options)) {
-        $config_options = Get-ConfigToolsConf
+    # Get guestVars config, conflicting values will be overwritten by guestvars
+    $gv_config = Get-ConfigGuestVars
+    if ($gv_config) {
+        foreach ($row in $gv_config.GetEnumerator()) {
+            if ($row.Value) {
+                $config_options[$row.Name] = $row.Value
+            }
+        }
+    }
+    # Get cli config, conflicting values will be overwritten by cli
+    $cli_config = Get-ConfigCLI
+    if ($cli_config) {
+        foreach ($row in $cli_config.GetEnumerator()) {
+            if ($row.Value) {
+                $config_options[$row.Name] = $row.Value
+            }
+        }
     }
     $config_options
 }
@@ -920,8 +941,8 @@ function Add-MinionConfig {
     # Add file_roots to point to ProgramData
     $config_options["file_roots"] = $salt_root_dir
     $new_content = [System.Collections.ArrayList]::new()
-    foreach ($key in $config_options.keys) {
-        $new_content.Add("$($key): $($config_options[$key])") | Out-Null
+    foreach ($row in $config_options.GetEnumerator()) {
+        $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
     }
     $config_content = $new_content -join "`n"
     $Error.Clear()
