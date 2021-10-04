@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 [Unit]
 Description=The Salt Minion
 Documentation=man:salt-minion(1) file:///usr/share/doc/salt/html/contents.html https://docs.saltproject.io/en/latest/contents.html
