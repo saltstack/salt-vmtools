@@ -992,15 +992,16 @@ function Confirm-Dependencies {
     # Check that the required dependencies for this script are present on the
     # system
     #
-    # Error:
-    #     Exitcode 1 if missing dependencies
+    # Return:
+    #     Bool: False if missing dependencies, otherwise True
+    $deps_present = $true
     Write-Log "Checking dependencies" -Level info
 
     # Check for VMware registry location for storing status
     Write-Log "Looking for: $vmtools_base_reg" -Level debug
     if(!(Test-Path("$vmtools_base_reg"))) {
         Write-Log "Unable to find $vmtools_base_reg" -Level error
-        exit 1
+        $deps_present = $false
     }
 
     # InstallPath reg key
@@ -1008,7 +1009,7 @@ function Confirm-Dependencies {
     $reg_key = Get-ItemProperty $vmtools_base_reg
     if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
         Write-Log "Unable to find valid VMtools installation" -Level error
-        exit 1
+        $deps_present = $false
     }
 
     # VMtools files
@@ -1022,11 +1023,45 @@ function Confirm-Dependencies {
         Write-Log "Looking for $file in $($salt_dep_files[$file])" -Level debug
         if(!(Test-Path("$($salt_dep_files[$file])\$file"))) {
             Write-Log "Unable to find $file in $($salt_dep_files[$file])" -Level error
-            exit 1
+            $deps_present = $false
         }
     }
 
     Write-Log "All dependencies found" -Level debug
+    $deps_present
+}
+
+
+function Find-StandardSaltInstallation {
+    # Find an existing standard salt installation
+    #
+    # Return:
+    #     Bool: True if standard installation found, otherwise False
+
+    # Standard locations
+    $locations = [System.Collections.ArrayList]::new()
+    $locations.Add("C:\salt") | Out-Null
+    $locations.Add("$env:ProgramFiles\Salt Project\salt") | Out-Null
+
+    # Check registry for new style locations
+    try{
+        $reg_path = "HKLM:\SOFTWARE\Salt Project\salt"
+        $reg_key = Get-ItemProperty $reg_path
+        $dir_path = Get-ItemPropertyValue -Path $reg_path -Name "install_dir"
+        $locations.Add($dir_path) | Out-Null
+    } catch {
+        Write-Log "No Standard Installation Reg Path" -Level debug
+    }
+
+    # Check for python.exe in locations
+    $exists = $false
+    foreach ($path in $locations) {
+        if (Test-Path -Path "$path\bin\python.exe" ) {
+            Write-Log "Standard Installation Detected: $path" -Level error
+            $exists = $true
+        }
+    }
+    $exists
 }
 
 
@@ -1220,7 +1255,16 @@ if ($help) {
 }
 
 # Let's confirm dependencies
-Confirm-Dependencies
+if (!(Confirm-Dependencies)) {
+    Write-Host "Missing script dependencies"
+    exit 1
+}
+
+# Let's make sure there's not already a standard salt installation on the system
+if (Find-StandardSaltInstallation) {
+    Write-Host "Found an existing salt installation on the system."
+    exit 1
+}
 
 # Check for Action. If not specified on the command line, get it from guestVars
 if ($Install) { $Action = "add" }
@@ -1248,9 +1292,10 @@ if ($Action) {
         "add" {
             # If status is installed(0), installing(1), or removing(4), bail out
             $current_status = Get-Status
-            if (0, 1, 4 -contains $current_status) {
-                Write-Log "Installation will not continue"
-                exit 0
+            switch ($current_status) {
+                0 { Write-Host "Already installed"; exit 0 }
+                1 { Write-Host "Installation in progress"; exit 0 }
+                4 { Write-Host "Removal in progress"; exit 0}
             }
             Set-Status installing
             Get-SaltFromWeb
@@ -1262,9 +1307,10 @@ if ($Action) {
         "remove" {
             # If status is installing(1), notInstalled(2), or removing(4), bail out
             $current_status = Get-Status
-            if (1, 2, 4 -contains $current_status) {
-                Write-Log "Removal will not continue"
-                exit 0
+            switch ($current_status) {
+                1 { Write-Host "Installation in progress"; exit 0 }
+                2 { Write-Host "Already uninstalled"; exit 0 }
+                4 { Write-Host "Removal in progress"; exit 0}
             }
             # If status is notInstalled or removing, bail out
             Set-Status removing
@@ -1275,7 +1321,7 @@ if ($Action) {
             # If not installed (0), bail out
             $current_status = Get-Status
             if ($current_status -ne 0) {
-                Write-Log "Reset will not continue"
+                Write-Host "Not installed. Reset will not continue"
                 exit 0
             }
             Reset-SaltMinion
