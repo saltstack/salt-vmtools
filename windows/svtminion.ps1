@@ -321,11 +321,11 @@ function Get-Status {
     $Error.Clear()
     try {
         $status_lookup = $STATUS_CODES[$current_status]
-        Write-Log "Found status: $status_lookup" -Level debug
-        $current_status
+        Write-Host "Found status: $status_lookup"
+        exit $current_status
     } catch {
-        Write-Log "Unknown status found: $current_status : $Error" -Level error
-        exit 1
+        Write-Host "Unknown status found: $current_status : $Error"
+        exit 9
     }
 }
 
