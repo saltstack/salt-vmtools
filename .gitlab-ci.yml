@@ -24,12 +24,7 @@ include:
   - project: saltstack/pop/cicd/ci-templates
     file: /lint/pre-commit-run-all.yml
 
-default:
-  before_script:
-    - mkdir /root/ || true
-    - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
-
-build-salt-vmtools:
+build-salt-vmtools-linux:
   stage: build_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
@@ -47,6 +42,8 @@ build-salt-vmtools:
   script:
     # assumes running as root
     - oldpwd=$(pwd)
+    - mkdir /root/ || true
+    - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
     # setup environment vars
     - export CICD_SALT_SCRIPT_DATE=$(date +"%a %b %0d %Y")
     # generate sha256 for metadata.json file
@@ -75,7 +72,33 @@ build-salt-vmtools:
     - when: on_success
 
 
-build-tags-salt-vmtools:
+build-salt-vmtools-windows:
+  stage: build_svt
+  tags:
+    - shared-windows
+    - windows
+    - windows-1809
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    paths:
+      - svtminion.ps1
+      - salt-call.bat
+      - salt-minion.bat
+    expire_in: 120 days
+  script:
+    - $root_dir = (Get-Location).Path
+    - cd windows
+    - Copy-Item -Path .\svtminion.ps1 -Destination $root_dir
+    - Copy-Item -Path .\salt-call.bat -Destination $root_dir
+    - Copy-Item -Path .\salt-minion.bat -Destination $root_dir
+
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - when: on_success
+
+
+build-tags-salt-vmtools-linux:
   stage: build_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
@@ -93,6 +116,8 @@ build-tags-salt-vmtools:
   script:
     # assumes running as root
     - oldpwd=$(pwd)
+    - mkdir /root/ || true
+    - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
     # setup environment vars
     - export CICD_SALT_SCRIPT_DATE=$(date +"%a %b %0d %Y")
     # generate sha256 for metadata.json file
@@ -126,18 +151,46 @@ build-tags-salt-vmtools:
     - when: never
 
 
-test-salt-vmtools:
+build-tags-salt-vmtools-windows:
+  stage: build_svt
+  tags:
+    - shared-windows
+    - windows
+    - windows-1809
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    paths:
+      - svtminion.ps1
+      - salt-call.bat
+      - salt-minion.bat
+    expire_in: 120 days
+  script:
+    - $root_dir = (Get-Location).Path
+    - cd windows
+    - Copy-Item -Path .\svtminion.ps1 -Destination $root_dir
+    - Copy-Item -Path .\salt-call.bat -Destination $root_dir
+    - Copy-Item -Path .\salt-minion.bat -Destination $root_dir
+
+  rules:
+    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
+      when: always
+    - when: never
+
+
+test-salt-vmtools-linux:
   stage: test_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
   needs:
-    - job: build-salt-vmtools
+    - job: build-salt-vmtools-linux
   ## image: centos:7
   tags:
     - centos7
   script:
     - oldpwd=$(pwd)
+    - mkdir /root/ || true
+    - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
     - id
     - ls -alh svtminion.sh
     - date
@@ -172,24 +225,25 @@ test-salt-vmtools:
     - mystatus=$(./svtminion.sh --status)
     - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
 
-
   rules:
     - if: $CI_COMMIT_TAG
       when: never
     - when: on_success
 
 
-test-tags-salt-vmtools:
+test-tags-salt-vmtools-linux:
   stage: test_svt
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
   needs:
-    - job: build-tags-salt-vmtools
+    - job: build-tags-salt-vmtools-linux
   tags:
     - centos7
   script:
     - oldpwd=$(pwd)
+    - mkdir /root/ || true
+    - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
     - id
     - ls -alh svtminion.sh
     - date
