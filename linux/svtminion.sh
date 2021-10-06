@@ -208,40 +208,33 @@ esac
 _cleanup() {
     # clean up any items if die and burn
     # last check of status on exit, interrupt, etc
-##    local retn=0
     if [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${scriptFailed}]}" ]]; then
-##        retn=${scriptFailed}
         exit 127
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
-##        retn=${installFailed}
         exit 3
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installed}]}" ]]; then
         # normal case with exit 0, but double-check
         svpid=$(_find_salt_pid)
         if [[ -z ${svpid} || ! -f "${test_exists_file}" ]]; then
             CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
-            retn=${installFailed}
             exit 3
         fi
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${removeFailed}]}"
-        retn=${removeFailed}
         svpid=$(_find_salt_pid)
         if [[ -z ${svpid} ]]; then
             if [[ ! -f "${test_exists_file}" ]]; then
                 CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
-##                retn=${notInstalled}
                 exit 2
             fi
         fi
+        exit 5
     else
         # assume not installed
         CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
-##         retn=${notInstalled}
         exit 2
     fi
-##    return ${retn}
     exit 0
 }
 
@@ -721,7 +714,7 @@ _deps_chk_fn() {
         }
     done
     if [[ -n "${error_missing_deps}" ]]; then
-        _error "$0:${FUNCNAME[0]} failed to find required dependenices '${error_missing_deps}', retcode '$?'";
+        _error "$0:${FUNCNAME[0]} failed to find required dependenices '${error_missing_deps}'";
     fi
     return ${retn}
 }
