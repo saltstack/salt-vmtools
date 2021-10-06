@@ -198,9 +198,9 @@ test-salt-vmtools-linux:
     - if [[ ! $(./svtminion.sh --depend) ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; fi
     - yum -y install open-vm-tools
     - yum -y install curl
-    - mystatus=$(./svtminion.sh --depend)
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+    - ./svtminion.sh --depend
+    - ./svtminion.sh --status
+    - if [[ $? -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
     - ./svtminion.sh --install master=192.168.0.5
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
@@ -210,8 +210,8 @@ test-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local test.versions
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
+    - ./svtminion.sh --status
+    - if [[ $? -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
     - ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - ./svtminion.sh --clear
@@ -222,8 +222,8 @@ test-salt-vmtools-linux:
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
     - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
     - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+    - ./svtminion.sh --status
+    - if [[ $? -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -251,9 +251,9 @@ test-tags-salt-vmtools-linux:
     - if [[ ! $(./svtminion.sh --depend) ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; fi
     - yum -y install open-vm-tools
     - yum -y install curl
-    - mystatus=$(./svtminion.sh --depend)
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+    - ./svtminion.sh --depend
+    - ./svtminion.sh --status
+    - if [[ $? -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
     - ./svtminion.sh --install master=192.168.0.5
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
@@ -263,8 +263,8 @@ test-tags-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local test.versions
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
+    - ./svtminion.sh --status
+    - if [[ $? -ne 0 ]]; then echo "salt-minion should be installed"; exit 1; fi
     - ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - ./svtminion.sh --clear
@@ -275,8 +275,8 @@ test-tags-salt-vmtools-linux:
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
     - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
     - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - mystatus=$(./svtminion.sh --status)
-    - if [[ "${mystatus}" -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
+    - ./svtminion.sh --status
+    - if [[ $? -ne 2 ]]; then echo "salt-minion should be not installed"; exit 1; fi
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
