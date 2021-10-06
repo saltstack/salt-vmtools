@@ -74,10 +74,6 @@ build-salt-vmtools-linux:
 
 build-salt-vmtools-windows:
   stage: build_svt
-  tags:
-    - shared-windows
-    - windows
-    - windows-1809
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     paths:
@@ -85,12 +81,13 @@ build-salt-vmtools-windows:
       - salt-call.bat
       - salt-minion.bat
     expire_in: 120 days
+  image: centos:7
   script:
-    - $root_dir = (Get-Location).Path
+    - oldpwd=$(pwd)
     - cd windows
-    - Copy-Item -Path .\svtminion.ps1 -Destination $root_dir
-    - Copy-Item -Path .\salt-call.bat -Destination $root_dir
-    - Copy-Item -Path .\salt-minion.bat -Destination $root_dir
+    - cp -f svtminion.ps1 ${oldpwd}/svtminion.ps1
+    - cp -f salt-call.bat ${oldpwd}/salt-call.bat
+    - cp -f salt-minion.bat ${oldpwd}/salt-minion.bat
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -153,10 +150,6 @@ build-tags-salt-vmtools-linux:
 
 build-tags-salt-vmtools-windows:
   stage: build_svt
-  tags:
-    - shared-windows
-    - windows
-    - windows-1809
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     paths:
@@ -164,12 +157,13 @@ build-tags-salt-vmtools-windows:
       - salt-call.bat
       - salt-minion.bat
     expire_in: 120 days
+  image: centos:7
   script:
-    - $root_dir = (Get-Location).Path
+    - oldpwd=$(pwd)
     - cd windows
-    - Copy-Item -Path .\svtminion.ps1 -Destination $root_dir
-    - Copy-Item -Path .\salt-call.bat -Destination $root_dir
-    - Copy-Item -Path .\salt-minion.bat -Destination $root_dir
+    - cp -f svtminion.ps1 ${oldpwd}/svtminion.ps1
+    - cp -f salt-call.bat ${oldpwd}/salt-call.bat
+    - cp -f salt-minion.bat ${oldpwd}/salt-minion.bat
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"

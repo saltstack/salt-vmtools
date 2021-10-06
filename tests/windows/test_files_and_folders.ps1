@@ -15,6 +15,8 @@ $Action = "test"
 Import-Module .\windows\svtminion.ps1
 Import-Module .\tests\windows\helper.ps1
 
+Write-Label $MyInvocation.MyCommand.Name
+
 Write-TestLabel "Testing Remove-FileOrFolder"
 
 Write-Host "- Remove Directory: " -NoNewLine
