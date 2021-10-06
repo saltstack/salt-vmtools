@@ -229,6 +229,27 @@ test-salt-vmtools-linux:
     - when: on_success
 
 
+test-salt-vmtools-windows:
+  stage: test_svt
+  tags:
+    - shared-windows
+    - windows
+    - windows-1809
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    expire_in: 120 days
+  needs:
+    - job: build-salt-vmtools-windows
+  script:
+    # Run everything in the .\tests\windows directory
+    - Get-ChildItem .\tests\windows | % { powershell -file $_.FullName }
+
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - when: on_success
+
+
 test-tags-salt-vmtools-linux:
   stage: test_svt
   artifacts:

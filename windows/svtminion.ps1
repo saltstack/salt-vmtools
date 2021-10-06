@@ -139,7 +139,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $download_retry_count = 5
 $current_date = Get-Date -Format "yyyy-MM-dd"
-$script_name = $myInvocation.MyCommand.Name
+$script_name = $MyInvocation.MyCommand.Name
 $script_log_dir = "$env:ProgramData\VMware\logs"
 
 ################################# VARIABLES ####################################
@@ -501,17 +501,29 @@ function Expand-ZipFile {
         New-Item -ItemType directory -Path $Destination
     }
     Write-Log "Unzipping '$ZipFile' to '$Destination'" -Level debug
-    $objShell = New-Object -Com Shell.Application
-    $objZip = $objShell.NameSpace($ZipFile)
-    $Error.Clear()
-    try{
-        foreach ($item in $objZip.Items()) {
-            $objShell.Namespace($Destination).CopyHere($item, 0x14)
+    if ($PSVersionTable.PSVersion.Major -ge 5) {
+        # PowerShell 5 introduced Expand-Archive
+        try{
+            Expand-Archive -Path $ZipFile -DestinationPath $Destination -Force
+        } catch {
+            Write-Log "Failed to unzip $ZipFile : $Error" -Level error
+            Set-FailedStatus
+            exit 127
         }
-    } catch {
-        Write-Log "Failed to unzip $ZipFile : $Error" -Level error
-        Set-FailedStatus
-        exit 127
+    } else {
+        # This method will work with older versions of powershell, but it is slow
+        $objShell = New-Object -Com Shell.Application
+        $objZip = $objShell.NameSpace($ZipFile)
+        $Error.Clear()
+        try{
+            foreach ($item in $objZip.Items()) {
+                $objShell.Namespace($Destination).CopyHere($item, 0x14)
+            }
+        } catch {
+            Write-Log "Failed to unzip $ZipFile : $Error" -Level error
+            Set-FailedStatus
+            exit 127
+        }
     }
     Write-Log "Finished unzipping '$ZipFile' to '$Destination'" -Level debug
 }
@@ -765,10 +777,8 @@ function _parse_config {
         [String[]] $KeyValues
     )
 
-    $count = $KeyValues.Count
-    Write-Log "Found $count config options" -Level debug
     $config_options = @{}
-    foreach ($key_value in $KeyValues) {
+    foreach ($key_value in $KeyValues.Split()) {
         if ($key_value -like "*=*") {
             Write-Log "Found config: $key_value" -Level debug
             $key, $value = $key_value -split "="
@@ -781,6 +791,8 @@ function _parse_config {
             Write-Log "Invalid config format ignored: $key_value" -Level warning
         }
     }
+    $count = $config_options.Count
+    Write-Log "Found $count config options" -Level debug
     return $config_options
 }
 
@@ -1296,6 +1308,9 @@ function Remove {
 
 
 ################################### MAIN #######################################
+
+# Allow importing for testing
+if (($Action) -and ($Action.ToLower() -eq "test")) { exit 0 }
 
 # Check for help switch
 if ($help) {
