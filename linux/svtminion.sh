@@ -211,18 +211,18 @@ _cleanup() {
 ##    local retn=0
     if [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${scriptFailed}]}" ]]; then
 ##        retn=${scriptFailed}
-        return 127
+        exit 127
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
 ##        retn=${installFailed}
-        return 3
+        exit 3
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installed}]}" ]]; then
         # normal case with exit 0, but double-check
         svpid=$(_find_salt_pid)
         if [[ -z ${svpid} || ! -f "${test_exists_file}" ]]; then
             CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
             retn=${installFailed}
-            return 3
+            exit 3
         fi
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${removeFailed}]}"
@@ -232,17 +232,17 @@ _cleanup() {
             if [[ ! -f "${test_exists_file}" ]]; then
                 CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
 ##                retn=${notInstalled}
-                return 2
+                exit 2
             fi
         fi
     else
         # assume not installed
         CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
 ##         retn=${notInstalled}
-        return 2
+        exit 2
     fi
 ##    return ${retn}
-    return 0
+    exit 0
 }
 
 
