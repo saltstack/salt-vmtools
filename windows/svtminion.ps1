@@ -126,7 +126,7 @@ $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $Principal = New-Object System.Security.Principal.WindowsPrincipal($Identity)
 if (!($Principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator))) {
     Write-Host "This script must run as Administrator" -ForegroundColor Red
-    exit 1
+    exit 127
 }
 
 
@@ -179,11 +179,11 @@ try{
     $reg_key = Get-ItemProperty $vmtools_base_reg
 } catch {
     Write-Host "Unable to find valid VMtools installation : $Error" -ForeGroundColor Red
-    exit 1
+    exit 127
 }
 if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
     Write-Host "Unable to find valid VMtools installation" -ForeGroundColor Red
-    exit 1
+    exit 127
 }
 
 ## VMware file and directory locations
@@ -193,7 +193,7 @@ $vmtools_conf_file = "$vmtools_conf_dir\tools.conf"
 $vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
 
 ## VMware guestVars file and directory locations
-$guestvars_base = "guestinfo.vmware.components"
+$guestvars_base = "guestinfo./vmware.components"
 $guestvars_section = "salt_minion"
 $guestvars_salt = "$guestvars_base.$guestvars_section"
 $guestvars_salt_args = "$guestvars_salt.args"
@@ -262,8 +262,9 @@ function Get-ScriptRunningStatus {
     #
     # Returns True if running, otherwise False
 
+    Write-Log "Checking for a running instance of this script" -Level info
+
     #Get all running powershell processes
-    # $PsScriptsRunning = get-wmiobject win32_process | where{$_.processname -eq 'powershell.exe'} | select-object commandline,ProcessId
     $processes = Get-WmiObject Win32_Process -Filter "Name='powershell.exe' AND CommandLine LIKE '%$script_name%'" | Select-Object CommandLine,ProcessId
 
     $process_found = $false
@@ -317,15 +318,13 @@ function Get-Status {
         }
     }
 
-    $Error.Clear()
-    try {
+    if ($STATUS_CODES.keys -contains $current_status) {
         $status_lookup = $STATUS_CODES[$current_status]
-        Write-Host "Found status: $status_lookup"
-        exit $current_status
-    } catch {
-        Write-Host "Unknown status found: $current_status : $Error"
-        exit 9
+        Write-Log "Found status: $status_lookup" -Level debug
+    } else {
+        Write-Log "Unknown status code: $current_status" -Level debug
     }
+    $current_status
 }
 
 
@@ -349,8 +348,8 @@ function Set-Status {
         [String] $NewStatus
     )
 
+    Write-Log "Setting status: $NewStatus" -Level info
     $status_code = $STATUS_CODES[$NewStatus]
-    Write-Log "Setting status to $NewStatus" -Level debug
     # If it's notInstalled, just remove the propery name
     if ($status_code -eq 2) {
         $Error.Clear()
@@ -360,7 +359,7 @@ function Set-Status {
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
             Write-Log "Error removing reg key: $Error" -Level error
-            exit 1
+            exit 127
         }
     } else {
         $Error.Clear()
@@ -369,7 +368,7 @@ function Set-Status {
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
             Write-Log "Error writing status: $Error" -Level error
-            exit 1
+            exit 127
         }
     }
 }
@@ -427,7 +426,7 @@ function Get-WebFile{
                 if ($tries -gt $download_retry_count) {
                     Write-Log "Retry count exceeded" -Level error
                     Set-FailedStatus
-                    exit 1
+                    exit 127
                 }
                 Write-Log "Trying again after 10 seconds" -Level warning
                 Start-Sleep -Seconds 10
@@ -472,7 +471,7 @@ function Get-HashFromFile {
     }
     Write-Log "No hash found for: $FileName" -Level error
     Set-FailedStatus
-    exit 1
+    exit 127
 }
 
 
@@ -512,7 +511,7 @@ function Expand-ZipFile {
     } catch {
         Write-Log "Failed to unzip $ZipFile : $Error" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
     Write-Log "Finished unzipping '$ZipFile' to '$Destination'" -Level debug
 }
@@ -542,15 +541,16 @@ function Add-SystemPathValue{
     $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
 
     # Make sure the target folder exists
+    Write-Log "Ensuring target path exists" -Level debug
     if (!(Test-Path $Path)) {
         Write-Log "Target path does not exist: $Path" -Level warning
     }
 
-    Write-Log "Getting current path" -Level debug
+    Write-Log "Getting current system path" -Level debug
     $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
     $new_path_list = [System.Collections.ArrayList]::new()
 
-    Write-Log "Verifying the path is not present" -Level debug
+    Write-Log "Verifying the target path is not already present" -Level debug
     foreach ($item in $current_path.Split(";")) {
         $regex_path = $Path.Replace("\", "\\")
         # Bail if we find the new path in the current path
@@ -564,20 +564,20 @@ function Add-SystemPathValue{
     }
 
     # Add the new path to the array
-    Write-Log "Adding path: $Path" -Level debug
+    Write-Log "Adding target path: $Path" -Level debug
     $new_path_list.Add($Path) | Out-Null
 
     $new_path = $new_path_list -join ";"
     $Error.Clear()
     try{
-        Write-Log "Updating system path and env path" -Level debug
+        Write-Log "Updating system path" -Level debug
         Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
     } catch {
         Write-Log "Failed to add $Path the system path" -Level error
         Write-Log "Tried to write: $new_path" -Level error
         Write-Log "Error message: $Error" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
 }
 
@@ -599,35 +599,37 @@ function Remove-SystemPathValue {
         [String]$Path
     )
 
+    Write-Log "Removing from system path: $Path" -Level info
+
     $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
 
-    Write-Log "Getting current path" -Level debug
+    Write-Log "Getting current system path" -Level debug
     $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
     $new_path_list = [System.Collections.ArrayList]::new()
 
-    Write-Log "Searching for $Path in the path" -Level debug
+    Write-Log "Searching for $Path" -Level debug
     foreach ($item in $current_path.Split(";")) {
         $regex_path = $Path.Replace("\", "\\")
         # Bail if we find the new path in the current path
         if ($item -imatch "^$regex_path(\\)?$") {
-            Write-Log "Removing $Path from the path" -Level debug
+            Write-Log "Removing target path: $Path" -Level debug
         } else {
             # Add the item to our new path array
             $new_path_list.Add($item) | Out-Null
         }
     }
 
-    Write-Log "Updating system path" -Level debug
     $new_path = $new_path_list -join ";"
     $Error.Clear()
     try {
+        Write-Log "Updating system path" -Level debug
         Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
     } catch {
         Write-Log "Failed to remove $Path from the system path: $new_path" -Level error
         Write-Log "Tried to write: $new_path" -Level error
         Write-Log "Error message: $Error" -level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
 }
 
@@ -650,12 +652,15 @@ function Remove-FileOrFolder {
         [Parameter(Mandatory=$true)]
         [String] $Path
     )
+    Write-Log "Removing: $Path" -Level info
     $tries = 1
     $max_tries = 5
     $success = $false
     Write-Log "Taking ownership: $Path" -Level debug
     try {
         & takeown /a /r /d Y /f $Path *> $null
+        # Pause here to avoid a race condition
+        Start-Sleep -Seconds 1
     } catch {
         Write-Log "Directory does not exist" -Level debug
     }
@@ -678,7 +683,7 @@ function Remove-FileOrFolder {
                     if ($tries -gt $max_tries) {
                         Write-Log "Retry count exceeded" -Level error
                         Set-FailedStatus
-                        exit 1
+                        exit 127
                     }
                     Write-Log "Trying again after 5 seconds" -Level warning
                     Start-Sleep -Seconds 5
@@ -810,7 +815,6 @@ function Get-ConfigGuestVars {
     Write-Log "Checking for GuestVars config options" -Level debug
     $config_options = Get-GuestVars -GuestVarsPath $guestvars_salt_args
     if ($config_options) {
-        $config_options = $config_options.Split()
         _parse_config $config_options
     } else {
         Write-Log "Minion config not defined in guestvars" -Level warning
@@ -952,7 +956,7 @@ function Add-MinionConfig {
     } catch {
         Write-Log "Failed to write minion config: $config_content : $Error" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
 }
 
@@ -968,7 +972,7 @@ function Start-MinionService {
     } else {
         Write-Log "Failed to start the salt-minion service" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
 }
 
@@ -984,7 +988,7 @@ function Stop-MinionService {
     } else {
         Write-Log "Failed to stop the salt-minion service" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
 }
 
@@ -1069,17 +1073,19 @@ function Find-StandardSaltInstallation {
         $reg_key = Get-ItemProperty $reg_path
         $dir_path = Get-ItemPropertyValue -Path $reg_path -Name "install_dir"
         $locations.Add($dir_path) | Out-Null
-    } catch {
-        Write-Log "No Standard Installation Reg Path" -Level debug
-    }
+    } catch { }
 
     # Check for python.exe in locations
+    Write-Log "Looking for Standard Installation" -Level info
     $exists = $false
     foreach ($path in $locations) {
         if (Test-Path -Path "$path\bin\python.exe" ) {
-            Write-Log "Standard Installation Detected: $path" -Level error
+            Write-Log "Standard Installation detected: $path" -Level error
             $exists = $true
         }
+    }
+    if (!($exists)) {
+        Write-Log "Standard Installation not detected" -Level debug
     }
     $exists
 }
@@ -1091,21 +1097,21 @@ function Get-SaltFromWeb {
     # Error:
     #     Set the status and exit with an error
 
-    Write-Log "Downloading salt from the web" -Level info
-
     # Make sure the download directory exists
     if ( !( Test-Path -Path $base_salt_install_location) ) {
         Write-Log "Creating directory: $base_salt_install_location" -Level debug
         New-Item -Path $base_salt_install_location -ItemType Directory | Out-Null
     }
 
-    # Download the hash file
-    $hash_file = "$base_salt_install_location\$salt_hash_name"
-    Get-WebFile -Url $salt_hash_url -OutFile $hash_file
-
     # Download the salt file
+    Write-Log "Downloading salt" -Level info
     $salt_file = "$base_salt_install_location\$salt_web_file_name"
     Get-WebFile -Url $salt_web_file_url -OutFile $salt_file
+
+    # Download the hash file
+    Write-Log "Downloading hash file" -Level info
+    $hash_file = "$base_salt_install_location\$salt_hash_name"
+    Get-WebFile -Url $salt_hash_url -OutFile $hash_file
 
     # Get the hash for the salt file
     $file_hash = (Get-FileHash -Path $salt_file -Algorithm SHA512).Hash
@@ -1119,7 +1125,7 @@ function Get-SaltFromWeb {
         Write-Log "  - $file_hash" -Level error
         Write-Log "  - $expected_hash" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
 }
 
@@ -1141,20 +1147,20 @@ function Install-SaltMinion {
     # 2. Copy the scripts into Program Files
     Write-Log "Copying scripts" -Level info
     try {
-        Write-Log "Copying $PSScriptRoot\salt-call.bat"
+        Write-Log "Copying $PSScriptRoot\salt-call.bat" -Level debug
         Copy-Item -Path "$PSScriptRoot\salt-call.bat" -Destination "$salt_dir"
     } catch {
         Write-Log "Failed copying $PSScriptRoot\salt-call.bat" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
     try {
-        Write-Log "Copying $PSScriptRoot\salt-minion.bat"
+        Write-Log "Copying $PSScriptRoot\salt-minion.bat" -Level debug
         Copy-Item -Path "$PSScriptRoot\salt-minion.bat" -Destination "$salt_dir"
     } catch {
         Write-Log "Failed copying $PSScriptRoot\salt-minion.bat" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     }
 
     # 3. Register the service
@@ -1168,7 +1174,7 @@ function Install-SaltMinion {
     if (!(Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
         Write-Log "Failed to install salt-minion service" -Level error
         Set-FailedStatus
-        exit 1
+        exit 127
     } else {
         Write-Log "Finished installing salt-minion service" -Level debug
     }
@@ -1201,13 +1207,13 @@ function Remove-SaltMinion {
         Stop-MinionService
 
         # Delete the service
-        Write-Log "Uninstalling salt-minion service" -Level debug
+        Write-Log "Uninstalling salt-minion service" -Level info
         $service = Get-WmiObject -Class Win32_Service -Filter "Name='salt-minion'"
         $service.delete() *> $null
         if ((Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
             Write-Log "Failed to uninstall salt-minion service" -Level error
             Set-FailedStatus
-            exit 1
+            exit 127
         } else {
             Write-Log "Finished uninstalling salt-minion service" -Level debug
         }
@@ -1230,6 +1236,8 @@ function Reset-SaltMinion {
     # - Remove minion_id file
     # - Randomize the minion id in the minion config
     # - Remove the minion public and private keys
+
+    Write-Log "Resetting salt minion" -Level info
 
     Remove-FileOrFolder "$salt_config_file\minion_id"
 
@@ -1254,13 +1262,36 @@ function Reset-SaltMinion {
             Set-Content -Path $salt_config_file -Value $config_content
         } catch {
             Write-Log "Failed to write new minion config : $Error" -Level error
-            exit 1
+            exit 127
         }
     }
 
     # Remove minion keys (minion.pem and minion.pub"
     Remove-FileOrFolder -Path "$salt_pki_dir\minion.pem"
     Remove-FileOrFolder -Path "$salt_pki_dir\minion.pub"
+
+    Write-Log "Salt minion reset successfully" -Level info
+}
+
+
+function Install {
+    Write-Log "Installing salt minion" -Level info
+    Set-Status installing
+    Get-SaltFromWeb
+    Install-SaltMinion
+    Add-MinionConfig
+    Start-MinionService
+    Set-Status installed
+    Write-Log "Salt minion installed successfully" -Level info
+}
+
+
+function Remove {
+    Write-Log "Removing salt minion" -Level info
+    Set-Status removing
+    Remove-SaltMinion
+    Set-Status notInstalled
+    Write-Log "Salt minion removed successfully" -Level info
 }
 
 
@@ -1277,13 +1308,13 @@ if ($help) {
 # Let's confirm dependencies
 if (!(Confirm-Dependencies)) {
     Write-Host "Missing script dependencies"
-    exit 1
+    exit 127
 }
 
 # Let's make sure there's not already a standard salt installation on the system
 if (Find-StandardSaltInstallation) {
     Write-Host "Found an existing salt installation on the system."
-    exit 1
+    exit 127
 }
 
 # Check for Action. If not specified on the command line, get it from guestVars
@@ -1299,64 +1330,82 @@ if (!($Action)) {
 
 # Validate the action
 if ("add", "status", "depend", "reset", "remove" -notcontains $Action) {
-    Write-Error "Invalid action: $Action" -Level error
-    exit 1
+    Write-Log "Invalid action: $Action" -Level error
+    Write-Host "Invalid action: $Action" -ForgroundColor Red
+    exit 127
 }
 
 if ($Action) {
     switch ($Action.ToLower()) {
         "depend" {
             # If we've gotten this far, dependencies have been confirmed
+            Write-Host "Found all dependencies"
             exit 0
         }
         "add" {
             # If status is installed(0), installing(1), or removing(4), bail out
             $current_status = Get-Status
+            if ($STATUS_CODES.keys -notcontains $current_status) {
+                Write-Host "Unknown status code: $current_status" -Level error
+                exit 127
+            }
             switch ($current_status) {
                 0 { Write-Host "Already installed"; exit 0 }
                 1 { Write-Host "Installation in progress"; exit 0 }
                 4 { Write-Host "Removal in progress"; exit 0}
             }
-            Set-Status installing
-            Get-SaltFromWeb
-            Install-SaltMinion
-            Add-MinionConfig
-            Start-MinionService
-            Set-Status installed
+            Install
+            Write-Host "Salt minion installed successfully"
+            exit 0
         }
         "remove" {
             # If status is installing(1), notInstalled(2), or removing(4), bail out
             $current_status = Get-Status
+            if ($STATUS_CODES.keys -notcontains $current_status) {
+                Write-Host "Unknown status code: $current_status" -Level error
+                exit 127
+            }
             switch ($current_status) {
                 1 { Write-Host "Installation in progress"; exit 0 }
                 2 { Write-Host "Already uninstalled"; exit 0 }
                 4 { Write-Host "Removal in progress"; exit 0}
             }
-            # If status is notInstalled or removing, bail out
-            Set-Status removing
-            Remove-SaltMinion
-            Set-Status notInstalled
+            Remove
+            Write-Host "Salt minion removed successfully"
+            exit 0
         }
         "reset" {
             # If not installed (0), bail out
             $current_status = Get-Status
+            if ($STATUS_CODES.keys -notcontains $current_status) {
+                Write-Host "Unknown status code: $current_status" -Level error
+                exit 127
+            }
             if ($current_status -ne 0) {
                 Write-Host "Not installed. Reset will not continue"
                 exit 0
             }
             Reset-SaltMinion
+            Write-Host "Salt minion reset successfully"
+            exit 0
         }
         "status" {
-            return Get-Status
+            $status_code = Get-Status
+            if ($STATUS_CODES.keys -notcontains $current_status) {
+                Write-Host "Unknown status code: $current_status" -Level error
+                exit 127
+            }
+            Write-Host "Found status: $($STATUS_CODES[$status_code])"
+            exit $status_code
         }
         default {
-            $action_list = "add, remove, depend, reset, status"
-            Write-Log "Invalid action: $Action - Must be one of [$action_list]" -Level error
-            exit 1
+            $action_list = "install, remove, depend, clear, status"
+            Write-Host "Invalid action: $Action - Must be one of [$action_list]"
+            exit 127
         }
     }
 } else {
     # No action specified
     Write-Log "No action specified" -Level error
-    exit 1
+    exit 127
 }
