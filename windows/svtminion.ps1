@@ -101,9 +101,10 @@ param(
     [Parameter(ParameterSetName="Depend")]
     [Parameter(ParameterSetName="Remove")]
     [Alias("l")]
-    [ValidateSet("error", "info", "warning", "debug", IgnoreCase=$true)]
+    [ValidateSet("silent", "error", "info", "warning", "debug", IgnoreCase=$true)]
     [String]
-    # Sets the log level to display and log
+    # Sets the log level to display and log. Default is error. Silent suppresses
+    # all logging output
     $LogLevel = "error",
 
     [Parameter(Mandatory=$false, ParameterSetName="Help")]
@@ -131,7 +132,7 @@ if (!($Principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Admini
 
 
 ################################# LOGGING ######################################
-$LOG_LEVELS = @{"error" = 0; "info" = 1; "warning" = 2; "debug" = 3}
+$LOG_LEVELS = @{"silent" = 0; "error" = 1; "info" = 2; "warning" = 3; "debug" = 4}
 $log_level_value = $LOG_LEVELS[$LogLevel.ToLower()]
 
 ################################# SETTINGS #####################################
@@ -252,7 +253,9 @@ function Write-Log {
             "WARNING" { $color = "Yellow" }
             default { $color = "White"}
         }
-        Write-Host $log_message -ForegroundColor $color
+        if ($log_level_value -ge 1 ) {
+            Write-Host $log_message -ForegroundColor $color
+        }
     }
 }
 
@@ -974,15 +977,20 @@ function Add-MinionConfig {
 
 
 function Start-MinionService {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [String] $ServiceName = "salt-minion"
+    )
     # Start the minion service
-    Write-Log "Starting the salt-minion service" -Level info
-    Start-Service -Name salt-minion | Out-Null
+    Write-Log "Starting the $ServiceName service" -Level info
+    Start-Service -Name $ServiceName *> $null
 
-    Write-Log "Checking the status of the salt-minion service" -Level debug
-    if ((Get-Service -Name salt-minion).Status -eq "Running") {
+    Write-Log "Checking the status of the $ServiceName service" -Level debug
+    if ((Get-Service -Name $ServiceName).Status -eq "Running") {
         Write-Log "Service started successfully" -Level debug
     } else {
-        Write-Log "Failed to start the salt-minion service" -Level error
+        Write-Log "Failed to start the $ServiceName service" -Level error
         Set-FailedStatus
         exit 127
     }
@@ -990,15 +998,20 @@ function Start-MinionService {
 
 
 function Stop-MinionService {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [String] $ServiceName = "salt-minion"
+    )
     # Stop the salt-minion service
-    Write-Log "Stopping the salt-minion service" -Level info
-    Stop-Service -Name salt-minion | Out-Null
+    Write-Log "Stopping the $ServiceName service" -Level info
+    Stop-Service -Name $ServiceName *> $null
 
-    Write-Log "Checking the status of the salt-minion service" -Level debug
-    if ((Get-Service -Name salt-minion).Status -eq "Stopped") {
+    Write-Log "Checking the status of the $ServiceName service" -Level debug
+    if ((Get-Service -Name $ServiceName).Status -eq "Stopped") {
         Write-Log "Service stopped successfully" -Level debug
     } else {
-        Write-Log "Failed to stop the salt-minion service" -Level error
+        Write-Log "Failed to stop the $ServiceName service" -Level error
         Set-FailedStatus
         exit 127
     }
@@ -1009,10 +1022,10 @@ function Get-RandomizedMinionId {
     # Generate a randomized minion id
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         [String] $Prefix = "minion",
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         [String] $Length = 5
     )
     $chars = (0x30..0x39) + ( 0x41..0x5A) + ( 0x61..0x7A)
@@ -1034,17 +1047,15 @@ function Confirm-Dependencies {
     Write-Log "Checking dependencies" -Level info
 
     # Check for VMware registry location for storing status
-    Write-Log "Looking for: $vmtools_base_reg" -Level debug
-    if(!(Test-Path("$vmtools_base_reg"))) {
-        Write-Log "Unable to find $vmtools_base_reg" -Level error
-        $deps_present = $false
-    }
-
-    # InstallPath reg key
     Write-Log "Looking for valid VMtools installation" -Level debug
-    $reg_key = Get-ItemProperty $vmtools_base_reg
-    if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
-        Write-Log "Unable to find valid VMtools installation" -Level error
+    try {
+        $reg_key = Get-ItemProperty $vmtools_base_reg
+        if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
+            Write-Log "Unable to find valid VMtools installation" -Level error
+            $deps_present = $false
+        }
+    } catch {
+        Write-Log "Unable to find $vmtools_base_reg" -Level error
         $deps_present = $false
     }
 
@@ -1077,7 +1088,7 @@ function Find-StandardSaltInstallation {
     # Standard locations
     $locations = [System.Collections.ArrayList]::new()
     $locations.Add("C:\salt") | Out-Null
-    $locations.Add("$env:ProgramFiles\Salt Project\salt") | Out-Null
+    $locations.Add("$salt_dir") | Out-Null
 
     # Check registry for new style locations
     try{

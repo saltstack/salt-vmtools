@@ -4,8 +4,6 @@ New-Item -Path $vmtools_base_reg -Force | Out-Null
 New-ItemProperty -Path $vmtools_base_reg -Name InstallPath -Value "$vmtools_base_path" -Force | Out-Null
 New-Item -Path "$vmtools_base_path" -ItemType directory -Force | Out-Null
 New-Item -Path "$vmtools_base_path\vmtoolsd.exe" -ItemType file -Force | Out-Null
-New-Item -Path "$vmtools_base_path\salt-call.bat" -ItemType file -Force | Out-Null
-New-Item -Path "$vmtools_base_path\salt-call.bat" -ItemType file -Force | Out-Null
 function Write-Success { Write-Host "Success" -ForegroundColor Green }
 function Write-Failed { Write-Host "Failed" -ForegroundColor Red }
 
@@ -13,7 +11,7 @@ $failed = 0
 
 $Action = "test"
 Import-Module .\windows\svtminion.ps1
-Import-Module .\tests\windows\helper.ps1
+Import-Module .\tests\windows\helpers.ps1
 
 Write-Label $MyInvocation.MyCommand.Name
 
@@ -81,21 +79,32 @@ $config = Get-MinionConfig
 if (($config["ma"] -eq "cli_m") -and ($config["id"] -eq "cli_i")) { Write-Success } else { Write-Failed; $failed = 1 }
 
 
-#Write-TestLabel "Testing Add-MinionConfig"
-#
-## We need to create some content
-#$content = @("[salt_minion]"; "master=tc_master")
-#$tc_content = $content -join "`n"
-#New-Item -Path $vmtools_conf_file -Value $tc_content -Force | Out-Null
-#
-## We have to try to mock getting guestVars
-#function Get-GuestVars { "id=gv_minion" }
-#
-## Set CLI Options
-#$ConfigOptions = @("root_dir=cli_root_dir")
-#Add-MinionConfig
-##TODO: Finish this
+Write-TestLabel "Testing Add-MinionConfig"
+
+# We need to create some tools.conf content
+$content = @("[salt_minion]"; "master=tc_master")
+$tc_content = $content -join "`n"
+New-Item -Path $vmtools_conf_file -Value $tc_content -Force | Out-Null
+
+# We have to try to mock getting guestVars
+function Get-GuestVars { "id=gv_minion" }
+
+# Set CLI Options
+$ConfigOptions = @("root_dir=cli_root_dir")
+
+Add-MinionConfig
+
+$content = Get-Content $salt_config_file
+Write-Host "- Checking for id: " -NoNewline
+if ($content -like "*id: gv_minion*") { Write-Success } else { Write-Failed; $failed = 1 }
+Write-Host "- Checking for file_roots: " -NoNewline
+if ($content -like "*file_roots: C:\ProgramData\Salt Project\salt*") { Write-Success } else { Write-Failed; $failed = 1 }
+Write-Host "- Checking for master: " -NoNewline
+if ($content -like "*master: tc_master*") { Write-Success } else { Write-Failed; $failed = 1 }
+Write-Host "- Checking for root_dir: " -NoNewline
+if ($content -like "*root_dir: cli_root_dir*") { Write-Success } else { Write-Failed; $failed = 1 }
 
 Write-Status $failed
-Write-Label $MyInvocation.MyCommand.Name
+Write-Label "="
+Write-Host ""
 exit $failed

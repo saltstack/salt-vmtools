@@ -235,8 +235,10 @@ test-salt-vmtools-windows:
   needs:
     - job: build-salt-vmtools-windows
   script:
-    # Run everything in the .\tests\windows directory
+    # Running functional tests
     - Get-ChildItem .\tests\windows | % { powershell -file $_.FullName }
+    # Running integration tests
+    - Get-ChildItem .\tests\windows\integration | % { powershell -file $_.FullName }
 
   rules:
     - if: $CI_COMMIT_TAG
