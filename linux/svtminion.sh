@@ -99,16 +99,25 @@ declare -a minion_conf_values
 #  4 => removing
 #  5 => removeFailed
 #  127 => scriptFailed
-readonly STATUS_CODES=(installed installing notInstalled installFailed removing removeFailed scriptFailed)
-scam=${#STATUS_CODES[@]}
-for ((i=0; i<scam; i++)); do
-    name=${STATUS_CODES[i]}
-    if [[ "scriptFailed" = "${name}" ]]; then
-        declare -r "${name}"=127
-    else
-        declare -r "${name}"=$i
-    fi
-done
+## readonly STATUS_CODES=(installed installing notInstalled installFailed removing removeFailed scriptFailed)
+## scam=${#STATUS_CODES[@]}
+## for ((i=0; i<scam; i++)); do
+##     name=${STATUS_CODES[i]}
+##     if [[ "scriptFailed" = "${name}" ]]; then
+##         declare -r "${name}"=127
+##     else
+##         declare -r "${name}"=$i
+##     fi
+## done
+## readonly STATUS_CODES=(installed installing notInstalled installFailed removing removeFailed scriptFailed)
+declare -A STATUS_CODES_ARY
+STATUS_CODES_ARY[installed]=0
+STATUS_CODES_ARY[installing]=1
+STATUS_CODES_ARY[notInstalled]=2
+STATUS_CODES_ARY[installFailed]=3
+STATUS_CODES_ARY[removing]=4
+STATUS_CODES_ARY[removeFailed]=5
+STATUS_CODES_ARY[scriptFailed]=127
 
 # log levels available for logging, order sensitive
 readonly LOG_MODES_AVAILABLE=(silent error warning info debug)
@@ -155,7 +164,7 @@ _error_log() {
         echo "$msg" 1>&2
         echo "$(_timestamp) $msg" >>"${LOGGING}"
         echo "One or more errors found. See ${LOGGING} for details." 1>&2
-        CURRENT_STATUS="${STATUS_CODES[${scriptFailed}]}"
+        CURRENT_STATUS=${STATUS_CODES_ARY[scriptFailed]}
         exit 127
     fi
 }
@@ -228,42 +237,42 @@ esac
 #   Exits with status
 #
 
-_cleanup() {
-    # clean up any items if die and burn
-    # last check of status on exit, interrupt, etc
-    if [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${scriptFailed}]}" ]]; then
-        exit 127
-    elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}" ]]; then
-        CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
-        exit 3
-    elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installed}]}" ]]; then
-        # normal case with exit 0, but double-check
-        svpid=$(_find_salt_pid)
-        if [[ -z ${svpid} || ! -f "${test_exists_file}" ]]; then
-            CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
-            exit 3
-        fi
-    elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}" ]]; then
-        CURRENT_STATUS="${STATUS_CODES[${removeFailed}]}"
-        svpid=$(_find_salt_pid)
-        if [[ -z ${svpid} ]]; then
-            if [[ ! -f "${test_exists_file}" ]]; then
-                CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
-                exit 2
-            fi
-        fi
-        exit 5
-    else
-        # assume not installed
-        CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
-        exit 2
-    fi
-    exit 0
-}
+## _cleanup() {
+##     # clean up any items if die and burn
+##     # last check of status on exit, interrupt, etc
+##     if [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${scriptFailed}]}" ]]; then
+##         exit 127
+##     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}" ]]; then
+##         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+##         exit 3
+##     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installed}]}" ]]; then
+##         # normal case with exit 0, but double-check
+##         svpid=$(_find_salt_pid)
+##         if [[ -z ${svpid} || ! -f "${test_exists_file}" ]]; then
+##             CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+##             exit 3
+##         fi
+##     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}" ]]; then
+##         CURRENT_STATUS="${STATUS_CODES[${removeFailed}]}"
+##         svpid=$(_find_salt_pid)
+##         if [[ -z ${svpid} ]]; then
+##             if [[ ! -f "${test_exists_file}" ]]; then
+##                 CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
+##                 exit 2
+##             fi
+##         fi
+##         exit 5
+##     else
+##         # assume not installed
+##         CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
+##         exit 2
+##     fi
+##     exit 0
+## }
 
 
 ## trap _cleanup INT TERM EXIT
-trap _cleanup INT EXIT
+## trap _cleanup INT EXIT
 
 ## cheap trim relying on echo to convert tabs to spaces and all multiple spaces to a single space
 _trim() {
@@ -635,23 +644,23 @@ _fetch_salt_minion() {
 
     _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check its validity"
 
-    CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+    CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
     _curl_download "${salt_pkg_name}" "${salt_url}"
     _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
     calc_sha512sum=$(grep "${salt_pkg_name}" ${salt_url_chksum_file} | sha512sum --check --status)
     if [[ $calc_sha512sum -ne 0 ]]; then
-        CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+        CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
         _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' failed to match checksum in file '${salt_url_chksum}'"
     fi
 
     tar -xvzf ${salt_pkg_name} 1>/dev/null
     if [[ ! -f ${test_exists_file} ]]; then
-        CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+        CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
         _error_log "$0:${FUNCNAME[0]} expansion of downloaded file '${salt_url}' failed to provide critical file '${test_exists_file}'"
     fi
-    CURRENT_STATUS="${STATUS_CODES[${installed}]}"
+    CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
     cd "${CURRDIR}" || return $?
 
     _info_log "$0:${FUNCNAME[0]} successfully retrieved salt-minion"
@@ -742,39 +751,39 @@ _ensure_id_or_fqdn () {
 
 _status_fn() {
     # return status
-    local retn_status=${notInstalled}
+    local retn_status=${STATUS_CODES_ARY[notInstalled]}
 
     _info_log "$0:${FUNCNAME[0]} checking status for script"
-    if [[  "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}"
-        || "${CURRENT_STATUS}" = "${STATUS_CODES[${installFailed}]}"
-        || "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}"
-        || "${CURRENT_STATUS}" = "${STATUS_CODES[${removeFailed}]}" ]]; then
 
-        case "${CURRENT_STATUS}" in
-            "${STATUS_CODES[${installing}]}")
-                retn_status=${installing}
-                ;;
-            "${STATUS_CODES[${installFailed}]}")
-                retn_status=${installFailed}
-                ;;
-            "${STATUS_CODES[${removing}]}")
-                retn_status=${removing}
-                ;;
-            "${STATUS_CODES[${removeFailed}]}")
-                retn_status=${removeFailed}
-                ;;
-            *)
-                retn_status=${notInstalled}
-                ;;
-        esac
+    if [[ ${CURRENT_STATUS}  -eq ${STATUS_CODES_ARY[scriptFailed]}
+        || ${CURRENT_STATUS} -eq ${STATUS_CODES_ARY[installing]}
+        || ${CURRENT_STATUS} -eq ${STATUS_CODES_ARY[installFailed]}
+        || ${CURRENT_STATUS} -eq ${STATUS_CODES_ARY[removeFailed]} ]]; then
+            retn_status=${CURRENT_STATUS}
+    elif [[ ${CURRENT_STATUS} -eq ${STATUS_CODES_ARY[removing]} ]]; then
+        svpid=$(_find_salt_pid)
+        if [[ -z ${svpid} ]]; then
+            if [[ ! -f "${test_exists_file}" ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
+            else
+                CURRENT_STATUS=${STATUS_CODES_ARY[removeFailed]}
+            fi
+        fi
+        retn_status=${CURRENT_STATUS}
     elif [[ -f "${test_exists_file}" ]]; then
-        CURRENT_STATUS="${STATUS_CODES[${installed}]}"
-        retn_status=${installed}
+        retn_status=${STATUS_CODES_ARY[installed]}
+        # normal case but double-check
+        svpid=$(_find_salt_pid)
+        if [[ -z ${svpid} ]]; then
+            # Note: someone could have stopped the salt-minion,
+            # so installed but not running, status codes don't allow for that case
+            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+            retn_status=${CURRENT_STATUS}
+        fi
     else
-        CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
-        retn_status=${notInstalled}
+        retn_status=${STATUS_CODES_ARY[notInstalled]}
     fi
-    return "${retn_status}"
+    return ${retn_status}
 }
 
 
@@ -1103,14 +1112,14 @@ _uninstall_fn () {
 
     _info_log "$0:${FUNCNAME[0]} processing script remove"
     if [[ ! -f "${test_exists_file}" ]]; then
-        CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
+        CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
 
         # assumme rest is gone
         # TBD enhancement, could loop thru and check all of files to remove and if salt_pid empty
         #   but we error out if issues when uninstalling, so safe for now.
         retn=0
     else
-        CURRENT_STATUS="${STATUS_CODES[${removing}]}"
+        CURRENT_STATUS=${STATUS_CODES_ARY[removing]}
         svpid=$(_find_salt_pid)
         if [[ -n ${svpid} ]]; then
             # stop the active salt-minion using systemd
@@ -1135,13 +1144,13 @@ _uninstall_fn () {
             fi
             svpid=$(_find_salt_pid)
             if [[ -n ${svpid} ]]; then
-                CURRENT_STATUS="${STATUS_CODES[$removeFailed]}"
+                CURRENT_STATUS=${STATUS_CODES_ARY[removeFailed]}
                 _error_log "$0:${FUNCNAME[0]} failed to kill the salt-minion, pid '${svpid}' during uninstall"
             else
                 _remove_installed_files_dirs || {
                     _error_log "$0:${FUNCNAME[0]} failed to remove all installed salt-minion files and directories, retcode '$?'";
                 }
-                CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
+                CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
             fi
         fi
     fi
@@ -1159,7 +1168,7 @@ _uninstall_fn () {
 CURRDIR=$(pwd)
 
 # default status is notInstalled
-CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
+CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
 
 ## build designation tag used for auto builds is YearMontDayHourMinuteSecondMicrosecond aka jid
 date_long=$(date +%Y%m%d%H%M%S%N)
@@ -1208,7 +1217,7 @@ fi
 ##  MAIN BODY OF SCRIPT
 
 # check if salt-minion is installed
-if [[ -f "${test_exists_file}" ]]; then CURRENT_STATUS="${STATUS_CODES[$installed]}"; fi
+if [[ -f "${test_exists_file}" ]]; then CURRENT_STATUS=${STATUS_CODES_ARY[installed]}; fi
 
 retn=0
 
