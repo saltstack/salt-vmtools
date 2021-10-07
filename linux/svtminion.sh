@@ -66,6 +66,9 @@ readonly salt_dep_file_list="systemctl
 curl
 sha512sum
 vmtoolsd
+grep
+awk
+cut
 "
 
 ## VMware file and directory locations
@@ -74,7 +77,7 @@ readonly vmtools_conf_file="tools.conf"
 readonly vmtools_salt_minion_section_name="salt_minion"
 
 ## VMware guestVars file and directory locations
-readonly guestvars_base_dir="guestinfo.vmware.components"
+readonly guestvars_base_dir="guestinfo./vmware.components"
 readonly guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
 readonly guestvars_salt_args="${guestvars_salt_dir}.args"
 
@@ -85,19 +88,24 @@ declare -a minion_conf_keys
 declare -a minion_conf_values
 
 
-## Component Manager Installer/Script return codes
-# return Status codes
+## Component Manager Installer/Script return/exit status codes
+# return/exit Status codes
 #  0 => installed
 #  1 => installing
 #  2 => notInstalled
 #  3 => installFailed
 #  4 => removing
 #  5 => removeFailed
-readonly STATUS_CODES=(installed installing notInstalled installFailed removing removeFailed)
+#  127 => scriptFailed
+readonly STATUS_CODES=(installed installing notInstalled installFailed removing removeFailed scriptFailed)
 scam=${#STATUS_CODES[@]}
 for ((i=0; i<scam; i++)); do
     name=${STATUS_CODES[i]}
-    declare -r "${name}"="$i"
+    if [[ "scriptFailed" = "${name}" ]]; then
+        declare -r "${name}"=127
+    else
+        declare -r "${name}"=$i
+    fi
 done
 
 STATUS_CHK=0
@@ -121,6 +129,8 @@ _log() {
 }
 
 # Both echo and log
+# TBD logging needs update for "error", "info", "warning", "debug" similar to Windows
+
 _display() {
     if [[ ${VERBOSE_FLAG} -eq 1 ]]; then echo "$1"; fi
     _log "$1"
@@ -138,7 +148,8 @@ _error() {
     echo "$msg" 1>&2
     echo "$(_timestamp) $msg" >>"${LOGGING}"
     echo "One or more errors found. See ${LOGGING} for details." 1>&2
-    exit 1
+    CURRENT_STATUS="${STATUS_CODES[${scriptFailed}]}"
+    exit 127
 }
 
 _warning() {
@@ -190,17 +201,24 @@ esac
 # Side Effects:
 #   CURRENT_STATUS updated
 #
+# Results:
+#   Exits with status
+#
 
 _cleanup() {
     # clean up any items if die and burn
-    # don't know the worth of setting the current status, since script died
-    if [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}" ]]; then
+    # last check of status on exit, interrupt, etc
+    if [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${scriptFailed}]}" ]]; then
+        exit 127
+    elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installing}]}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+        exit 3
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${installed}]}" ]]; then
         # normal case with exit 0, but double-check
         svpid=$(_find_salt_pid)
         if [[ -z ${svpid} || ! -f "${test_exists_file}" ]]; then
             CURRENT_STATUS="${STATUS_CODES[${installFailed}]}"
+            exit 3
         fi
     elif [[ "${CURRENT_STATUS}" = "${STATUS_CODES[${removing}]}" ]]; then
         CURRENT_STATUS="${STATUS_CODES[${removeFailed}]}"
@@ -208,12 +226,16 @@ _cleanup() {
         if [[ -z ${svpid} ]]; then
             if [[ ! -f "${test_exists_file}" ]]; then
                 CURRENT_STATUS="${STATUS_CODES[$notInstalled]}"
+                exit 2
             fi
         fi
+        exit 5
     else
         # assume not installed
         CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
+        exit 2
     fi
+    exit 0
 }
 
 
@@ -625,7 +647,7 @@ _ensure_id_or_fqdn () {
 #   CURRENT_STATUS updated
 #
 # Results:
-#   Echos ${CURRENT_STATUS}
+#   Exits numerical ${CURRENT_STATUS}
 #
 
 _status_fn() {
@@ -660,8 +682,7 @@ _status_fn() {
         CURRENT_STATUS="${STATUS_CODES[${notInstalled}]}"
         retn_status=${notInstalled}
     fi
-    echo "${retn_status}"
-    return 0
+    return "${retn_status}"
 }
 
 
@@ -693,7 +714,7 @@ _deps_chk_fn() {
         }
     done
     if [[ -n "${error_missing_deps}" ]]; then
-        _error "$0:${FUNCNAME[0]} failed to find required dependenices '${error_missing_deps}', retcode '$?'";
+        _error "$0:${FUNCNAME[0]} failed to find required dependenices '${error_missing_deps}'";
     fi
     return ${retn}
 }
@@ -1076,8 +1097,7 @@ if [[ -f "${test_exists_file}" ]]; then CURRENT_STATUS="${STATUS_CODES[$installe
 retn=0
 
 if [[ ${STATUS_CHK} -eq 1 ]]; then
-    cur_status=$(_status_fn)
-    echo "${cur_status}"
+    _status_fn
     retn=$?
 elif [[ ${DEPS_CHK} -eq 1 ]]; then
     _deps_chk_fn
@@ -1104,16 +1124,19 @@ else
         case "${gvar_action}" in
             depend)
                 _deps_chk_fn
+                retn=$?
                 ;;
             add)
                 _install_fn
+                retn=$?
                 ;;
             remove)
                 _uninstall_fn
+                retn=$?
                 ;;
             status)
-                cur_status=$(_status_fn)
-                echo "${cur_status}"
+                _status_fn
+                retn=$?
                 ;;
             *)
                 ;;
