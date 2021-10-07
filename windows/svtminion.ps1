@@ -132,7 +132,7 @@ if (!($Principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Admini
 
 
 ################################# LOGGING ######################################
-$LOG_LEVELS = @{"silent" = 0; "error" = 1; "info" = 2; "warning" = 3; "debug" = 4}
+$LOG_LEVELS = @{"silent" = 0; "error" = 1; "warning" = 2; "info" = 3; "debug" = 4}
 $log_level_value = $LOG_LEVELS[$LogLevel.ToLower()]
 
 ################################# SETTINGS #####################################

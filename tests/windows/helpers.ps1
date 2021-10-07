@@ -1,27 +1,21 @@
-function Write-TestLabel {
+function Write-Header {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         [String] $Label,
 
         [Parameter(Mandatory=$false)]
-        [String] $Filler = "-"
+        [String] $Filler = "="
     )
-    $total = 80 - $Label.Length
-    $begin = [math]::Floor($total / 2)
-    $leftover = $total % 2
-    $end = $begin + $leftover
-    Write-Host "$("$Filler" * $begin) $Label $("$Filler" * $end)"
-}
-
-
-function Write-Label {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        [String] $Label
-    )
-    Write-TestLabel $Label -Filler "="
+    if($Label) {
+        $total = 80 - $Label.Length
+        $begin = [math]::Floor($total / 2)
+        $leftover = $total % 2
+        $end = $begin + $leftover
+        Write-Host "$("$Filler" * $begin) $Label $("$Filler" * $end)"
+    } else {
+        Write-Host "$("$Filler" * 82)"
+    }
 }
 
 
