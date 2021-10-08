@@ -189,10 +189,10 @@ test-salt-vmtools-linux:
     - ls -alh svtminion.sh
     - date
     - yum makecache
-    - if [[ ! $(./svtminion.sh --depend) ]]; then if [[ $? -eq 127 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --depend) ]]; then if [[ $? -eq 127 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
     - yum -y install open-vm-tools
     - yum -y install curl
-    - ./svtminion.sh --depend)
+    - ./svtminion.sh --depend
     - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 2 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
     - ./svtminion.sh --install master=192.168.0.5
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
@@ -262,10 +262,10 @@ test-tags-salt-vmtools-linux:
     - ls -alh svtminion.sh
     - date
     - yum makecache
-    - if [[ ! $(./svtminion.sh --depend) ]]; then if [[ $? -eq 127 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --depend) ]]; then if [[ $? -eq 127 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
     - yum -y install open-vm-tools
     - yum -y install curl
-    - ./svtminion.sh --depend)
+    - ./svtminion.sh --depend
     - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 2 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
     - ./svtminion.sh --install master=192.168.0.5
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
