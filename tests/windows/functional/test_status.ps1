@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function test_Get-Status_notInstalled {
     Remove-ItemProperty -Path $vmtools_base_reg -Name SaltMinionStatus -ErrorAction SilentlyContinue
     $result = Get-Status
