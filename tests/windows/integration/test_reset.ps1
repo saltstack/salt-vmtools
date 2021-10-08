@@ -6,8 +6,8 @@ function setUpScript {
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     Install
 
-    Write-Host "Removing salt using Remove..."
-    Remove
+    Write-Host "Resetting the minion..."
+    Reset-SaltMinion
 
     Write-Header -Filler "-"
 }
@@ -61,42 +61,36 @@ function tearDownScript {
 
 }
 
-function test_Remove_status_notInstalled {
-    # Is the status set to notInstalled
-    try {
-        $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
-    } catch {
-        # You'll only get here if the path isn't present
-        $current_status = $STATUS_CODES["notInstalled"]
+function test_Reset_minion_id_directory_removed {
+    # Verify that minion_id directory is removed
+    if (Test-Path "$salt_config_file\minion_id") { return 1 }
+    return 0
+}
+
+function test_Reset_minion_id_is_commented_out {
+    # Verify that the old minion id is commented out
+    foreach ($line in Get-Content $salt_config_file) {
+        if ($line -match "^#id: gv_minion$") { return 0 }
     }
-    if ($current_status -ne $STATUS_CODES["notInstalled"]) { return 1 }
+    return 1
+}
+
+function test_Reset_new_random_minion_id {
+    # Verify that a new randomized minion id is set
+    foreach ($line in Get-Content $salt_config_file) {
+        if ($line -match "^id: gv_minion_.{5}$") { return 0 }
+    }
+    return 1
+}
+
+function test_Reset_remove_minion_private_key {
+    # Ensure minion private key is removed
+    if (Test-Path "$salt_pki_dir\minion.pem") { return 1 }
     return 0
 }
 
-function test_Remove_config_dir_removed {
-    # Is the config directory removed
-    if (Test-Path "$env:ProgramData\Salt Project") { return 1 }
-    return 0
-}
-
-function test_Remove_install_dir_removed {
-    # Is the install directory removed
-    if (Test-Path "$env:ProgramFiles\Salt Project") { return 1 }
-    return 0
-}
-
-function test_Remove_service_removed {
-    # Is the salt-minion service unregistered
-    $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
-    if ($service) { return 1 }
-    return 0
-}
-
-function test_Remove_path_removed {
-    # Is salt removed from the system path
-    $path = "$env:ProgramFiles\Salt Project\salt"
-    $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
-    $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
-    if ($current_path -like "*$path*") { return 1 }
+function test_Reset_remove_minion_public_key {
+    # Ensure minion public key is removed
+    if (Test-Path "$salt_pki_dir\minion.pub") { return 1 }
     return 0
 }

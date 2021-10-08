@@ -117,7 +117,12 @@ function Run-TestFile {
         & $tearDownScript
     }
 
-    Write-Status $file_test_failed
+    Write-Status $failed_tests.Count
+    if ($failed_tests.Count -gt 0) {
+        foreach ($test in $failed_tests) {
+            Write-Host $test
+        }
+    }
     Write-Header
     Write-Host ""
 }
