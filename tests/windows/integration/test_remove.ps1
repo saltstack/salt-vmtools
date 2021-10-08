@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function setUpScript {
     Write-Header "Setting things up" -Filler "-"
     Write-Host "Installing salt..."

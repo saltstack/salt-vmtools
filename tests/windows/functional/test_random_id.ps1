@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function test_Get-RandomizedId_random_id {
     $random_id = Get-RandomizedMinionId
     if ($random_id -match "^minion_[\w\d]{5}$") { return 0 } else { return 1 }

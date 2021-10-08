@@ -1,13 +1,49 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
+<#
+.SYNOPSIS
+Script for running tests for the VMtools Windows salt-minion script
+
+.DESCRIPTION
+This script runs the test suite for the VMtools Windows salt-minion script. If
+run without any parameters the functional tests will run. Pass the -Integration
+option to run the integration tests.
+
+NOTE: This Script must be run from the root of the project
+
+.EXAMPLE
+PS>.\tests\windows\runtests.ps1
+
+.EXAMPLE
+PS>.\tests\windows\runtests.ps1 -Integration
+
+.EXAMPLE
+PS>.\tests\windows\runtests.ps1 -Help
+#>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [Alias("p")]
+    # This allows you to run the tests in a single file instead of running the
+    # entire test suite.
     [String] $Path,
 
     [Parameter(Mandatory=$false)]
     [Alias("i")]
-    [Switch] $Integration=$false
+    # Functional tests are run by default. Pass this switch to run the
+    # integration tests.
+    [Switch] $Integration=$false,
+
+    [Parameter(Mandatory=$false)]
+    [Alias("h")]
+    [Switch] $Help
 )
+if ($Help) {
+    # Get the full script name
+    $this_script = & {$myInvocation.ScriptName}
+    Get-Help $this_script -Detailed
+    exit 0
+}
 $ProgressPreference = "SilentlyContinue"
 Import-Module .\tests\windows\helpers.ps1
 
@@ -17,8 +53,6 @@ New-Item -Path $vmtools_base_reg -Force | Out-Null
 New-ItemProperty -Path $vmtools_base_reg -Name InstallPath -Value "$vmtools_base_path" -Force | Out-Null
 New-Item -Path "$vmtools_base_path" -ItemType directory -Force | Out-Null
 New-Item -Path "$vmtools_base_path\vmtoolsd.exe" -ItemType file -Force | Out-Null
-function Write-Success { Write-Host "Success" -ForegroundColor Green }
-function Write-Failed { Write-Host "Failed" -ForegroundColor Red }
 
 $Action = "test"
 Import-Module .\windows\svtminion.ps1

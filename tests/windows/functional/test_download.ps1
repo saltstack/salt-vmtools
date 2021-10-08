@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function test_Get-SaltFromWeb {
     $failed = 0
 

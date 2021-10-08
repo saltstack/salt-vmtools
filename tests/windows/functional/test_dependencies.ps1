@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function setUp {
     # Adding back the registry so we can check the files
     New-Item -Path $vmtools_base_reg -Force | Out-Null

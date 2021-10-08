@@ -101,11 +101,11 @@ param(
     [Parameter(ParameterSetName="Depend")]
     [Parameter(ParameterSetName="Remove")]
     [Alias("l")]
-    [ValidateSet("silent", "error", "info", "warning", "debug", IgnoreCase=$true)]
+    [ValidateSet("silent", "error", "warning", "info", "debug", IgnoreCase=$true)]
     [String]
     # Sets the log level to display and log. Default is error. Silent suppresses
     # all logging output
-    $LogLevel = "error",
+    $LogLevel = "warning",
 
     [Parameter(Mandatory=$false, ParameterSetName="Help")]
     [Parameter(ParameterSetName="Install")]

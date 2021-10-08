@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function test_Find-StandardSaltInstallation {
     $result = Find-StandardSaltInstallation
     if ($result -eq $false) { return 0 } else { return 1 }

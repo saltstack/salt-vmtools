@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 $Script:service_status = $null
 
 function setUpScript {

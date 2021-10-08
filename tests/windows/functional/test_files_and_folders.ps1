@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function test_Remove-FileOrFolder_directory {
     $path = "C:\RemoveDir"
     New-Item -Path $path -ItemType directory -Force | Out-Null

@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function Write-Header {
     [CmdletBinding()]
     param(
@@ -39,4 +41,14 @@ function Write-Status {
     Write-Host "$(":" * $begin) " -NoNewline
     Write-Host $msg -NoNewline -ForegroundColor $color
     Write-Host " $(":" * $end)"
+}
+
+
+function Write-Success {
+    Write-Host "Success" -ForegroundColor Green
+}
+
+
+function Write-Failed {
+    Write-Host "Failed" -ForegroundColor Red
 }

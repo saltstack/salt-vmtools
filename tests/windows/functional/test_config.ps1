@@ -1,3 +1,5 @@
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
 function setUpScript {
     # We need to create a tools.conf file with some settings
     $content = @("[salt_minion]"; "master=tc_master"; "id=tc_minion")
