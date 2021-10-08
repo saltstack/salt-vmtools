@@ -46,6 +46,7 @@ build-salt-vmtools-linux:
     - echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
     # setup environment vars
     - export CICD_SALT_SCRIPT_DATE=$(date +"%a %b %0d %Y")
+    - export CICD_SALT_SCRIPT_VERSION_DATE=$(date "+%Y-%m-%d-%H:%M")
     # generate sha256 for metadata.json file
     - cd linux
     - cp linux_metadata.json metadata.json
@@ -60,6 +61,7 @@ build-salt-vmtools-linux:
     - salt_minion_service_sha256=$(sha256sum salt-minion | cut -d ' ' -f 1)
     - sed -i -e 's&SALT_MINION_SERVICE_SHA256&'${salt_minion_service_sha256}'&' metadata.json
     - cat metadata.json
+    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_REF_NAME}'&' svtminion.sh
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
     - cp -f salt-call ${oldpwd}/salt-call
@@ -85,6 +87,8 @@ build-salt-vmtools-windows:
   script:
     - oldpwd=$(pwd)
     - cd windows
+    - export CICD_SALT_SCRIPT_VERSION_DATE=$(date "+%Y-%m-%d-%H:%M")
+    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_REF_NAME}'&' svtminion.ps1
     - cp -f svtminion.ps1 ${oldpwd}/svtminion.ps1
     - cp -f salt-call.bat ${oldpwd}/salt-call.bat
     - cp -f salt-minion.bat ${oldpwd}/salt-minion.bat
@@ -136,6 +140,7 @@ build-tags-salt-vmtools-linux:
     - salt_minion_service_sha256=$(sha256sum salt-minion | cut -d ' ' -f 1)
     - sed -i -e 's&SALT_MINION_SERVICE_SHA256&'${salt_minion_service_sha256}'&' metadata.json
     - cat metadata.json
+    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CI_COMMIT_TAG}'&' svtminion.sh
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
     - cp -f salt-call ${oldpwd}/salt-call
@@ -161,6 +166,7 @@ build-tags-salt-vmtools-windows:
   script:
     - oldpwd=$(pwd)
     - cd windows
+    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CI_COMMIT_TAG}'&' svtminion.ps1
     - cp -f svtminion.ps1 ${oldpwd}/svtminion.ps1
     - cp -f salt-call.bat ${oldpwd}/salt-call.bat
     - cp -f salt-minion.bat ${oldpwd}/salt-minion.bat
@@ -193,8 +199,8 @@ test-salt-vmtools-linux:
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend
-    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 2 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
-    - ./svtminion.sh --install master=192.168.0.5
+    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
     - ls -alh /opt/saltstack/salt/run/
@@ -203,7 +209,7 @@ test-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local test.versions
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
-    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 0 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed"; exit 1; fi; fi
     - ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - ./svtminion.sh --clear
@@ -214,7 +220,12 @@ test-salt-vmtools-linux:
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
     - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
     - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 2 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
+    - ./svtminion.sh --version
+    - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
+    - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
+    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 0 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed"; exit 1; fi; fi
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -266,7 +277,7 @@ test-tags-salt-vmtools-linux:
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend
-    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 2 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
     - ./svtminion.sh --install master=192.168.0.5
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
@@ -287,7 +298,12 @@ test-tags-salt-vmtools-linux:
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
     - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
     - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 2 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
+    - ./svtminion.sh --version
+    - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
+    - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
+    - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 0 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed"; exit 1; fi; fi
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"

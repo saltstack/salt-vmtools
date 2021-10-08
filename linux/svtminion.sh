@@ -267,7 +267,7 @@ _set_log_level() {
     local old_log_level=""
     old_log_level=${LOG_LEVEL}
 
-    ip_level=$1
+    ip_level=$( echo "$1" | cut -d ' ' -f 1)
     scam=${#LOG_MODES_AVAILABLE[@]}
     for ((i=0; i<scam; i++)); do
         name=${LOG_MODES_AVAILABLE[i]}
@@ -287,7 +287,7 @@ _set_log_level() {
 
 
 #
-# _set_install_salt_version_fn
+# _set_install_minion_version_fn
 #
 #   Set the version of Salt Minion wanted to install
 #       default 'latest'
@@ -299,13 +299,13 @@ _set_log_level() {
 #   Returns with exit code
 #
 
-_set_install_salt_version_fn() {
+_set_install_minion_version_fn() {
     # salt_url_version="${default_salt_url_version}"
 
     _info_log "$0:${FUNCNAME[0]} processing setting salt version for salt-minion to install"
     local salt_version=""
 
-    salt_version=$1
+    salt_version=$(echo "$1" | cut -d ' ' -f 1)
     _debug_log "$0:${FUNCNAME[0]} input salt version for salt-minion to install is '${salt_version}'"
 
     salt_url_version="${salt_version}"
@@ -727,6 +727,7 @@ _ensure_id_or_fqdn () {
     # quick check if id specified
     if grep -q '^id:' < "${salt_minion_conf_file}"; then
         _debug_log "$0:${FUNCNAME[0]} salt-minion identifier found, no need to check further"
+        return 0
     fi
 
     _debug_log "$0:${FUNCNAME[0]} ensuring salt-minion identifier or FQDN is specified for salt-minion configuration"
@@ -1048,7 +1049,7 @@ _clear_id_key_fn () {
     fi
 
     # get any minion identifier in case specified
-    minion_ip_id="$1"
+    minion_ip_id=$(echo "$1" | cut -d ' ' -f 1)
     svpid=$(_find_salt_pid)
     if [[ -n ${svpid} ]]; then
         # stop the active salt-minion using systemd
@@ -1252,7 +1253,7 @@ if [[ ${DEPS_CHK} -eq 1 ]]; then
 fi
 if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
     # ensure this is processed before install
-    _set_install_salt_version_fn "${MINION_VERSION_PARAMS}"
+    _set_install_minion_version_fn "${MINION_VERSION_PARAMS}"
     retn=$?
 fi
 if [[ ${INSTALL_FLAG} -eq 1 ]]; then
