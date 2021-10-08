@@ -600,7 +600,7 @@ _curl_download() {
 
     for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
     do
-        curl -o "${file_name}" -fsSL "${file_url}" 
+        curl -o "${file_name}" -fsSL "${file_url}"
         _retn=$?
         if [[ ${_retn} -ne 0 ]]; then
             _warning_log "$0:${FUNCNAME[0]} failed to download file '${file_name}' from '${file_url}' on '${i}' attempt, retcode '${_retn}'"
@@ -889,7 +889,7 @@ _install_fn () {
     fi
 
     # ensure minion id or fqdn for salt-minion
-   _ensure_id_or_fqdn 
+   _ensure_id_or_fqdn
 
     if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
         if [[ -n  "${existing_chk}" ]]; then
