@@ -189,7 +189,7 @@ test-salt-vmtools-linux:
     - ls -alh svtminion.sh
     - date
     - yum makecache
-    - if [[ $(./svtminion.sh --depend) ]]; then if [[ $? -eq 127 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --depend) ]]; then if [[ $? -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend
@@ -262,7 +262,7 @@ test-tags-salt-vmtools-linux:
     - ls -alh svtminion.sh
     - date
     - yum makecache
-    - if [[ $(./svtminion.sh --depend) ]]; then if [[ $? -eq 127 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
+    - if [[ $(./svtminion.sh --depend) ]]; then if [[ $? -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency"; exit 1; fi; fi
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend
