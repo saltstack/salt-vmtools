@@ -127,7 +127,7 @@ $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $Principal = New-Object System.Security.Principal.WindowsPrincipal($Identity)
 if (!($Principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator))) {
     Write-Host "This script must run as Administrator" -ForegroundColor Red
-    exit 127
+    exit 126
 }
 
 
@@ -180,11 +180,11 @@ try{
     $reg_key = Get-ItemProperty $vmtools_base_reg
 } catch {
     Write-Host "Unable to find valid VMtools installation : $Error" -ForeGroundColor Red
-    exit 127
+    exit 126
 }
 if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
     Write-Host "Unable to find valid VMtools installation" -ForeGroundColor Red
-    exit 127
+    exit 126
 }
 
 ## VMware file and directory locations
@@ -362,7 +362,7 @@ function Set-Status {
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
             Write-Log "Error removing reg key: $Error" -Level error
-            exit 127
+            exit 126
         }
     } else {
         $Error.Clear()
@@ -371,7 +371,7 @@ function Set-Status {
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
             Write-Log "Error writing status: $Error" -Level error
-            exit 127
+            exit 126
         }
     }
 }
@@ -429,7 +429,7 @@ function Get-WebFile{
                 if ($tries -gt $download_retry_count) {
                     Write-Log "Retry count exceeded" -Level error
                     Set-FailedStatus
-                    exit 127
+                    exit 126
                 }
                 Write-Log "Trying again after 10 seconds" -Level warning
                 Start-Sleep -Seconds 10
@@ -474,7 +474,7 @@ function Get-HashFromFile {
     }
     Write-Log "No hash found for: $FileName" -Level error
     Set-FailedStatus
-    exit 127
+    exit 126
 }
 
 
@@ -511,7 +511,7 @@ function Expand-ZipFile {
         } catch {
             Write-Log "Failed to unzip $ZipFile : $Error" -Level error
             Set-FailedStatus
-            exit 127
+            exit 126
         }
     } else {
         # This method will work with older versions of powershell, but it is slow
@@ -525,7 +525,7 @@ function Expand-ZipFile {
         } catch {
             Write-Log "Failed to unzip $ZipFile : $Error" -Level error
             Set-FailedStatus
-            exit 127
+            exit 126
         }
     }
     Write-Log "Finished unzipping '$ZipFile' to '$Destination'" -Level debug
@@ -592,7 +592,7 @@ function Add-SystemPathValue{
         Write-Log "Tried to write: $new_path" -Level error
         Write-Log "Error message: $Error" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
 }
 
@@ -644,7 +644,7 @@ function Remove-SystemPathValue {
         Write-Log "Tried to write: $new_path" -Level error
         Write-Log "Error message: $Error" -level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
 }
 
@@ -698,7 +698,7 @@ function Remove-FileOrFolder {
                     if ($tries -gt $max_tries) {
                         Write-Log "Retry count exceeded" -Level error
                         Set-FailedStatus
-                        exit 127
+                        exit 126
                     }
                     Write-Log "Trying again after 5 seconds" -Level warning
                     Start-Sleep -Seconds 5
@@ -971,7 +971,7 @@ function Add-MinionConfig {
     } catch {
         Write-Log "Failed to write minion config: $config_content : $Error" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
 }
 
@@ -992,7 +992,7 @@ function Start-MinionService {
     } else {
         Write-Log "Failed to start the $ServiceName service" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
 }
 
@@ -1013,7 +1013,7 @@ function Stop-MinionService {
     } else {
         Write-Log "Failed to stop the $ServiceName service" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
 }
 
@@ -1148,7 +1148,7 @@ function Get-SaltFromWeb {
         Write-Log "  - $file_hash" -Level error
         Write-Log "  - $expected_hash" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
 }
 
@@ -1175,7 +1175,7 @@ function Install-SaltMinion {
     } catch {
         Write-Log "Failed copying $PSScriptRoot\salt-call.bat" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
     try {
         Write-Log "Copying $PSScriptRoot\salt-minion.bat" -Level debug
@@ -1183,7 +1183,7 @@ function Install-SaltMinion {
     } catch {
         Write-Log "Failed copying $PSScriptRoot\salt-minion.bat" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     }
 
     # 3. Register the service
@@ -1197,7 +1197,7 @@ function Install-SaltMinion {
     if (!(Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
         Write-Log "Failed to install salt-minion service" -Level error
         Set-FailedStatus
-        exit 127
+        exit 126
     } else {
         Write-Log "Finished installing salt-minion service" -Level debug
     }
@@ -1236,7 +1236,7 @@ function Remove-SaltMinion {
         if ((Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
             Write-Log "Failed to uninstall salt-minion service" -Level error
             Set-FailedStatus
-            exit 127
+            exit 126
         } else {
             Write-Log "Finished uninstalling salt-minion service" -Level debug
         }
@@ -1285,7 +1285,7 @@ function Reset-SaltMinion {
             Set-Content -Path $salt_config_file -Value $config_content
         } catch {
             Write-Log "Failed to write new minion config : $Error" -Level error
-            exit 127
+            exit 126
         }
     }
 
@@ -1334,13 +1334,13 @@ if ($help) {
 # Let's confirm dependencies
 if (!(Confirm-Dependencies)) {
     Write-Host "Missing script dependencies"
-    exit 127
+    exit 126
 }
 
 # Let's make sure there's not already a standard salt installation on the system
 if (Find-StandardSaltInstallation) {
     Write-Host "Found an existing salt installation on the system."
-    exit 127
+    exit 126
 }
 
 # Check for Action. If not specified on the command line, get it from guestVars
@@ -1358,7 +1358,7 @@ if (!($Action)) {
 if ("add", "status", "depend", "reset", "remove" -notcontains $Action) {
     Write-Log "Invalid action: $Action" -Level error
     Write-Host "Invalid action: $Action" -ForgroundColor Red
-    exit 127
+    exit 126
 }
 
 if ($Action) {
@@ -1373,7 +1373,7 @@ if ($Action) {
             $current_status = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
                 Write-Host "Unknown status code: $current_status" -Level error
-                exit 127
+                exit 126
             }
             switch ($current_status) {
                 0 { Write-Host "Already installed"; exit 0 }
@@ -1389,7 +1389,7 @@ if ($Action) {
             $current_status = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
                 Write-Host "Unknown status code: $current_status" -Level error
-                exit 127
+                exit 126
             }
             switch ($current_status) {
                 1 { Write-Host "Installation in progress"; exit 0 }
@@ -1405,7 +1405,7 @@ if ($Action) {
             $current_status = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
                 Write-Host "Unknown status code: $current_status" -Level error
-                exit 127
+                exit 126
             }
             if ($current_status -ne 0) {
                 Write-Host "Not installed. Reset will not continue"
@@ -1419,7 +1419,7 @@ if ($Action) {
             $status_code = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
                 Write-Host "Unknown status code: $current_status" -Level error
-                exit 127
+                exit 126
             }
             Write-Host "Found status: $($STATUS_CODES[$status_code])"
             exit $status_code
@@ -1427,11 +1427,11 @@ if ($Action) {
         default {
             $action_list = "install, remove, depend, clear, status"
             Write-Host "Invalid action: $Action - Must be one of [$action_list]"
-            exit 127
+            exit 126
         }
     }
 } else {
     # No action specified
     Write-Log "No action specified" -Level error
-    exit 127
+    exit 126
 }

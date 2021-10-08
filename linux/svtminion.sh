@@ -95,7 +95,7 @@ declare -a minion_conf_values
 #  3 => installFailed
 #  4 => removing
 #  5 => removeFailed
-#  127 => scriptFailed
+#  126 => scriptFailed
 declare -A STATUS_CODES_ARY
 STATUS_CODES_ARY[installed]=0
 STATUS_CODES_ARY[installing]=1
@@ -103,7 +103,7 @@ STATUS_CODES_ARY[notInstalled]=2
 STATUS_CODES_ARY[installFailed]=3
 STATUS_CODES_ARY[removing]=4
 STATUS_CODES_ARY[removeFailed]=5
-STATUS_CODES_ARY[scriptFailed]=127
+STATUS_CODES_ARY[scriptFailed]=126
 
 # log levels available for logging, order sensitive
 readonly LOG_MODES_AVAILABLE=(silent error warning info debug)
@@ -149,7 +149,7 @@ _error_log() {
         echo "$(_timestamp) $msg" >>"${LOGGING}"
         echo "One or more errors found. See ${LOGGING} for details." 1>&2
         CURRENT_STATUS=${STATUS_CODES_ARY[scriptFailed]}
-        exit 127
+        exit ${STATUS_CODES_ARY[scriptFailed]}
     fi
 }
 
@@ -671,7 +671,7 @@ _ensure_id_or_fqdn () {
 #       3 => installFailed
 #       4 => removing
 #       5 => removeFailed
-#       127 => scriptFailed
+#       126 => scriptFailed
 #
 # Side Effects:
 #   CURRENT_STATUS updated
