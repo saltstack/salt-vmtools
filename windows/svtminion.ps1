@@ -247,7 +247,8 @@ function Write-Log {
             Write-Host "[$date_time] [INFO   ] : Creating log file directory"
             New-Item -Path $script_log_dir -ItemType Directory | Out-Null
         }
-        Add-Content "$script_log_dir\$script_name-$current_date.log" $log_file_message
+        $base_name = $script_name.Split(".")[0]
+        Add-Content "$script_log_dir\vmware-$base_name-$current_date.log" $log_file_message
         switch ($Level) {
             "ERROR" { $color = "Red" }
             "WARNING" { $color = "Yellow" }
