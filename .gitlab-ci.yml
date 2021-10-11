@@ -209,7 +209,7 @@ test-salt-vmtools-linux:
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
     - echo "grains FQDN '${myfqdn}'"
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-    - if [[ "${myhost}" = "${myfqdn}"]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
+    - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
