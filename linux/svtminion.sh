@@ -1211,9 +1211,6 @@ LOGGING="${log_file}"
 ##   preremove
 ##   postremove
 
-echo "input line '$*'"
-echo "first param '$1'"
-
 while true; do
     if [[ -z "$1" ]]; then break; fi
     case "$1" in
