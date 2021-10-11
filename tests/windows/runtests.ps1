@@ -9,9 +9,10 @@ This script runs the test suite for the VMtools Windows salt-minion script. If
 run without any parameters the functional tests will run. Pass the -Integration
 option to run the integration tests.
 
-NOTE: This Script must be run from the root of the project
+.NOTES
+This Script must be run from the root of the project
 
-NOTE: This script must be run using powershell -file
+This script must be run using powershell -file
 
 .EXAMPLE
 PS>powershell -file .\tests\windows\runtests.ps1
