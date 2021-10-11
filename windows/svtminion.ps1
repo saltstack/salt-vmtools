@@ -16,6 +16,14 @@ includes the action (install, remove, etc) and the minion config options
 (master=192.168.10.10, etc.). The order of precedence is CLI options, then
 guestVars, and finally tools.conf.
 
+This script returns status exit codes when passing the Status option. Additional
+exit codes that may be returned by this script pertain to its success or
+failure. They are as follows:
+
+0 - scriptSuccess
+126 - scriptFailed
+130 - scriptTerminated
+
 .EXAMPLE
 PS>svtminion.ps1 -install
 PS>svtminion.ps1 -install -version 3004-1 master=192.168.10.10 id=vmware_minion
@@ -34,10 +42,6 @@ PS>svtminion.ps1 -remove -loglevel debug
 
 #>
 
-
-# Salt VMware Tools Integration script for Windows
-# for useage run this script with the -h option:
-#    powershell -file svtminion.ps1 -h
 [CmdletBinding(DefaultParameterSetName = "Install")]
 param(
 
