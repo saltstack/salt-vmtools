@@ -83,12 +83,12 @@ param(
     [Alias("s")]
     # Get the status of the salt minion installation. This returns a numeric
     # value that corresponds as follows:
-    # 0 - installed
-    # 1 - installing
-    # 2 - notInstalled
-    # 3 - installFailed
-    # 4 - removing
-    # 5 - removeFailed
+    # 100 - installed
+    # 101 - installing
+    # 102 - notInstalled
+    # 103 - installFailed
+    # 104 - removing
+    # 105 - removeFailed
     [Switch] $Status,
 
     [Parameter(Mandatory=$false, ParameterSetName="Depend")]
@@ -154,6 +154,7 @@ if ($Version) {
 
 ################################# STATUS CODES #################################
 $STATUS_CODES = @{
+    "scriptSuccess" = 0;
     "installed" = 100;
     "installing" = 101;
     "notInstalled" = 102;
@@ -161,13 +162,13 @@ $STATUS_CODES = @{
     "removing" = 104;
     "removeFailed" = 105;
     "scriptFailed" = 126;
+    "scriptTerminated" = 130;
     100 = "installed";
     101 = "installing";
     102 = "notInstalled";
     103 = "installFailed"
     104 = "removing";
     105 = "removeFailed";
-    126 = "scriptFailed";
 }
 
 ################################ REQUIREMENTS ##################################
@@ -185,8 +186,8 @@ $LOG_LEVELS = @{"silent" = 0; "error" = 1; "warning" = 2; "info" = 3; "debug" = 
 $log_level_value = $LOG_LEVELS[$LogLevel.ToLower()]
 
 ################################# SETTINGS #####################################
-$ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
+$Global:ErrorActionPreference = "Stop"
+$Global:ProgressPreference = "SilentlyContinue"
 $download_retry_count = 5
 $current_date = Get-Date -Format "yyyy-MM-dd"
 $script_name = $MyInvocation.MyCommand.Name
@@ -282,13 +283,14 @@ function Write-Log {
             New-Item -Path $script_log_dir -ItemType Directory | Out-Null
         }
         $base_name = $script_name.Split(".")[0]
-        Add-Content "$script_log_dir\vmware-$base_name-$current_date.log" $log_file_message
+        Add-Content -Path "$script_log_dir\vmware-$base_name-$current_date.log" `
+                    -Value $log_file_message
         switch ($Level) {
             "ERROR" { $color = "Red" }
             "WARNING" { $color = "Yellow" }
             default { $color = "White"}
         }
-        if ($log_level_value -ge 1 ) {
+        if ($log_level_value -ge $LOG_LEVELS["error"] ) {
             Write-Host $log_message -ForegroundColor $color
         }
     }
@@ -303,7 +305,9 @@ function Get-ScriptRunningStatus {
     Write-Log "Checking for a running instance of this script" -Level info
 
     #Get all running powershell processes
-    $processes = Get-WmiObject Win32_Process -Filter "Name='powershell.exe' AND CommandLine LIKE '%$script_name%'" | Select-Object CommandLine,ProcessId
+    $filter = "Name='powershell.exe' AND CommandLine LIKE '%$script_name%'"
+    $processes = Get-WmiObject Win32_Process -Filter $filter | `
+                 Select-Object CommandLine,ProcessId
 
     $process_found = $false
     foreach ($process in $processes){
@@ -316,10 +320,10 @@ function Get-ScriptRunningStatus {
     }
     if ($process_found) {
         Write-Log "Found running instance in PID: $process_pid" -Level debug
-        $true
+        return $true
     } else {
         Write-Log "Running instance not detected" -Level debug
-        $false
+        return $false
     }
 }
 
@@ -334,7 +338,8 @@ function Get-Status {
     Write-Log "Getting status" -Level info
     $Error.Clear()
     try {
-        $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
+        $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg `
+                                                -Name $vmtools_salt_minion_status_name
         Write-Log "Found status code: $current_status" -Level debug
     } catch {
         Write-Log "Key not set, not installed : $Error" -Level debug
@@ -363,7 +368,7 @@ function Get-Status {
     } else {
         Write-Log "Unknown status code: $current_status" -Level debug
     }
-    $current_status
+    return $current_status
 }
 
 
@@ -383,17 +388,25 @@ function Set-Status {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("installed", "installing", "notInstalled", "installFailed", "removing", "removeFailed")]
+        [ValidateSet(
+                "installed",
+                "installing",
+                "notInstalled",
+                "installFailed",
+                "removing",
+                "removeFailed"
+        )]
         [String] $NewStatus
     )
 
     Write-Log "Setting status: $NewStatus" -Level info
     $status_code = $STATUS_CODES[$NewStatus]
     # If it's notInstalled, just remove the propery name
-    if ($status_code -eq 2) {
+    if ($status_code -eq $STATUS_CODES["notInstalled"]) {
         $Error.Clear()
         try{
-            Remove-ItemProperty -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
+            Remove-ItemProperty -Path $vmtools_base_reg `
+                                -Name $vmtools_salt_minion_status_name
             Write-Log "Removed reg key: $vmtools_base_reg\$vmtools_salt_minion_status_name" -Level debug
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
@@ -403,7 +416,10 @@ function Set-Status {
     } else {
         $Error.Clear()
         try {
-            New-ItemProperty -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name -Value $status_code -Force | Out-Null
+            New-ItemProperty -Path $vmtools_base_reg `
+                             -Name $vmtools_salt_minion_status_name `
+                             -Value $status_code `
+                             -Force | Out-Null
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
             Write-Log "Error writing status: $Error" -Level error
@@ -787,7 +803,7 @@ function Get-GuestVars {
 
     if (($exitcode -eq 0) -and !($stdout.Trim() -eq "")) {
         Write-Log "Value found for $GuestVarsPath : $($stdout.Trim())" -Level debug
-        $stdout.Trim()
+        return $stdout.Trim()
     } else {
         $msg = "No value found for $GuestVarsPath : $stderr"
         Write-Log $msg -Level debug
@@ -848,7 +864,7 @@ function Get-ConfigCLI {
     # Return hashtable
     Write-Log "Checking for CLI config options" -Level debug
     if ($ConfigOptions) {
-        _parse_config $ConfigOptions
+        return _parse_config $ConfigOptions
     } else {
         Write-Log "Minion config not passed on CLI" -Level warning
     }
@@ -866,7 +882,7 @@ function Get-ConfigGuestVars {
     Write-Log "Checking for GuestVars config options" -Level debug
     $config_options = Get-GuestVars -GuestVarsPath $guestvars_salt_args
     if ($config_options) {
-        _parse_config $config_options
+        return _parse_config $config_options
     } else {
         Write-Log "Minion config not defined in guestvars" -Level warning
     }
@@ -893,7 +909,7 @@ function Read-IniContent {
         return
     }
 
-    $ini = New-Object System.Collections.Specialized.OrderedDictionary([System.StringComparer]::OrdinalIgnoreCase)
+    $ini = @{}
 
     switch -regex -file $FilePath {
         # [Section]
@@ -907,7 +923,7 @@ function Read-IniContent {
             $ini[$section][$key] = $value
         }
     }
-    $ini
+    return $ini
 }
 
 
@@ -925,7 +941,7 @@ function Get-ConfigToolsConf {
     if ($config_options) {
         $count = $config_options[$guestvars_section].Count
         Write-Log "Found $count config options" -Level debug
-        $config_options[$guestvars_section]
+        return $config_options[$guestvars_section]
     } else {
         Write-Log "Minion config not defined in tools.conf" -Level warning
     }
@@ -973,7 +989,7 @@ function Get-MinionConfig {
             }
         }
     }
-    $config_options
+    return $config_options
 }
 
 
@@ -1065,8 +1081,8 @@ function Get-RandomizedMinionId {
         [String] $Length = 5
     )
     $chars = (0x30..0x39) + ( 0x41..0x5A) + ( 0x61..0x7A)
-    $rand_string = ( -join ($chars | Get-Random -Count $Length | % {[char]$_} ) )
-    -join ($Prefix, "_", $rand_string)
+    $rand_string = (-join ($chars | Get-Random -Count $Length | % {[char]$_}))
+    return -join ($Prefix, "_", $rand_string)
 }
 
 
@@ -1111,7 +1127,7 @@ function Confirm-Dependencies {
     }
 
     Write-Log "All dependencies found" -Level debug
-    $deps_present
+    return $deps_present
 }
 
 
@@ -1146,7 +1162,7 @@ function Find-StandardSaltInstallation {
     if (!($exists)) {
         Write-Log "Standard Installation not detected" -Level debug
     }
-    $exists
+    return $exists
 }
 
 
@@ -1174,7 +1190,8 @@ function Get-SaltFromWeb {
 
     # Get the hash for the salt file
     $file_hash = (Get-FileHash -Path $salt_file -Algorithm SHA512).Hash
-    $expected_hash = Get-HashFromFile -HashFile $hash_file -FileName $salt_web_file_name
+    $expected_hash = Get-HashFromFile -HashFile $hash_file `
+                                      -FileName $salt_web_file_name
 
     Write-Log "Verifying hash" -Level info
     if ($file_hash -like $expected_hash) {
@@ -1201,7 +1218,8 @@ function Install-SaltMinion {
 
     # 1. Unzip into Program Files
     Write-Log "Unzipping salt (this may take a few minutes)" -Level info
-    Expand-ZipFile -ZipFile "$base_salt_install_location\$salt_web_file_name" -Destination $base_salt_install_location
+    Expand-ZipFile -ZipFile "$base_salt_install_location\$salt_web_file_name" `
+                   -Destination $base_salt_install_location
 
     # 2. Copy the scripts into Program Files
     Write-Log "Copying scripts" -Level info
@@ -1224,7 +1242,8 @@ function Install-SaltMinion {
 
     # 3. Register the service
     Write-Log "Installing salt-minion service" -Level info
-    & $ssm_bin install salt-minion "$salt_bin" "minion -c """"$salt_config_dir""""" *> $null
+    & $ssm_bin install salt-minion "$salt_bin" `
+                "minion -c """"$salt_config_dir""""" *> $null
     & $ssm_bin set salt-minion Description Salt Minion from VMtools *> $null
     & $ssm_bin set salt-minion Start SERVICE_AUTO_START *> $null
     & $ssm_bin set salt-minion AppStopMethodConsole 24000 *> $null
@@ -1357,109 +1376,156 @@ function Remove {
 ################################### MAIN #######################################
 
 # Allow importing for testing
-if (($Action) -and ($Action.ToLower() -eq "test")) { exit 0 }
-
-# Let's confirm dependencies
-if (!(Confirm-Dependencies)) {
-    Write-Host "Missing script dependencies"
-    exit $STATUS_CODES["scriptFailed"]
+if (($Action) -and ($Action.ToLower() -eq "test")) {
+    exit $STATUS_CODES["scriptSuccess"]
 }
 
-# Let's make sure there's not already a standard salt installation on the system
-if (Find-StandardSaltInstallation) {
-    Write-Host "Found an existing salt installation on the system."
-    exit $STATUS_CODES["scriptFailed"]
-}
-
-# Check for Action. If not specified on the command line, get it from guestVars
-if ($Install) { $Action = "add" }
-if ($Status) { $Action = "status" }
-if ($Depend) { $Action = "depend" }
-if ($Clear) { $Action = "clear" }
-if ($Remove) { $Action = "remove" }
-if (!($Action)) {
-    $Action = Get-GuestVars -GuestVarsPath $guestvars_salt
-    Write-Log "Action from GuestVars: $Action" -Level debug
-}
-
-# Validate the action
-if ("add", "status", "depend", "clear", "remove" -notcontains $Action) {
-    Write-Log "Invalid action: $Action" -Level error
-    Write-Host "Invalid action: $Action" -ForgroundColor Red
-    exit $STATUS_CODES["scriptFailed"]
-}
-
-if ($Action) {
-    switch ($Action.ToLower()) {
-        "depend" {
-            # If we've gotten this far, dependencies have been confirmed
-            Write-Host "Found all dependencies"
-            exit 0
-        }
-        "add" {
-            # If status is installed(0), installing(1), or removing(4), bail out
-            $current_status = Get-Status
-            if ($STATUS_CODES.keys -notcontains $current_status) {
-                Write-Host "Unknown status code: $current_status" -Level error
-                exit $STATUS_CODES["scriptFailed"]
-            }
-            switch ($current_status) {
-                0 { Write-Host "Already installed"; exit 0 }
-                1 { Write-Host "Installation in progress"; exit 0 }
-                4 { Write-Host "Removal in progress"; exit 0}
-            }
-            Install
-            Write-Host "Salt minion installed successfully"
-            exit 0
-        }
-        "remove" {
-            # If status is installing(1), notInstalled(2), or removing(4), bail out
-            $current_status = Get-Status
-            if ($STATUS_CODES.keys -notcontains $current_status) {
-                Write-Host "Unknown status code: $current_status" -Level error
-                exit $STATUS_CODES["scriptFailed"]
-            }
-            switch ($current_status) {
-                1 { Write-Host "Installation in progress"; exit 0 }
-                2 { Write-Host "Already uninstalled"; exit 0 }
-                4 { Write-Host "Removal in progress"; exit 0}
-            }
-            Remove
-            Write-Host "Salt minion removed successfully"
-            exit 0
-        }
-        "clear" {
-            # If not installed (0), bail out
-            $current_status = Get-Status
-            if ($STATUS_CODES.keys -notcontains $current_status) {
-                Write-Host "Unknown status code: $current_status" -Level error
-                exit $STATUS_CODES["scriptFailed"]
-            }
-            if ($current_status -ne 0) {
-                Write-Host "Not installed. Reset will not continue"
-                exit 0
-            }
-            Reset-SaltMinion
-            Write-Host "Salt minion reset successfully"
-            exit 0
-        }
-        "status" {
-            $status_code = Get-Status
-            if ($STATUS_CODES.keys -notcontains $current_status) {
-                Write-Host "Unknown status code: $current_status" -Level error
-                exit $STATUS_CODES["scriptFailed"]
-            }
-            Write-Host "Found status: $($STATUS_CODES[$status_code])"
-            exit $status_code
-        }
-        default {
-            $action_list = "install, remove, depend, clear, status"
-            Write-Host "Invalid action: $Action - Must be one of [$action_list]"
-            exit $STATUS_CODES["scriptFailed"]
-        }
+try {
+    # Let's confirm dependencies
+    if (!(Confirm-Dependencies)) {
+        Write-Host "Missing script dependencies"
+        $exit_code = $STATUS_CODES["scriptFailed"]
+        exit $exit_code
     }
-} else {
-    # No action specified
-    Write-Log "No action specified" -Level error
-    exit $STATUS_CODES["scriptFailed"]
+
+    # Let's make sure there's not already a standard salt installation on the system
+    if (Find-StandardSaltInstallation) {
+        Write-Host "Found an existing salt installation on the system."
+        $exit_code = $STATUS_CODES["scriptFailed"]
+        exit $exit_code
+    }
+
+    # Check for Action. If not specified on the command line, get it from guestVars
+    if ($Install) { $Action = "add" }
+    if ($Status) { $Action = "status" }
+    if ($Depend) { $Action = "depend" }
+    if ($Clear) { $Action = "clear" }
+    if ($Remove) { $Action = "remove" }
+    if (!($Action)) {
+        $Action = Get-GuestVars -GuestVarsPath $guestvars_salt
+        Write-Log "Action from GuestVars: $Action" -Level debug
+    }
+
+    # Validate the action
+    if ("add", "status", "depend", "clear", "remove" -notcontains $Action) {
+        Write-Log "Invalid action: $Action" -Level error
+        Write-Host "Invalid action: $Action" -ForgroundColor Red
+        $exit_code = $STATUS_CODES["scriptFailed"]
+        exit $exit_code
+    }
+
+    if ($Action) {
+        switch ($Action.ToLower()) {
+            "depend" {
+                # If we've gotten this far, dependencies have been confirmed
+                Write-Host "Found all dependencies"
+                $exit_code = $STATUS_CODES["scriptSuccess"]
+                exit $exit_code
+            }
+            "add" {
+                # If status is installed(0), installing(1), or removing(4), bail out
+                $current_status = Get-Status
+                if ($STATUS_CODES.keys -notcontains $current_status) {
+                    Write-Host "Unknown status code: $current_status" -Level error
+                    $exit_code = $STATUS_CODES["scriptFailed"]
+                    exit $exit_code
+                }
+                switch ($current_status) {
+                    $STATUS_CODES["installed"] {
+                        Write-Host "Already installed"
+                        $exit_code = $STATUS_CODES["scriptSuccess"]
+                        exit $exit_code
+                    }
+                    $STATUS_CODES["installing"] {
+                        Write-Host "Installation in progress"
+                        $exit_code = $STATUS_CODES["scriptSuccess"]
+                        exit $exit_code
+                    }
+                    $STATUS_CODES["removing"] {
+                        Write-Host "Removal in progress"
+                        $exit_code = $STATUS_CODES["scriptSuccess"]
+                        exit $exit_code
+                    }
+                }
+                Install
+                Write-Host "Salt minion installed successfully"
+                $exit_code = $STATUS_CODES["scriptSuccess"]
+                exit $exit_code
+            }
+            "remove" {
+                # If status is installing(1), notInstalled(2), or removing(4), bail out
+                $current_status = Get-Status
+                if ($STATUS_CODES.keys -notcontains $current_status) {
+                    Write-Host "Unknown status code: $current_status" -Level error
+                    $exit_code = $STATUS_CODES["scriptFailed"]
+                    exit $exit_code
+                }
+                switch ($current_status) {
+                    $STATUS_CODES["installing"] {
+                        Write-Host "Installation in progress"
+                        $exit_code = $STATUS_CODES["scriptSuccess"]
+                        exit $exit_code
+                    }
+                    $STATUS_CODES["notInstalled"] {
+                        Write-Host "Already uninstalled"
+                        $exit_code = $STATUS_CODES["scriptSuccess"]
+                        exit $exit_code
+                    }
+                    $STATUS["removing"] {
+                        Write-Host "Removal in progress"
+                        $exit_code = $STATUS_CODES["scriptSuccess"]
+                        exit $exit_code
+                    }
+                }
+                Remove
+                Write-Host "Salt minion removed successfully"
+                $exit_code = $STATUS_CODES["scriptSuccess"]
+                exit $exit_code
+            }
+            "clear" {
+                # If not installed (0), bail out
+                $current_status = Get-Status
+                if ($STATUS_CODES.keys -notcontains $current_status) {
+                    Write-Host "Unknown status code: $current_status" -Level error
+                    $exit_code = $STATUS_CODES["scriptFailed"]
+                    exit $exit_code
+                }
+                if ($current_status -ne $STATUS_CODES["installed"]) {
+                    Write-Host "Not installed. Reset will not continue"
+                    $exit_code = $STATUS_CODES["scriptSuccess"]
+                    exit $exit_code
+                }
+                Reset-SaltMinion
+                Write-Host "Salt minion reset successfully"
+                $exit_code = $STATUS_CODES["scriptSuccess"]
+                exit $exit_code
+            }
+            "status" {
+                $exit_code = Get-Status
+                if ($STATUS_CODES.keys -notcontains $exit_code) {
+                    Write-Host "Unknown status code: $exit_code " -Level error
+                    $exit_code = $STATUS_CODES["scriptFailed"]
+                    exit $exit_code
+                }
+                Write-Host "Found status: $($STATUS_CODES[$exit_code])"
+                exit $exit_code
+            }
+            default {
+                $action_list = "install, remove, depend, clear, status"
+                Write-Host "Invalid action: $Action - Must be one of [$action_list]"
+                $exit_code = $STATUS_CODES["scriptFailed"]
+                exit $exit_code
+            }
+        }
+    } else {
+        # No action specified
+        Write-Log "No action specified" -Level error
+        $exit_code = $STATUS_CODES["scriptFailed"]
+        exit $exit_code
+    }
+} finally {
+    if (!($exit_code) -and ($exit_code -ne $STATUS_CODES["scriptSuccess"])) {
+        Write-Host "Script Terminated..."
+        exit $STATUS_CODES["scriptTerminated"]
+    }
 }

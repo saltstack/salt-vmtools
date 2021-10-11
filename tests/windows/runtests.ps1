@@ -11,14 +11,20 @@ option to run the integration tests.
 
 NOTE: This Script must be run from the root of the project
 
-.EXAMPLE
-PS>.\tests\windows\runtests.ps1
+NOTE: This script must be run using powershell -file
 
 .EXAMPLE
-PS>.\tests\windows\runtests.ps1 -Integration
+PS>powershell -file .\tests\windows\runtests.ps1
 
 .EXAMPLE
-PS>.\tests\windows\runtests.ps1 -Help
+PS>powershell -file .\tests\windows\runtests.ps1 -Integration
+
+.EXAMPLE
+PS>powershell -file .\tests\windows\runtests.ps1 -Man
+PS>powershell -file .\tests\windows\runtests.ps1 -h
+
+.EXAMPLE
+PS>powershell -file .\tests\windows\runtests.ps1 -Path .\tests\windows\functional\test_config.ps1
 #>
 [CmdletBinding()]
 param(
@@ -32,10 +38,11 @@ param(
     [Alias("i")]
     # Functional tests are run by default. Pass this switch to run the
     # integration tests.
-    [Switch] $Integration=$false,
+    [Switch] $Integration,
 
     [Parameter(Mandatory=$false)]
     [Alias("h")]
+    # Display help
     [Switch] $Help
 )
 if ($Help) {
