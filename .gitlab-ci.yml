@@ -206,7 +206,7 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion
     - myhost=$(hostname)
-    - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | | sed "s/'//g")
+    - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
     - echo "grains FQDN '${myfqdn}'"
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - if [[ "${myhost}" = "${myfqdn}"]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi

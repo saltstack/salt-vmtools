@@ -438,7 +438,7 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
     local _retn=0
     local gvar_args=""
 
-    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}") || {
+    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null) || {
         _warning_log "$0:${FUNCNAME[0]} unable to retrieve arguments from guest variables location ${guestvars_salt_args}, retcode '$?'";
     }
 
