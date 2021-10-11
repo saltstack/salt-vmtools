@@ -195,14 +195,19 @@ test-salt-vmtools-linux:
     - ls -alh svtminion.sh
     - date
     - yum makecache
-    - ./svtminion.sh --depend || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency, returned '${_retn}'"; exit 1; fi; } && { _retn=$?; echo "test failed - expecting 126 exit code, should be missing at least the vmtoolsd dependency"; }
+    - ./svtminion.sh --depend || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --depend && { _retn=$?; echo "test failed - expecting 126 exit code, should be missing at least the vmtoolsd dependency"; exit 1; }
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend|| { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; } && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; }
+    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     ## DGM debugging
     - bash -xvT ./svtminion.sh --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion
+    - hostname
+    - myname=$(/usr/bin/salt-call --local grains.get fqdn)
+    - echo "grains FQDN '${myname}'"
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
     - ls -alh /opt/saltstack/salt/run/
@@ -211,7 +216,8 @@ test-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local test.versions
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; } && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; }
+    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; exit 1; }
     - ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - ./svtminion.sh --clear
@@ -222,7 +228,8 @@ test-salt-vmtools-linux:
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
     - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
     - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; } && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; }
+    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     - ./svtminion.sh --version
     - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
@@ -275,11 +282,13 @@ test-tags-salt-vmtools-linux:
     - ls -alh svtminion.sh
     - date
     - yum makecache
-    - ./svtminion.sh --depend || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency, returned '${_retn}'"; exit 1; fi; } && { _retn=$?; echo "test failed - expecting 126 exit code, should be missing at least the vmtoolsd dependency"; }
+    - ./svtminion.sh --depend || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --depend && { _retn=$?; echo "test failed - expecting 126 exit code, should be missing at least the vmtoolsd dependency"; exit 1; }
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend|| { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; } && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; }
+    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     ## DGM debugging
     - bash -xvT ./svtminion.sh --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion
@@ -291,7 +300,8 @@ test-tags-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local test.versions
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; } && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; }
+    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; exit 1; }
     - ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - ./svtminion.sh --clear
@@ -302,7 +312,8 @@ test-tags-salt-vmtools-linux:
     - for idx in ${list_dirs_to_chk_removed}; do if [[ -d "${idx}" ]]; then echo "directory ${idx} is left after a remove"; exit 1; fi; done
     - list_files_to_chk_removed="/usr/bin/salt-call /usr/bin/salt-minion /usr/lib/systemd/system/salt-minion.service /etc/systemd/system/salt-minion.service"
     - for idx in ${list_files_to_chk_removed}; do if [[ -f "${idx}" ]]; then echo "file ${idx} is left after a remove"; exit 1; fi; done
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; } && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; }
+    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     - ./svtminion.sh --version
     - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
