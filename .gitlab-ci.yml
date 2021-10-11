@@ -202,6 +202,8 @@ test-salt-vmtools-linux:
     - if [[ $(./svtminion.sh --status) ]]; then if [[ $? -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed"; exit 1; fi; fi
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    ## DGM debugging
+    - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call

@@ -1275,7 +1275,7 @@ fi
 
 # check if guest variables have an action
 # since none presented on the command line
-gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}") || {
+gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}" 2>/dev/null) || {
     _warning_log "$0 unable to retrieve any action arguments from guest variables ${guestvars_salt_dir}, retcode '$?'";
 }
 
