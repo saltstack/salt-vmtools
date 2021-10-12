@@ -132,7 +132,7 @@ param(
     [Parameter(ParameterSetName="Remove")]
     [Alias("v")]
     [Switch]
-    # Displays help for this script.
+    # Displays the version of this script.
     $Version
 
 )

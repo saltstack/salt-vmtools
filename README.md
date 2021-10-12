@@ -170,12 +170,13 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
         VMtools script for managing the salt minion on a Windows guest
 
     SYNTAX
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Install] [-Version <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Help] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Clear] [-Prefix <String>] [-LogLevel <String>] [-Help] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Status] [-LogLevel <String>] [-Help] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Help] [<CommonParameters>]
+        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Install] [-MinionVersion <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Clear] [-Prefix <String>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Status] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
         C:\src\salt-vm-tools\windows\svtminion.ps1 [-Help] [<CommonParameters>]
+        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Version] [<CommonParameters>]
 
     DESCRIPTION
         This script manages the salt minion on a Windows guest. The minion is a tiamat
@@ -189,11 +190,19 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
         (master=192.168.10.10, etc.). The order of precedence is CLI options, then
         guestVars, and finally tools.conf.
 
+        This script returns status exit codes when passing the Status option. Additional
+        exit codes that may be returned by this script pertain to its success or
+        failure. They are as follows:
+
+        0 - scriptSuccess
+        126 - scriptFailed
+        130 - scriptTerminated
+
     PARAMETERS
         -Install [<SwitchParameter>]
             Download, install, and start the salt-minion service.
 
-        -Version <String>
+        -MinionVersion <String>
             The version of salt minion to install. Default is 3003.3-1.
 
         -ConfigOptions <String[]>
@@ -207,6 +216,8 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
 
         -Clear [<SwitchParameter>]
             Reset the salt-minion. Randomize the minion id and remove the minion keys.
+            The randomized minion id will be the old minion id, an underscore, and 5
+            random digits.
 
         -Prefix <String>
             The prefix to apply to the randomized minion id. The randomized minion id
@@ -217,12 +228,12 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
         -Status [<SwitchParameter>]
             Get the status of the salt minion installation. This returns a numeric
             value that corresponds as follows:
-            0 - installed
-            1 - installing
-            2 - notInstalled
-            3 - installFailed
-            4 - removing
-            5 - removeFailed
+            100 - installed
+            101 - installing
+            102 - notInstalled
+            103 - installFailed
+            104 - removing
+            105 - removeFailed
 
         -Depend [<SwitchParameter>]
             Ensure the required dependencies are available. Exits with an error code
@@ -234,6 +245,9 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
 
         -Help [<SwitchParameter>]
             Displays help for this script.
+
+        -Version [<SwitchParameter>]
+            Displays the version of this script.
 
         <CommonParameters>
             This cmdlet supports the common parameters: Verbose, Debug,
