@@ -27,7 +27,7 @@ include:
 build-salt-vmtools-linux:
   stage: build_svt
   artifacts:
-    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    name: "$CI_JOB_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
       - metadata.json
       - svtminion.sh
@@ -61,7 +61,7 @@ build-salt-vmtools-linux:
     - salt_minion_service_sha256=$(sha256sum salt-minion | cut -d ' ' -f 1)
     - sed -i -e 's&SALT_MINION_SERVICE_SHA256&'${salt_minion_service_sha256}'&' metadata.json
     - cat metadata.json
-    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_REF_NAME}'&' svtminion.sh
+    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_SHORT_SHA}'&' svtminion.sh
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
     - cp -f salt-call ${oldpwd}/salt-call
@@ -88,7 +88,7 @@ build-salt-vmtools-windows:
     - oldpwd=$(pwd)
     - cd windows
     - export CICD_SALT_SCRIPT_VERSION_DATE=$(date "+%Y-%m-%d-%H:%M")
-    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_REF_NAME}'&' svtminion.ps1
+    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_SHORT_SHA}'&' svtminion.ps1
     - cp -f svtminion.ps1 ${oldpwd}/svtminion.ps1
     - cp -f salt-call.bat ${oldpwd}/salt-call.bat
     - cp -f salt-minion.bat ${oldpwd}/salt-minion.bat
