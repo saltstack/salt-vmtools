@@ -39,12 +39,6 @@ readonly salt_minion_conf_name="minion"
 readonly salt_minion_conf_file="${salt_conf_dir}/${salt_minion_conf_name}"
 readonly salt_master_sign_dir="${salt_conf_dir}/pki/${salt_minion_conf_name}"
 
-readonly salt_usr_bin_file_list="salt-minion
-salt-call
-"
-
-readonly salt_systemd_file_list="salt-minion.service
-"
 readonly script_log_dir="/var/log/"
 
 readonly list_file_dirs_to_remove="${base_salt_location}
@@ -67,6 +61,32 @@ awk
 sed
 cut
 "
+
+readonly salt_wrapper_file_list="minion
+call
+"
+
+readonly salt_minion_service_wrapper="# Copyright (c) 2021 VMware, Inc. All rights reserved.
+
+[Unit]
+Description=The Salt Minion
+Documentation=man:salt-minion(1) file:///usr/share/doc/salt/html/contents.html https://docs.saltproject.io/en/latest/contents.html
+After=network.target
+# After=ConnMgr.service ProcMgr.service sockets.target
+
+[Service]
+KillMode=process
+Type=notify
+NotifyAccess=all
+LimitNOFILE=8192
+MemoryLimit=250M
+Nice=19
+ExecStart=/opt/saltstack/salt/run/run minion
+
+[Install]
+WantedBy=multi-user.target
+"
+
 
 ## VMware file and directory locations
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
@@ -748,6 +768,54 @@ _ensure_id_or_fqdn () {
 
 
 #
+# _create_helper_scripts
+#
+#   Create helper scripts for salt-call and salt-minion
+#
+#       Example: _create_helper_scripts
+#
+# Results:
+#   Exits with 0 or error code
+#
+
+_create_helper_scripts() {
+
+    for idx in ${salt_wrapper_file_list}
+    do
+        local abs_filepath=""
+        abs_filepath="/usr/bin/salt-${idx}"
+
+        _debug_log "$0:${FUNCNAME[0]} creating helper file 'salt-${idx}' in directory /usr/bin"
+
+        echo "#!/usr/bin/env bash
+
+# Copyright (c) 2021 VMware, Inc. All rights reserved.
+" > "${abs_filepath}" || {
+            _error_log "$0:${FUNCNAME[0]} failed to create helper file 'salt-${idx}' in directory /usr/bin, retcode '$?'";
+        }
+        {
+            echo -n "exec /opt/saltstack/salt/run/run ${idx} ";
+            echo -n "\"$";
+            echo -n "{";
+            echo -n "@";
+            echo -n ":";
+            echo -n "1}";
+            echo -n "\"";
+        } >> "${abs_filepath}" || {
+            _error_log "$0:${FUNCNAME[0]} failed to finish creating helper file 'salt-${idx}' in directory /usr/bin, retcode '$?'";
+        }
+        echo  "" >> "${abs_filepath}"
+
+        # ensure executable
+        chmod 755 "${abs_filepath}" || {
+            _error_log "$0:${FUNCNAME[0]} failed to make helper file 'salt-${idx}' executable in directory /usr/bin, retcode '$?'";
+        }
+    done
+
+}
+
+
+#
 # _status_fn
 #
 #   discover and return the current status
@@ -875,17 +943,12 @@ _install_fn () {
     }
 
     if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
-        # copy helper script for /usr/bin to ensure they are present
+        # create helper scripts for /usr/bin to ensure they are present
         # before attempting to use them in _ensure_id_or_fqdn
-        for idx in ${salt_usr_bin_file_list}
-        do
-            _debug_log "$0:${FUNCNAME[0]} copying helper file '${idx}' to directory /usr/bin"
-            cp -a "${idx}" /usr/bin/ || {
-                _error_log "$0:${FUNCNAME[0]} failed to copy helper file '${idx}' to directory /usr/bin, retcode '$?'";
-            }
-            # ensure executable, sometimes gets lost in download
-            chmod 755 "/usr/bin/${idx}"
-        done
+        _debug_log "$0:${FUNCNAME[0]} creating helper files salt-call and salt-minion in directory /usr/bin"
+        _create_helper_scripts || {
+            _error_log "$0:${FUNCNAME[0]} failed to create helper files salt-call or salt-minion in directory /usr/bin, retcode '$?'";
+        }
     fi
 
     # ensure minion id or fqdn for salt-minion
@@ -904,37 +967,35 @@ _install_fn () {
                 }
             done
         fi
-        # install salt-minion systemd service script
-        for idx in ${salt_systemd_file_list}
-        do
-            _debug_log "$0:${FUNCNAME[0]} copying systemd service script '${idx}' to directory /usr/lib/systemd/system"
-            cp -a "${idx}" /usr/lib/systemd/system/ || {
-                _error_log "$0:${FUNCNAME[0]} failed to copy systemd service file '${idx}' to directory /usr/lib/systemd/system, retcode '$?'";
-            }
-            cd /etc/systemd/system || return $?
-            rm -f "${idx}"
-            ln -s "/usr/lib/systemd/system/${idx}" "${idx}" || {
-                _error_log "$0:${FUNCNAME[0]} failed to symbolic link systemd service file '${idx}' in directory /etc/systemd/system, retcode '$?'";
-            }
-            _debug_log "$0:${FUNCNAME[0]} symbolically linked systemd service file '${idx}' in directory /etc/systemd/system"
-            cd "${CURRDIR}" || return $?
 
-            # start the salt-minion using systemd
-            systemctl daemon-reload || {
-                _error_log "$0:${FUNCNAME[0]} reloading the systemd daemon failed , retcode '$?'";
-            }
-            _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl daemon-reload"
-            local name_service=''
-            name_service=$(echo "${idx}" | cut -d '.' -f 1)
-            systemctl restart "${name_service}" || {
-                _error_log "$0:${FUNCNAME[0]} starting the salt-minion using systemctl failed , retcode '$?'";
-            }
-            _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl restart '${name_service}'"
-            systemctl enable "${name_service}" || {
-                _error_log "$0:${FUNCNAME[0]} enabling the salt-minion using systemctl failed , retcode '$?'";
-            }
-            _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl enable '${name_service}'"
-        done
+        # install salt-minion systemd service script
+        _debug_log "$0:${FUNCNAME[0]} copying systemd service script 'salt-minion.service' to directory /usr/lib/systemd/system"
+        echo "${salt_minion_service_wrapper}" > /usr/lib/systemd/system/salt-minion.service || {
+            _error_log "$0:${FUNCNAME[0]} failed to copy systemd service file 'salt-minion.service' to directory /usr/lib/systemd/system, retcode '$?'";
+        }
+        cd /etc/systemd/system || return $?
+        rm -f "salt-minion.service"
+        ln -s "/usr/lib/systemd/system/salt-minion.service" "salt-minion.service" || {
+            _error_log "$0:${FUNCNAME[0]} failed to symbolic link systemd service file 'salt-minion.service' in directory /etc/systemd/system, retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} symbolically linked systemd service file 'salt-minion.service' in directory /etc/systemd/system"
+        cd "${CURRDIR}" || return $?
+
+        # start the salt-minion using systemd
+        systemctl daemon-reload || {
+            _error_log "$0:${FUNCNAME[0]} reloading the systemd daemon failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl daemon-reload"
+        local name_service=''
+        name_service=$(echo "salt-minion.service" | cut -d '.' -f 1)
+        systemctl restart "${name_service}" || {
+            _error_log "$0:${FUNCNAME[0]} starting the salt-minion using systemctl failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl restart '${name_service}'"
+        systemctl enable "${name_service}" || {
+            _error_log "$0:${FUNCNAME[0]} enabling the salt-minion using systemctl failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl enable '${name_service}'"
     fi
     return ${_retn}
 }

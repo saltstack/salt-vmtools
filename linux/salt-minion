@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
-
-exec /opt/saltstack/salt/run/run minion "${@:1}"

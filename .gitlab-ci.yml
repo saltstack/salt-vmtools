@@ -31,9 +31,6 @@ build-salt-vmtools-linux:
     paths:
       - metadata.json
       - svtminion.sh
-      - salt-call
-      - salt-minion
-      - salt-minion.service
     expire_in: 120 days
 #    reports:
 #      dotenv: build.env
@@ -54,19 +51,10 @@ build-salt-vmtools-linux:
     - sed -i -e 's&SALT_SCRIPT_COMP_VERSION&'${CICD_SALT_SCRIPT_COMP_VERSION}'&' metadata.json
     - svtminion_sha256=$(sha256sum svtminion.sh | cut -d ' ' -f 1)
     - sed -i -e 's&SVTMINION_SHA256&'${svtminion_sha256}'&' metadata.json
-    - hsalt_call_sha256=$(sha256sum salt-call | cut -d ' ' -f 1)
-    - sed -i -e 's&HELPER_SALT_CALL_SHA256&'${hsalt_call_sha256}'&' metadata.json
-    - hsalt_minion_sha256=$(sha256sum salt-minion | cut -d ' ' -f 1)
-    - sed -i -e 's&HELPER_SALT_MINION_SHA256&'${hsalt_minion_sha256}'&' metadata.json
-    - salt_minion_service_sha256=$(sha256sum salt-minion | cut -d ' ' -f 1)
-    - sed -i -e 's&SALT_MINION_SERVICE_SHA256&'${salt_minion_service_sha256}'&' metadata.json
     - cat metadata.json
     - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_SHORT_SHA}'&' svtminion.sh
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
-    - cp -f salt-call ${oldpwd}/salt-call
-    - cp -f salt-minion ${oldpwd}/salt-minion
-    - cp -f salt-minion.service ${oldpwd}/salt-minion.service
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -106,9 +94,6 @@ build-tags-salt-vmtools-linux:
     paths:
       - metadata.json
       - svtminion.sh
-      - salt-call
-      - salt-minion
-      - salt-minion.service
     expire_in: 120 days
 #    reports:
 #      dotenv: build.env
@@ -133,19 +118,10 @@ build-tags-salt-vmtools-linux:
     - sed -i -e 's&SALT_SCRIPT_COMP_VERSION&'${CICD_SALT_SCRIPT_VERSION}.${CICD_SALT_SCRIPT_RELEASE}'&' metadata.json
     - svtminion_sha256=$(sha256sum svtminion.sh | cut -d ' ' -f 1)
     - sed -i -e 's&SVTMINION_SHA256&'${svtminion_sha256}'&' metadata.json
-    - hsalt_call_sha256=$(sha256sum salt-call | cut -d ' ' -f 1)
-    - sed -i -e 's&HELPER_SALT_CALL_SHA256&'${hsalt_call_sha256}'&' metadata.json
-    - hsalt_minion_sha256=$(sha256sum salt-minion | cut -d ' ' -f 1)
-    - sed -i -e 's&HELPER_SALT_MINION_SHA256&'${hsalt_minion_sha256}'&' metadata.json
-    - salt_minion_service_sha256=$(sha256sum salt-minion | cut -d ' ' -f 1)
-    - sed -i -e 's&SALT_MINION_SERVICE_SHA256&'${salt_minion_service_sha256}'&' metadata.json
     - cat metadata.json
     - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CI_COMMIT_TAG}'&' svtminion.sh
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
-    - cp -f salt-call ${oldpwd}/salt-call
-    - cp -f salt-minion ${oldpwd}/salt-minion
-    - cp -f salt-minion.service ${oldpwd}/salt-minion.service
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
