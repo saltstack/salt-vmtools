@@ -329,19 +329,25 @@ _set_log_level() {
 #
 
 _set_install_minion_version_fn() {
-    # salt_url_version="${default_salt_url_version}"
 
     _info_log "$0:${FUNCNAME[0]} processing setting salt version for "\
         "salt-minion to install"
     local salt_version=""
 
     salt_version=$(echo "$1" | cut -d ' ' -f 1)
-    _debug_log "$0:${FUNCNAME[0]} input salt version for salt-minion to"\
-        " install is '${salt_version}'"
+    if [[ "latest" = "${salt_version}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]} input salt version for salt-minion to"\
+            " install is 'latest', leaving as default "\
+            "'${default_salt_url_version}' for now"
 
-    salt_url_version="${salt_version}"
-    _debug_log "$0:${FUNCNAME[0]} set salt version for salt-minion to "\
-        "install to '${salt_url_version}'"
+    else
+        _debug_log "$0:${FUNCNAME[0]} input salt version for salt-minion to"\
+            " install is '${salt_version}'"
+
+        salt_url_version="${salt_version}"
+        _debug_log "$0:${FUNCNAME[0]} set salt version for salt-minion to "\
+            "install to '${salt_url_version}'"
+    fi
 
     return 0
 }
@@ -728,7 +734,7 @@ _fetch_salt_minion() {
     _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
     _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
         "'${salt_url_chksum}' into file '${salt_url_chksum_file}'"
-    calc_sha512sum=$(grep "${salt_pkg_name}"
+    calc_sha512sum=$(grep "${salt_pkg_name}" \
         "${salt_url_chksum_file}" | sha512sum --check --status)
     if [[ ${calc_sha512sum} -ne 0 ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
