@@ -629,7 +629,8 @@ _fetch_vmtools_salt_minion_conf() {
 
             # check for special case of signed master's public key
             # verify_master_pubkey_sign=master_sign.pub
-            if [[ "${minion_conf_keys[${chk_idx}]}" = "verify_master_pubkey_sign" ]]; then
+            if [[ "${minion_conf_keys[${chk_idx}]}" \
+                    = "verify_master_pubkey_sign" ]]; then
                 _debug_log "$0:${FUNCNAME[0]} processing minion "\
                     "configuration parameters for master public signed key"
                 echo "${minion_conf_keys[${chk_idx}]}: True" \
@@ -638,8 +639,7 @@ _fetch_vmtools_salt_minion_conf() {
                 cp -f "${minion_conf_values[${chk_idx}]}" \
                     "${salt_master_sign_dir}/"
             else
-                echo "${minion_conf_keys[${chk_idx}]}: "\
-                    "${minion_conf_values[${chk_idx}]}" \
+                echo "${minion_conf_keys[${chk_idx}]}: ${minion_conf_values[${chk_idx}]}" \
                     >> "${salt_minion_conf_file}"
             fi
         done
