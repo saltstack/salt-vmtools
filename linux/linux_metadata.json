@@ -6,28 +6,10 @@
    "files": [{
       "name": "svtminion.sh",
       "description": "Bash script to install/remove/status of salt-minion",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "sha-256": "SVTMINION_SHA256"
-   },
-   {
-      "name": "salt-call",
-      "description": "Helper script in directory /usr/bin to perform salt-call functionality for a Tiamat based Python 3 salt-minion",
-      "version": "1.0.0",
-      "sha-256": "HELPER_SALT_CALL_SHA256"
-   },
-   {
-      "name": "salt-minion",
-      "description": "Helper script installed in directory /usr/bin to perform salt-minion functionality for a Tiamat based Python 3 salt-minion",
-      "version": "1.0.0",
-      "sha-256": "HELPER_SALT_MINION_SHA256"
-   },
-   {
-      "name": "salt-minion.service",
-      "description": "Systemd service file installed to allow for salt-minion to be utilized with systemd",
-      "version": "1.0.0",
-      "sha-256": "SALT_MINION_SERVICE_SHA256"
    }],
-   "depends": [ "sha512sum", "curl", "systemctl", "vmtoolsd" ],
+   "depends": [ "sha512sum", "curl", "systemctl", "vmtoolsd", "grep", "awk", "sed", "cut" ],
    "predeploy": [],
    "deploy": [ "svtminion.sh", "--install" ],
    "postdeploy": [],
