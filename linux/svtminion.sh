@@ -14,7 +14,7 @@ set -o pipefail
 # using bash for now
 # run this script as root, as needed to run salt
 
-## SCRIPT_VERSION='2021.10.07.01'
+SCRIPT_VERSION='SCRIPT_VERSION_REPLACE'
 
 # definitions
 
@@ -24,13 +24,10 @@ CURL_DOWNLOAD_RETRY_COUNT=5
 ## these value in use for poc
 
 ## Repository locations and naming
+readonly default_salt_url_version="3003.3-1"
 readonly salt_name="salt"
-readonly salt_url_version="3003.3-1"
-readonly salt_pkg_name="${salt_name}-${salt_url_version}-linux-amd64.tar.gz"
+salt_url_version="${default_salt_url_version}"
 readonly base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
-readonly salt_url="${base_url}/${salt_url_version}/${salt_pkg_name}"
-readonly salt_url_chksum_file="${salt_name}-${salt_url_version}_SHA512"
-readonly salt_url_chksum="${base_url}/${salt_url_version}/${salt_url_chksum_file}"
 
 # Salt file and directory locations
 readonly base_salt_location="/opt/saltstack"
@@ -67,6 +64,7 @@ sha512sum
 vmtoolsd
 grep
 awk
+sed
 cut
 "
 
@@ -97,13 +95,14 @@ declare -a minion_conf_values
 #  5 => removeFailed
 #  126 => scriptFailed
 declare -A STATUS_CODES_ARY
-STATUS_CODES_ARY[installed]=0
-STATUS_CODES_ARY[installing]=1
-STATUS_CODES_ARY[notInstalled]=2
-STATUS_CODES_ARY[installFailed]=3
-STATUS_CODES_ARY[removing]=4
-STATUS_CODES_ARY[removeFailed]=5
+STATUS_CODES_ARY[installed]=100
+STATUS_CODES_ARY[installing]=101
+STATUS_CODES_ARY[notInstalled]=102
+STATUS_CODES_ARY[installFailed]=103
+STATUS_CODES_ARY[removing]=104
+STATUS_CODES_ARY[removeFailed]=105
 STATUS_CODES_ARY[scriptFailed]=126
+STATUS_CODES_ARY[scriptTerminated]=130
 
 # log levels available for logging, order sensitive
 readonly LOG_MODES_AVAILABLE=(silent error warning info debug)
@@ -118,11 +117,22 @@ LOG_LEVELS_ARY[debug]=4
 STATUS_CHK=0
 DEPS_CHK=0
 USAGE_HELP=0
-INSTALL_FLAG=0
-CLEAR_ID_KEYS_FLAG=0
 UNINSTALL_FLAG=0
 VERBOSE_FLAG=0
 LOG_LEVEL_FLAG=0
+VERSION_FLAG=0
+
+CLEAR_ID_KEYS_FLAG=0
+CLEAR_ID_KEYS_PARAMS=""
+
+INSTALL_FLAG=0
+INSTALL_PARAMS=""
+
+MINION_VERSION_FLAG=0
+MINION_VERSION_PARAMS=""
+
+LOG_LEVEL_FLAG=0
+LOG_LEVEL_PARAMS=""
 
 #default logging level to errors, similar to Windows script
 LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
@@ -188,27 +198,49 @@ esac
 #
 #   Prints out help text
 #
+
  _usage() {
      echo ""
-     echo "usage: ${0}  [-c|--status] [-e|--depend] [-h|--help] [-i|--install]"
-     echo "             [-k|--clear] [-l|--loglevel] [-r|--remove] [-v|--verbose]"
+     echo "usage: ${0}  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
+     echo "             [-l|--loglevel] [-m|--saltversion] [-r|--remove]"
+     echo "             [-s|--status] [-v|--version]"
      echo ""
-     echo "  -c, --status    return status for this script"
-     echo "  -e, --depend    check dependencies required to run this script exist"
-     echo "  -h, --help      this message"
-     echo "  -i, --install   install and activate the salt-minion"
-     echo "  -k, --clear     clear previous minion identifer and keys,"
+     echo "  -c, --clear     clear previous minion identifer and keys,"
      echo "                     and set specified identifer if present"
+     echo "  -d, --depend    check dependencies required to run this script exist"
+     echo "  -h, --help      this message"
+     echo "  -i, --install   install and activate the salt-minion configuration"
+     echo "                     parameters key=value can also be passed on the CLI"
      echo "  -l, --loglevel  set log level for logging, silent error warning debug info"
      echo "                     default loglevel is warning"
+     echo "  -m, --saltversion salt-minion version to installi, default[latest]"
      echo "  -r, --remove    deactivate and remove the salt-minion"
-     echo "  -v, --verbose   enable verbose logging and messages"
+     echo "  -s, --status    return status for this script"
+     echo "  -v, --version   version of this script"
      echo ""
      echo "  salt-minion vmtools integration script"
      echo "      example: $0 --status"
 }
 
+
 # work functions
+
+#
+# _cleanup
+#
+#   Cleanups any running process and areas on control-C
+#
+#
+# Results:
+#   Exits with hard-coded value 130
+#
+
+_cleanup() {
+    exit ${STATUS_CODES_ARY[scriptCntlC]}
+}
+
+trap _cleanup INT
+
 
 ## cheap trim relying on echo to convert tabs to spaces and all multiple spaces to a single space
 _trim() {
@@ -228,17 +260,14 @@ _trim() {
 
 _set_log_level() {
 
-    if [[ $# -ne 1 ]]; then
-        _warning_log "$0:${FUNCNAME[0]} attempted to set log_level without appropriate input"
-    fi
+    _info_log "$0:${FUNCNAME[0]} processing setting set log_level for logging"
 
     local ip_level=""
     local valid_level=0
     local old_log_level=""
     old_log_level=${LOG_LEVEL}
 
-    ip_level=$1
-
+    ip_level=$( echo "$1" | cut -d ' ' -f 1)
     scam=${#LOG_MODES_AVAILABLE[@]}
     for ((i=0; i<scam; i++)); do
         name=${LOG_MODES_AVAILABLE[i]}
@@ -249,11 +278,39 @@ _set_log_level() {
     done
     if [[ ${valid_level} -ne 1 ]]; then
         _warning_log "$0:${FUNCNAME[0]} attempted to set log_level with invalid input, log_level unchanged, currently ${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}"
+    else
+        LOG_LEVEL=${LOG_LEVELS_ARY[${ip_level}]}
+        _info_log "$0:${FUNCNAME[0]} changed log_level from ${LOG_MODES_AVAILABLE[${old_log_level}]} to ${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}"
     fi
+    return 0
+}
 
-    LOG_LEVEL=${LOG_LEVELS_ARY[${ip_level}]}
 
-    _info_log "$0:${FUNCNAME[0]} changed log_level from ${LOG_MODES_AVAILABLE[${old_log_level}]} to ${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}"
+#
+# _set_install_minion_version_fn
+#
+#   Set the version of Salt Minion wanted to install
+#       default 'latest'
+#
+#   Note: typically salt version includes the release number in addition to version number
+#           for example: 3003.3-1
+#
+# Results:
+#   Returns with exit code
+#
+
+_set_install_minion_version_fn() {
+    # salt_url_version="${default_salt_url_version}"
+
+    _info_log "$0:${FUNCNAME[0]} processing setting salt version for salt-minion to install"
+    local salt_version=""
+
+    salt_version=$(echo "$1" | cut -d ' ' -f 1)
+    _debug_log "$0:${FUNCNAME[0]} input salt version for salt-minion to install is '${salt_version}'"
+
+    salt_url_version="${salt_version}"
+    _debug_log "$0:${FUNCNAME[0]} set salt version for salt-minion to install to '${salt_url_version}'"
+
     return 0
 }
 
@@ -381,7 +438,7 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
     local _retn=0
     local gvar_args=""
 
-    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}") || {
+    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null) || {
         _warning_log "$0:${FUNCNAME[0]} unable to retrieve arguments from guest variables location ${guestvars_salt_args}, retcode '$?'";
     }
 
@@ -424,6 +481,10 @@ _fetch_vmtools_salt_minion_conf_cli_args() {
         _debug_log "$0:${FUNCNAME[0]} processing command line arguments '${cli_args}'"
         for idx in ${cli_args}
         do
+            # check for start of next option, idx starts with '-' (covers '--')
+            if [[ "${idx}" = --* ]]; then
+                break
+            fi
             cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
             cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
             _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
@@ -535,19 +596,22 @@ _curl_download() {
     local file_name="$1"
     local file_url="$2"
     local download_retry_failed=1       # assume issues
+    local _retn=0
 
     for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
     do
-        curl -o "${file_name}" -fsSL "${file_url}" || {
-            _warning_log "$0:${FUNCNAME[0]} failed to download file '${file_url}' on '${i}' attempt, retcode '$?'"
-        } && {
+        curl -o "${file_name}" -fsSL "${file_url}"
+        _retn=$?
+        if [[ ${_retn} -ne 0 ]]; then
+            _warning_log "$0:${FUNCNAME[0]} failed to download file '${file_name}' from '${file_url}' on '${i}' attempt, retcode '${_retn}'"
+        else
             download_retry_failed=0
-            _warning_log "$0:${FUNCNAME[0]} failed to download file '${file_url}' after '${CURL_DOWNLOAD_RETRY_COUNT}' attempts"
+            _debug_log "$0:${FUNCNAME[0]} successfully downloaded file '${file_name}' from '${file_url}' after '${i}' attempts"
             break
-        }
+        fi
     done
     if [[ ${download_retry_failed} -ne 0 ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to download file '${file_url}', retcode '$?'";
+        _error_log "$0:${FUNCNAME[0]} failed to download file '${file_name}' from '${file_url}' after '${CURL_DOWNLOAD_RETRY_COUNT}' attempts"
     fi
 
     _info_log "$0:${FUNCNAME[0]} successfully downloaded file '${file_name}' from '${file_url}'"
@@ -571,8 +635,19 @@ _fetch_salt_minion() {
     # fetch the current salt-minion into specified location
     # could check if alreasdy there but by always getting it
     # ensure we are not using stale versions
+    local _retn=0
     local calc_sha512sum=1
     local download_retry_failed=1       # assume issues
+
+    local salt_pkg_name=""
+    local salt_url=""
+    local salt_url_chksum_file=""
+    local salt_url_chksum=""
+
+    salt_pkg_name="${salt_name}-${salt_url_version}-linux-amd64.tar.gz"
+    salt_url="${base_url}/${salt_url_version}/${salt_pkg_name}"
+    salt_url_chksum_file="${salt_name}-${salt_url_version}_SHA512"
+    salt_url_chksum="${base_url}/${salt_url_version}/${salt_url_chksum_file}"
 
     _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check its validity"
 
@@ -580,14 +655,23 @@ _fetch_salt_minion() {
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
     _curl_download "${salt_pkg_name}" "${salt_url}"
+    _debug_log "$0:${FUNCNAME[0]} successfully downloaded from '${salt_url}' into file '${salt_pkg_name}'"
     _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
-    calc_sha512sum=$(grep "${salt_pkg_name}" ${salt_url_chksum_file} | sha512sum --check --status)
-    if [[ $calc_sha512sum -ne 0 ]]; then
+    _debug_log "$0:${FUNCNAME[0]} successfully downloaded from '${salt_url_chksum}' into file '${salt_url_chksum_file}'"
+    calc_sha512sum=$(grep "${salt_pkg_name}" "${salt_url_chksum_file}" | sha512sum --check --status)
+    if [[ ${calc_sha512sum} -ne 0 ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
         _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' failed to match checksum in file '${salt_url_chksum}'"
     fi
 
-    tar -xvzf ${salt_pkg_name} 1>/dev/null
+    _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
+
+    tar xzf "${salt_pkg_name}" 1>/dev/null
+    _retn=$?
+    if [[ ${_retn} -ne 0 ]]; then
+        CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+        _error_log "$0:${FUNCNAME[0]} tar xzf expansion of downloaded file '${salt_pkg_name}' failed, return code '${_retn}'"
+    fi
     if [[ ! -f ${test_exists_file} ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
         _error_log "$0:${FUNCNAME[0]} expansion of downloaded file '${salt_url}' failed to provide critical file '${test_exists_file}'"
@@ -640,6 +724,12 @@ _ensure_id_or_fqdn () {
 
     local minion_fqdn=""
 
+    # quick check if id specified
+    if grep -q '^id:' < "${salt_minion_conf_file}"; then
+        _debug_log "$0:${FUNCNAME[0]} salt-minion identifier found, no need to check further"
+        return 0
+    fi
+
     _debug_log "$0:${FUNCNAME[0]} ensuring salt-minion identifier or FQDN is specified for salt-minion configuration"
     minion_fqdn=$(/usr/bin/salt-call --local grains.get fqdn | grep -v 'local:' | xargs)
     if [[ -n "${minion_fqdn}" && "${minion_fqdn}" != "Unknown.example.org" ]]; then
@@ -647,14 +737,11 @@ _ensure_id_or_fqdn () {
         return 0
     fi
 
-    # default FQDN, check if id specified
-    grep '^id:' < "${salt_minion_conf_file}" 1>/dev/null || {
-        # no id is specified, generate one and update conf file
-        local minion_genid=""
-        minion_genid=$(_generate_minion_id)
-        echo "id: ${minion_genid}" >> "${salt_minion_conf_file}"
-        _debug_log "$0:${FUNCNAME[0]} no salt-minion identifier found, generated identifier '${minion_genid}'"
-    }
+    # default FQDN, no id is specified, generate one and update conf file
+    local minion_genid=""
+    minion_genid=$(_generate_minion_id)
+    echo "id: ${minion_genid}" >> "${salt_minion_conf_file}"
+    _debug_log "$0:${FUNCNAME[0]} no salt-minion identifier found, generated identifier '${minion_genid}'"
 
     return 0
 }
@@ -787,18 +874,24 @@ _install_fn () {
         _error_log "$0:${FUNCNAME[0]} failed , read configuration for salt-minion from tools.conf, retcode '$?'";
     }
 
-    # ensure minion id or fqdn for salt-minion
-    _ensure_id_or_fqdn
-
     if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
-        # copy helper script for /usr/bin
+        # copy helper script for /usr/bin to ensure they are present
+        # before attempting to use them in _ensure_id_or_fqdn
         for idx in ${salt_usr_bin_file_list}
         do
             _debug_log "$0:${FUNCNAME[0]} copying helper file '${idx}' to directory /usr/bin"
             cp -a "${idx}" /usr/bin/ || {
                 _error_log "$0:${FUNCNAME[0]} failed to copy helper file '${idx}' to directory /usr/bin, retcode '$?'";
             }
+            # ensure executable, sometimes gets lost in download
+            chmod 755 "/usr/bin/${idx}"
         done
+    fi
+
+    # ensure minion id or fqdn for salt-minion
+   _ensure_id_or_fqdn
+
+    if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
         if [[ -n  "${existing_chk}" ]]; then
             # be nice and stop any current salt functionalty found
             for idx in ${existing_chk}
@@ -956,7 +1049,7 @@ _clear_id_key_fn () {
     fi
 
     # get any minion identifier in case specified
-    minion_ip_id="$1"
+    minion_ip_id=$(echo "$1" | cut -d ' ' -f 1)
     svpid=$(_find_salt_pid)
     if [[ -n ${svpid} ]]; then
         # stop the active salt-minion using systemd
@@ -1119,17 +1212,19 @@ LOGGING="${log_file}"
 ##   postremove
 
 while true; do
+    if [[ -z "$1" ]]; then break; fi
     case "$1" in
-        -c | --status ) STATUS_CHK=1; shift ;;
-        -e | --depend ) DEPS_CHK=1; shift ;;
+        -c | --clear ) CLEAR_ID_KEYS_FLAG=1; shift; CLEAR_ID_KEYS_PARAMS=$* ;;
+        -d | --depend ) DEPS_CHK=1; shift ;;
         -h | --help ) USAGE_HELP=1; shift ;;
-        -i | --install ) INSTALL_FLAG=1; shift ;;
-        -k | --clear ) CLEAR_ID_KEYS_FLAG=1; shift ;;
-        -l | --loglevel ) LOG_LEVEL_FLAG=1; shift ;;
+        -i | --install ) INSTALL_FLAG=1; shift; INSTALL_PARAMS="$*" ;;
+        -l | --loglevel ) LOG_LEVEL_FLAG=1; shift; LOG_LEVEL_PARAMS="$*" ;;
+        -m | --saltversion ) MINION_VERSION_FLAG=1; shift; MINION_VERSION_PARAMS="$*" ;;
         -r | --remove ) UNINSTALL_FLAG=1; shift ;;
-        -v | --verbose ) VERBOSE_FLAG=1; shift ;;
+        -s | --status ) STATUS_CHK=1; shift ;;
+        -v | --version ) VERSION_FLAG=1; shift ;;
         -- ) shift; break ;;
-        * ) break ;;
+        * ) shift ;;
     esac
 done
 
@@ -1143,55 +1238,68 @@ fi
 ##  MAIN BODY OF SCRIPT
 
 retn=0
+if [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
+    # ensure logging level changes are processed before any actions
+    _set_log_level "${LOG_LEVEL_PARAMS}"
+    retn=$?
+fi
 if [[ ${STATUS_CHK} -eq 1 ]]; then
     _status_fn
     retn=$?
-elif [[ ${DEPS_CHK} -eq 1 ]]; then
+fi
+if [[ ${DEPS_CHK} -eq 1 ]]; then
     _deps_chk_fn
     retn=$?
-elif [[ ${INSTALL_FLAG} -eq 1 ]]; then
-    _install_fn "$@"
+fi
+if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
+    # ensure this is processed before install
+    _set_install_minion_version_fn "${MINION_VERSION_PARAMS}"
     retn=$?
-elif [[ ${CLEAR_ID_KEYS_FLAG} -eq 1 ]]; then
-    _clear_id_key_fn "$@"
+fi
+if [[ ${INSTALL_FLAG} -eq 1 ]]; then
+    _install_fn "${INSTALL_PARAMS}"
     retn=$?
-elif [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
+fi
+if [[ ${CLEAR_ID_KEYS_FLAG} -eq 1 ]]; then
+    _clear_id_key_fn "${CLEAR_ID_KEYS_PARAMS}"
+    retn=$?
+fi
+if [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
     _uninstall_fn
     retn=$?
-elif [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
-    _set_log_level "$@"
-    retn=$?
-else
-    # check if guest variables have an action
-    # since none presented on the command line
-    gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}") || {
-        _warning_log "$0 unable to retrieve any action arguments from guest variables ${guestvars_salt_dir}, retcode '$?'";
-    }
+fi
+if [[ ${VERSION_FLAG} -eq 1 ]]; then
+    echo "${SCRIPT_VERSION}"
+    retn=0
+fi
 
-    if [[ -z "${gvar_action}" ]]; then
-        _usage
-    else
-        case "${gvar_action}" in
-            depend)
-                _deps_chk_fn
-                retn=$?
-                ;;
-            add)
-                _install_fn
-                retn=$?
-                ;;
-            remove)
-                _uninstall_fn
-                retn=$?
-                ;;
-            status)
-                _status_fn
-                retn=$?
-                ;;
-            *)
-                ;;
-        esac
-    fi
+# check if guest variables have an action
+# since none presented on the command line
+gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}" 2>/dev/null) || {
+    _warning_log "$0 unable to retrieve any action arguments from guest variables ${guestvars_salt_dir}, retcode '$?'";
+}
+
+if [[ -n "${gvar_action}" ]]; then
+    case "${gvar_action}" in
+        depend)
+            _deps_chk_fn
+            retn=$?
+            ;;
+        add)
+            _install_fn
+            retn=$?
+            ;;
+        remove)
+            _uninstall_fn
+            retn=$?
+            ;;
+        status)
+            _status_fn
+            retn=$?
+            ;;
+        *)
+            ;;
+    esac
 fi
 
 exit ${retn}
