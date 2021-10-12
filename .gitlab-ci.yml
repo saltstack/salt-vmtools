@@ -202,13 +202,10 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --depend|| { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
     - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
-    ## DGM debugging
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug
-    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - myhost=$(hostname)
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
-    - echo "grains FQDN '${myfqdn}'"
-    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
@@ -233,7 +230,9 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --version
     - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
-    - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
+    - myhost=$(hostname)
+    - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
+    - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
     - ./svtminion.sh --status || { _retn=$?; echo "test failed, salt-minion should be installed, returned '${_retn}'"; }
 
   rules:
@@ -289,11 +288,11 @@ test-tags-salt-vmtools-linux:
     - ./svtminion.sh --depend|| { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
     - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
-    ## DGM debugging
-    - bash -xvT ./svtminion.sh --install master=192.168.0.5 --loglevel debug
-    - cat /etc/salt/minion
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-    - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
+    - myhost=$(hostname)
+    - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
+    - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
     - ls -alh /opt/saltstack/salt/run/
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
@@ -317,7 +316,9 @@ test-tags-salt-vmtools-linux:
     - ./svtminion.sh --version
     - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
-    - cat /etc/salt/minion | grep 'id:\ minion_' 1>/dev/null
+    - myhost=$(hostname)
+    - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
+    - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
     - ./svtminion.sh --status || { _retn=$?; echo "test failed, salt-minion should be installed, returned '${_retn}'"; }
 
   rules:
