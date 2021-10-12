@@ -86,43 +86,56 @@ function Run-TestFile {
     # Get a list of functions inside the script
     $script_functions = Get-ChildItem function: | Where-Object { $current_functions -notcontains $_}
 
-    $file_test_failed = 0
     $short_path = Resolve-Path -Path $Path -Relative
     Write-Header $short_path
 
     $setUpScript = ($script_functions | Select-Object | Where-Object {$_.Name -like "setUpScript" }).Name
-    if ($setUpScript) {
-        & $setUpScript
-    }
+    $tearDownScript = ($script_functions | Select-Object | Where-Object {$_.Name -like "tearDownScript" }).Name
 
-    $script_functions | ForEach-Object {
-        $setUp = ($script_functions | Select-Object | Where-Object {$_.Name -like "setUp" }).Name
-        if ($setUp) {
-            & $setUp
+    try {
+        if ($setUpScript) {
+            Write-Header "Setting Things Up (Script)" -Filler "-"
+            & $setUpScript
+            Write-Header -Filler "-"
         }
-        if ($_.Name -like "test_*") {
-            Write-Host "$($_.Name): " -NoNewline
-            $individual_test_failed = 0
 
-            $individual_test_failed = & $_.ScriptBlock
-            $Script:total_tests += 1
+        $script_functions | ForEach-Object {
+            $setUp = ($script_functions | Select-Object | Where-Object {$_.Name -like "setUp" }).Name
+            $tearDown = ($script_functions | Select-Object | Where-Object {$_.Name -like "tearDown" }).Name
+            try {
+                if ($setUp) {
+                    Write-Header "Setting Things Up (Function)" -Filler "-"
+                    & $setUp
+                    Write-Header -Filler "-"
+                }
+                if ($_.Name -like "test_*") {
+                    Write-Host "$($_.Name): " -NoNewline
+                    $individual_test_failed = 0
 
-            if ($individual_test_failed -ne 0) {
-                $failed_tests.Add("$short_path::$($_.Name)") | Out-Null
-                Write-Failed
-            } else {
-                Write-Success
+                    $individual_test_failed = & $_.ScriptBlock
+                    $Script:total_tests += 1
+
+                    if ($individual_test_failed -ne 0) {
+                        $failed_tests.Add("$short_path::$($_.Name)") | Out-Null
+                        Write-Failed
+                    } else {
+                        Write-Success
+                    }
+                }
+            } finally {
+                if ($tearDown) {
+                    Write-Header "Cleaning Up (Function)" -Filler "-"
+                    & $tearDown
+                    Write-Header -Filler "-"
+                }
             }
         }
-        $tearDown = ($script_functions | Select-Object | Where-Object {$_.Name -like "tearDown" }).Name
-        if ($tearDown) {
-            & $tearDown
+    } finally {
+        if ($tearDownScript) {
+            Write-Header "Cleaning Up (Script)" -Filler "-"
+            & $tearDownScript
+            Write-Header -Filler "-"
         }
-    }
-
-    $tearDownScript = ($script_functions | Select-Object | Where-Object {$_.Name -like "tearDownScript" }).Name
-    if ($tearDownScript) {
-        & $tearDownScript
     }
 
     Write-Status $failed_tests.Count

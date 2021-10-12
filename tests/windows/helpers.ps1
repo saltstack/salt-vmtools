@@ -52,3 +52,7 @@ function Write-Success {
 function Write-Failed {
     Write-Host "Failed" -ForegroundColor Red
 }
+
+function Write-Done {
+    Write-Host "Done" -ForegroundColor Green
+}

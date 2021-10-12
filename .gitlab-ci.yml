@@ -78,8 +78,6 @@ build-salt-vmtools-windows:
     - export CICD_SALT_SCRIPT_VERSION_DATE=$(date "+%Y-%m-%d-%H:%M")
     - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CICD_SALT_SCRIPT_VERSION_DATE}-${CI_COMMIT_SHORT_SHA}'&' svtminion.ps1
     - cp -f svtminion.ps1 ${oldpwd}/svtminion.ps1
-    - cp -f salt-call.bat ${oldpwd}/salt-call.bat
-    - cp -f salt-minion.bat ${oldpwd}/salt-minion.bat
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -144,8 +142,6 @@ build-tags-salt-vmtools-windows:
     - cd windows
     - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CI_COMMIT_TAG}'&' svtminion.ps1
     - cp -f svtminion.ps1 ${oldpwd}/svtminion.ps1
-    - cp -f salt-call.bat ${oldpwd}/salt-call.bat
-    - cp -f salt-minion.bat ${oldpwd}/salt-minion.bat
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"

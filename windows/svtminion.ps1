@@ -956,8 +956,10 @@ function Get-MinionConfig {
     # Get the minion config values to be place in the minion config file. The
     # Order of priority is as follows:
     # - Get config from tools.conf (defined by VMtools - older method)
-    # - Get config from GuestVars (defined by VMtools), overwrites matching tools.conf
-    # - Get config from the CLI (options passed to the script), overwrites matching guestVars
+    # - Get config from GuestVars (defined by VMtools), overwrites matching
+    #   tools.conf
+    # - Get config from the CLI (options passed to the script), overwrites
+    #   matching guestVars
     # - No config found, use salt minion defaults (master: salt, id: hostname)
     #
     # Used by:
@@ -1018,7 +1020,7 @@ function Add-MinionConfig {
     foreach ($row in $config_options.GetEnumerator()) {
         $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
     }
-    $config_content = $new_content -join "`n"
+    $config_content = $new_content -join "`r`n"
     $Error.Clear()
     try {
         Write-Log "Writing minion config" -Level info
@@ -1119,8 +1121,6 @@ function Confirm-Dependencies {
     # Files required by this script
     $salt_dep_files = @{}
     $salt_dep_files["vmtoolsd.exe"] = $vmtools_base_dir
-    $salt_dep_files["salt-call.bat"] = $PSScriptRoot
-    $salt_dep_files["salt-minion.bat"] = $PSScriptRoot
 
     foreach ($file in $salt_dep_files.Keys) {
         Write-Log "Looking for $file in $($salt_dep_files[$file])" -Level debug
@@ -1210,6 +1210,68 @@ function Get-SaltFromWeb {
 }
 
 
+function New-SaltCallScript {
+    # Create the salt-call.bat script
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+    # The location to create the script
+        [String] $Path
+    )
+    $content = @(
+    ":: Copyright (c) 2021 VMware, Inc. All rights reserved.",
+    "",
+    ":: Script for starting the Salt-Minion",
+    ":: Accepts all parameters that Salt-Minion Accepts",
+    "@ echo off",
+    "",
+    ":: Define Variables",
+    "Set SaltBin=%~dp0\salt\salt.exe",
+    "",
+    "net session >nul 2>&1",
+    "if %errorLevel%==0 (",
+    "    :: Launch Script",
+    "    `"%SaltBin%`" call %*",
+    ") else (",
+    "    echo ***** This script must be run as Administrator *****",
+    ")"
+    )
+    $file_content = $content -join "`r`n"
+    Set-Content -Path $Path -Value $file_content
+}
+
+
+function New-SaltMinionScript {
+    # Create the salt-minion.bat script
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        # The location to create the script
+        [String] $Path
+    )
+    $content = @(
+    ":: Copyright (c) 2021 VMware, Inc. All rights reserved.",
+    "",
+    ":: Script for starting the Salt-Minion"
+    ":: Accepts all parameters that Salt-Minion Accepts",
+    "@ echo off",
+    "",
+    ":: Define Variables",
+    "Set SaltBin=%~dp0\salt\salt.exe",
+    "",
+    "net session >nul 2>&1",
+    'if %errorLevel%==0 (',
+    "    :: Launch Script",
+    "    `"%SaltBin%`" minion %*",
+    ") else (",
+    "    echo ***** This script must be run as Administrator *****",
+    ")"
+    )
+    $file_content = $content -join "`r`n"
+    Set-Content -Path $Path -Value $file_content
+}
+
+
 function Install-SaltMinion {
     # Installs the tiamat build of the salt minion. Performs the following:
     # - Expands the zipfile into C:\Program Files\Salt Project
@@ -1228,18 +1290,18 @@ function Install-SaltMinion {
     # 2. Copy the scripts into Program Files
     Write-Log "Copying scripts" -Level info
     try {
-        Write-Log "Copying $PSScriptRoot\salt-call.bat" -Level debug
-        Copy-Item -Path "$PSScriptRoot\salt-call.bat" -Destination "$salt_dir"
+        Write-Log "Creating $salt_dir\salt-call.bat" -Level debug
+        New-SaltCallScript -Path "$salt_dir\salt-call.bat"
     } catch {
-        Write-Log "Failed copying $PSScriptRoot\salt-call.bat" -Level error
+        Write-Log "Failed creating $salt_dir\salt-call.bat" -Level error
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
     try {
-        Write-Log "Copying $PSScriptRoot\salt-minion.bat" -Level debug
-        Copy-Item -Path "$PSScriptRoot\salt-minion.bat" -Destination "$salt_dir"
+        Write-Log "Creating $salt_dir\salt-minion.bat" -Level debug
+        New-SaltMinionScript -Path "$salt_dir\salt-minion.bat"
     } catch {
-        Write-Log "Failed copying $PSScriptRoot\salt-minion.bat" -Level error
+        Write-Log "Failed creating $salt_dir\salt-minion.bat" -Level error
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
@@ -1337,7 +1399,7 @@ function Reset-SaltMinion {
                 $new_content.Add($line) | Out-Null
             }
         }
-        $config_content = $new_content -join "`n"
+        $config_content = $new_content -join "`r`n"
         Write-Log "Writing new minion config"
         $Error.Clear()
         try {

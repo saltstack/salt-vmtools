@@ -4,12 +4,16 @@ $Script:service_status = $null
 
 function setUpScript {
     # Current status
+    Write-Host "Getting original service status: " -NoNewline
     $Script:service_status = (Get-Service -Name CertPropSvc).Status
+    Write-Done
 }
 
 function tearDownScript {
     # Set it back to Running status if it was running to begin with
+    Write-Host "Restoring original service status: " -NoNewline
     if ($Script:service_status -eq "Running") { Start-Service -Name CertPropSvc }
+    Write-Done
 }
 
 function test_Start-MinionService{

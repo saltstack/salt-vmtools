@@ -2,13 +2,17 @@
 
 function setUpScript {
     # We need to create a tools.conf file with some settings
+    Write-Host "Creating tools.conf: " -NoNewline
     $content = @("[salt_minion]"; "master=tc_master"; "id=tc_minion")
     $tc_content = $content -join "`n"
     New-Item -Path $vmtools_conf_file -Value $tc_content -Force | Out-Null
+    Write-Done
 }
 
 function tearDownScript {
+    Write-Host "Removing tools.conf: " -NoNewline
     Remove-Item -Path $vmtools_conf_file -Force | Out-Null
+    Write-Done
 }
 
 function test_Get-ConfigToolsConf {
