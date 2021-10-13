@@ -201,7 +201,7 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     - ./svtminion.sh --version
-    - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
+    - ./svtminion.sh --minionversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
     - myhost=$(hostname)
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
@@ -288,7 +288,7 @@ test-tags-salt-vmtools-linux:
     - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     - ./svtminion.sh --version
-    - ./svtminion.sh --saltversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
+    - ./svtminion.sh --minionversion "3004rc1-1" --install master=192.168.0.6 --loglevel debug
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
     - myhost=$(hostname)
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
