@@ -223,7 +223,7 @@ esac
  _usage() {
      echo ""
      echo "usage: ${0}  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
-     echo "             [-l|--loglevel] [-m|--saltversion] [-r|--remove]"
+     echo "             [-l|--loglevel] [-m|--minionversion] [-r|--remove]"
      echo "             [-s|--status] [-v|--version]"
      echo ""
      echo "  -c, --clear     clear previous minion identifer and keys,"
@@ -235,7 +235,8 @@ esac
      echo "  -l, --loglevel  set log level for logging,"
      echo "                     silent error warning debug info"
      echo "                     default loglevel is warning"
-     echo "  -m, --saltversion salt-minion version to install, default[latest]"
+     echo "  -m, --minionversion salt-minion version to install,"
+     echo "                                                 default[latest]"
      echo "  -r, --remove    deactivate and remove the salt-minion"
      echo "  -s, --status    return status for this script"
      echo "  -v, --version   version of this script"
@@ -1427,7 +1428,7 @@ while true; do
             shift;
             LOG_LEVEL_PARAMS="$*";
             ;;
-        -m | --saltversion )
+        -m | --minionversion )
             MINION_VERSION_FLAG=1;
             shift;
             MINION_VERSION_PARAMS="$*";
