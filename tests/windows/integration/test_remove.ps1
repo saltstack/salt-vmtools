@@ -1,40 +1,45 @@
 # Copyright (c) 2021 VMware, Inc. All rights reserved.
 
 function setUpScript {
-    Write-Header "Setting things up" -Filler "-"
-    Write-Host "Installing salt..."
+
+    Write-Host "Installing salt: " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     Install
+    Write-Done
 
-    Write-Host "Removing salt using Remove..."
+    Write-Host "Removing salt using Remove: " -NoNewline
     Remove
+    Write-Done
 
-    Write-Header -Filler "-"
 }
 
 function tearDownScript {
 
-    Write-Header "Cleaning Up" -Filler "-"
     # Stop and remove the salt-minion service if it exists
     $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
     if ($service) {
-        Write-Host "Stopping the salt-minion service..."
+        Write-Host "Stopping the salt-minion service: " -NoNewline
         Stop-Service -Name salt-minion
-        Write-Host "Removing the salt-minion service..."
+        Write-Done
+
+        Write-Host "Removing the salt-minion service: " -NoNewline
         $service = Get-WmiObject -Class Win32_Service -Filter "Name='salt-minion'"
         $service.delete() *> $null
+        Write-Done
     }
 
     # Remove Program Data directory
     if (Test-Path "$env:ProgramData\Salt Project") {
-        Write-Host "Removing config directory..."
+        Write-Host "Removing config directory: " -NoNewline
         Remove-Item "$env:ProgramData\Salt Project" -Force -Recurse
+        Write-Done
     }
 
     # Remove Program Files directory
     if (Test-Path "$env:ProgramFiles\Salt Project") {
-        Write-Host "Removing install directory..."
+        Write-Host "Removing install directory: " -NoNewline
         Remove-Item "$env:ProgramFiles\Salt Project" -Force -Recurse
+        Write-Done
     }
 
     # Removing from the path
@@ -43,21 +48,24 @@ function tearDownScript {
     $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
     $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
     $new_path_list = [System.Collections.ArrayList]::new()
+    $removed = 0
     foreach ($item in $current_path.Split(";")) {
         $regex_path = $path.Replace("\", "\\")
         # Bail if we find the new path in the current path
         if ($item -imatch "^$regex_path(\\)?$") {
             # Remove this one
-            Write-Host "Removing salt from the system path..."
+            Write-Host "Removing salt from the system path: " -NoNewline
+            $removed = 1
         } else {
             # Add the item to our new path array
             $new_path_list.Add($item) | Out-Null
         }
     }
-    $new_path = $new_path_list -join ";"
-    Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
-
-    Write-Header -Filler "-"
+    if ($removed) {
+        $new_path = $new_path_list -join ";"
+        Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
+        Write-Done
+    }
 
 }
 
