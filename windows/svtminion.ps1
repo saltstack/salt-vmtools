@@ -107,7 +107,13 @@ param(
     [Parameter(ParameterSetName="Depend")]
     [Parameter(ParameterSetName="Remove")]
     [Alias("l")]
-    [ValidateSet("silent", "error", "warning", "info", "debug", IgnoreCase=$true)]
+    [ValidateSet(
+            "silent",
+            "error",
+            "warning",
+            "info",
+            "debug",
+            IgnoreCase=$true)]
     [String]
     # Sets the log level to display and log. Default is error. Silent suppresses
     # all logging output
@@ -179,14 +185,22 @@ $STATUS_CODES = @{
 # Make sure the script is run as Administrator
 $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $Principal = New-Object System.Security.Principal.WindowsPrincipal($Identity)
-if (!($Principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator))) {
+if (!($Principal.IsInRole(
+        [System.Security.Principal.WindowsBuiltInRole]::Administrator
+))) {
     Write-Host "This script must run as Administrator" -ForegroundColor Red
     exit $STATUS_CODES["scriptFailed"]
 }
 
 
 ################################# LOGGING ######################################
-$LOG_LEVELS = @{"silent" = 0; "error" = 1; "warning" = 2; "info" = 3; "debug" = 4}
+$LOG_LEVELS = @{
+    "silent" = 0;
+    "error" = 1;
+    "warning" = 2;
+    "info" = 3;
+    "debug" = 4
+}
 $log_level_value = $LOG_LEVELS[$LogLevel.ToLower()]
 
 ################################# SETTINGS #####################################
@@ -233,7 +247,8 @@ $Error.Clear()
 try{
     $reg_key = Get-ItemProperty $vmtools_base_reg
 } catch {
-    Write-Host "Unable to find valid VMtools installation : $Error" -ForeGroundColor Red
+    $msg = "Unable to find valid VMtools installation : $Error"
+    Write-Host $mst -ForeGroundColor Red
     exit $STATUS_CODES["scriptFailed"]
 }
 if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
@@ -242,7 +257,8 @@ if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
 }
 
 ## VMware file and directory locations
-$vmtools_base_dir = Get-ItemPropertyValue -Path $vmtools_base_reg -Name "InstallPath"
+$vmtools_base_dir = Get-ItemPropertyValue -Path $vmtools_base_reg `
+                                          -Name "InstallPath"
 $vmtools_conf_dir = "$env:ProgramData\VMware\VMware Tools"
 $vmtools_conf_file = "$vmtools_conf_dir\tools.conf"
 $vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
@@ -287,8 +303,8 @@ function Write-Log {
             New-Item -Path $script_log_dir -ItemType Directory | Out-Null
         }
         $base_name = $script_name.Split(".")[0]
-        Add-Content -Path "$script_log_dir\vmware-$base_name-$current_date.log" `
-                    -Value $log_file_message
+        $log_path = "$script_log_dir\vmware-$base_name-$current_date.log"
+        Add-Content -Path $log_path -Value $log_file_message
         switch ($Level) {
             "ERROR" { $color = "Red" }
             "WARNING" { $color = "Yellow" }
@@ -342,16 +358,17 @@ function Get-Status {
     Write-Log "Getting status" -Level info
     $Error.Clear()
     try {
-        $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg `
-                                                -Name $vmtools_salt_minion_status_name
+        $current_status = Get-ItemPropertyValue `
+                            -Path $vmtools_base_reg `
+                            -Name $vmtools_salt_minion_status_name
         Write-Log "Found status code: $current_status" -Level debug
     } catch {
         Write-Log "Key not set, not installed : $Error" -Level debug
         $current_status = $STATUS_CODES["notInstalled"]
     }
 
-    # If status is 1 or 4 (installing or removing) but there isn't another script
-    # running, then the status is installFailed or removeFailed
+    # If status is 1 or 4 (installing or removing) but there isn't another
+    # script running, then the status is installFailed or removeFailed
     $list_ing = @($STATUS_CODES["installing"], $STATUS_CODES["removing"])
     if (($list_ing -contains $current_status) -and !($script_running_status)) {
         switch ($current_status) {
@@ -411,7 +428,8 @@ function Set-Status {
         try{
             Remove-ItemProperty -Path $vmtools_base_reg `
                                 -Name $vmtools_salt_minion_status_name
-            Write-Log "Removed reg key: $vmtools_base_reg\$vmtools_salt_minion_status_name" -Level debug
+            $key = "$vmtools_base_reg\$vmtools_salt_minion_status_name"
+            Write-Log "Removed reg key: $key" -Level debug
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
             Write-Log "Error removing reg key: $Error" -Level error
@@ -462,7 +480,8 @@ function Get-WebFile{
         [Parameter(Mandatory=$true)]
         [String] $OutFile
     )
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]'Tls,Tls11,Tls12'
+    [System.Net.ServicePointManager]::SecurityProtocol = `
+        [System.Net.SecurityProtocolType]'Tls,Tls11,Tls12'
     $url_name = $Url.SubString($Url.LastIndexOf('/'))
 
     $tries = 1
@@ -471,13 +490,17 @@ function Get-WebFile{
         $Error.Clear()
         try {
             # Download the file
-            Write-Log "Downloading (try: $tries/$download_retry_count): $url_name" -Level debug
+            $msg = "Downloading (try: $tries/$download_retry_count): $url_name"
+            Write-Log $msg -Level debug
             Invoke-WebRequest -Uri $Url -OutFile $OutFile
         } catch {
             Write-Log "Error downloading: $Url" -Level warning
             Write-Log "Error message: $Error" -Level warning
         } finally {
-            if ((Test-Path -Path "$OutFile") -and ((Get-Item "$OutFile").Length -gt 0kb)) {
+            if ((Test-Path -Path "$OutFile") `
+                -and `
+                ((Get-Item "$OutFile").Length -gt 0kb
+            )) {
                 Write-Log "Finished downloading: $url_name" -Level debug
                 $success = $true
             } else {
@@ -570,7 +593,8 @@ function Expand-ZipFile {
             exit $STATUS_CODES["scriptFailed"]
         }
     } else {
-        # This method will work with older versions of powershell, but it is slow
+        # This method will work with older versions of powershell, but it is
+        # slow
         $objShell = New-Object -Com Shell.Application
         $objZip = $objShell.NameSpace($ZipFile)
         $Error.Clear()
@@ -609,7 +633,7 @@ function Add-SystemPathValue{
         [String]$Path
     )
 
-    $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
+    $key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
 
     # Make sure the target folder exists
     Write-Log "Ensuring target path exists" -Level debug
@@ -618,7 +642,7 @@ function Add-SystemPathValue{
     }
 
     Write-Log "Getting current system path" -Level debug
-    $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
+    $current_path = (Get-ItemProperty -Path $key -Name Path).Path
     $new_path_list = [System.Collections.ArrayList]::new()
 
     Write-Log "Verifying the target path is not already present" -Level debug
@@ -642,7 +666,7 @@ function Add-SystemPathValue{
     $Error.Clear()
     try{
         Write-Log "Updating system path" -Level debug
-        Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
+        Set-ItemProperty -Path $key -Name Path -Value $new_path
     } catch {
         Write-Log "Failed to add $Path the system path" -Level error
         Write-Log "Tried to write: $new_path" -Level error
@@ -654,7 +678,8 @@ function Add-SystemPathValue{
 
 
 function Remove-SystemPathValue {
-    # Removes the specified target path from the system path environment variable
+    # Removes the specified target path from the system path environment
+    # variable
     #
     # Used by:
     # - Remove-SaltMinion
@@ -672,10 +697,10 @@ function Remove-SystemPathValue {
 
     Write-Log "Removing from system path: $Path" -Level info
 
-    $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
+    $key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
 
     Write-Log "Getting current system path" -Level debug
-    $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
+    $current_path = (Get-ItemProperty -Path $key -Name Path).Path
     $new_path_list = [System.Collections.ArrayList]::new()
 
     Write-Log "Searching for $Path" -Level debug
@@ -694,9 +719,10 @@ function Remove-SystemPathValue {
     $Error.Clear()
     try {
         Write-Log "Updating system path" -Level debug
-        Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
+        Set-ItemProperty -Path $key -Name Path -Value $new_path
     } catch {
-        Write-Log "Failed to remove $Path from the system path: $new_path" -Level error
+        $msg = "Failed to remove $Path from the system path: $new_path"
+        Write-Log $msg -Level error
         Write-Log "Tried to write: $new_path" -Level error
         Write-Log "Error message: $Error" -level error
         Set-FailedStatus
@@ -706,8 +732,8 @@ function Remove-SystemPathValue {
 
 
 function Remove-FileOrFolder {
-    # Removes a file or a folder recursively from the system. Takes ownership
-    # of the file or directory before removing
+    # Removes a file or a folder recursively from the system. Takes ownership of
+    # the file or directory before removing
     #
     # Used by:
     # - Remove-SaltMinion
@@ -740,7 +766,8 @@ function Remove-FileOrFolder {
             $Error.Clear()
             try {
                 # Remove the file/dir
-                Write-Log "Removing (try: $tries/$max_tries): $Path" -Level debug
+                $msg = "Removing (try: $tries/$max_tries): $Path"
+                Write-Log $msg -Level debug
                 Remove-Item -Path $Path -Force -Recurse
             } catch {
                 Write-Log "Error removing: $Path" -Level warning
@@ -779,8 +806,8 @@ function Get-GuestVars {
     #     GuestVarsPath (string):
     #         The option to get from the guestvars repository. Likely one of the
     #         following:
-    #         - guestinfo.vmware.components.salt_minion : The action for this script
-    #         - guestinfo.vmware.components.salt_minion.args : Minion config options
+    #         - Action: guestinfo.vmware.components.salt_minion
+    #         - Minion Config: guestinfo.vmware.components.salt_minion.args
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
@@ -806,7 +833,8 @@ function Get-GuestVars {
     $exitcode = $Process.ExitCode
 
     if (($exitcode -eq 0) -and !($stdout.Trim() -eq "")) {
-        Write-Log "Value found for $GuestVarsPath : $($stdout.Trim())" -Level debug
+        $msg = "Value found for $GuestVarsPath : $($stdout.Trim())"
+        Write-Log $msg -Level debug
         return $stdout.Trim()
     } else {
         $msg = "No value found for $GuestVarsPath : $stderr"
@@ -1027,7 +1055,8 @@ function Add-MinionConfig {
         Set-Content -Path $salt_config_file -Value $config_content
         Write-Log "Finished writing minion config" -Level debug
     } catch {
-        Write-Log "Failed to write minion config: $config_content : $Error" -Level error
+        $msg = "Failed to write minion config: $config_content : $Error"
+        Write-Log $msg -Level error
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
@@ -1125,7 +1154,8 @@ function Confirm-Dependencies {
     foreach ($file in $salt_dep_files.Keys) {
         Write-Log "Looking for $file in $($salt_dep_files[$file])" -Level debug
         if(!(Test-Path("$($salt_dep_files[$file])\$file"))) {
-            Write-Log "Unable to find $file in $($salt_dep_files[$file])" -Level error
+            $msg = "Unable to find $file in $($salt_dep_files[$file])"
+            Write-Log $msg -Level error
             $deps_present = $false
         }
     }
@@ -1179,7 +1209,8 @@ function Get-SaltFromWeb {
     # Make sure the download directory exists
     if ( !( Test-Path -Path $base_salt_install_location) ) {
         Write-Log "Creating directory: $base_salt_install_location" -Level debug
-        New-Item -Path $base_salt_install_location -ItemType Directory | Out-Null
+        New-Item -Path $base_salt_install_location `
+                 -ItemType Directory | Out-Null
     }
 
     # Download the salt file
@@ -1352,7 +1383,8 @@ function Remove-SaltMinion {
 
         # Delete the service
         Write-Log "Uninstalling salt-minion service" -Level info
-        $service = Get-WmiObject -Class Win32_Service -Filter "Name='salt-minion'"
+        $service = Get-WmiObject -Class Win32_Service `
+                                 -Filter "Name='salt-minion'"
         $service.delete() *> $null
         if ((Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
             Write-Log "Failed to uninstall salt-minion service" -Level error
@@ -1454,14 +1486,16 @@ try {
         exit $exit_code
     }
 
-    # Let's make sure there's not already a standard salt installation on the system
+    # Let's make sure there's not already a standard salt installation on the
+    # system
     if (Find-StandardSaltInstallation) {
         Write-Host "Found an existing salt installation on the system."
         $exit_code = $STATUS_CODES["scriptFailed"]
         exit $exit_code
     }
 
-    # Check for Action. If not specified on the command line, get it from guestVars
+    # Check for Action. If not specified on the command line, get it from
+    # guestVars
     if ($Install) { $Action = "add" }
     if ($Status) { $Action = "status" }
     if ($Depend) { $Action = "depend" }
@@ -1489,10 +1523,11 @@ try {
                 exit $exit_code
             }
             "add" {
-                # If status is installed(0), installing(1), or removing(4), bail out
+                # If status is installed, installing, or removing, bail out
                 $current_status = Get-Status
                 if ($STATUS_CODES.keys -notcontains $current_status) {
-                    Write-Host "Unknown status code: $current_status" -Level error
+                    $msg = "Unknown status code: $current_status"
+                    Write-Host $msg -Level error
                     $exit_code = $STATUS_CODES["scriptFailed"]
                     exit $exit_code
                 }
@@ -1519,10 +1554,11 @@ try {
                 exit $exit_code
             }
             "remove" {
-                # If status is installing(1), notInstalled(2), or removing(4), bail out
+                # If status is installing, notInstalled, or removing, bail out
                 $current_status = Get-Status
                 if ($STATUS_CODES.keys -notcontains $current_status) {
-                    Write-Host "Unknown status code: $current_status" -Level error
+                    $msg = "Unknown status code: $current_status"
+                    Write-Host $msg -Level error
                     $exit_code = $STATUS_CODES["scriptFailed"]
                     exit $exit_code
                 }
@@ -1552,7 +1588,8 @@ try {
                 # If not installed (0), bail out
                 $current_status = Get-Status
                 if ($STATUS_CODES.keys -notcontains $current_status) {
-                    Write-Host "Unknown status code: $current_status" -Level error
+                    $msg = "Unknown status code: $current_status"
+                    Write-Host $msg -Level error
                     $exit_code = $STATUS_CODES["scriptFailed"]
                     exit $exit_code
                 }
@@ -1578,7 +1615,8 @@ try {
             }
             default {
                 $action_list = "install, remove, depend, clear, status"
-                Write-Host "Invalid action: $Action - Must be one of [$action_list]"
+                $msg = "Invalid action: $Action - Must be one of [$action_list]"
+                Write-Host $msg
                 $exit_code = $STATUS_CODES["scriptFailed"]
                 exit $exit_code
             }
