@@ -137,7 +137,7 @@ pre-requisites:
     Usage for the script svtminion.sh
 
         usage: ./svtminion.sh  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]
-                     [-l|--loglevel] [-m|--saltversion] [-r|--remove]
+                     [-l|--loglevel] [-m|--minionversion] [-r|--remove]
                      [-s|--status] [-v|--version]
 
           -c, --clear     clear previous minion identifer and keys,
@@ -148,7 +148,7 @@ pre-requisites:
                              parameters key=value can also be passed on the CLI
           -l, --loglevel  set log level for logging, silent error warning debug info
                              default loglevel is warning
-          -m, --saltversion salt-minion version to installi, default[latest]
+          -m, --minionversion salt-minion version to install, default[latest]
           -r, --remove    deactivate and remove the salt-minion
           -s, --status    return status for this script
           -v, --version   version of this script
