@@ -793,7 +793,10 @@ function Remove-FileOrFolder {
 function Get-GuestVars {
     # Get guestvars data using vmtoolsd.exe
     # They can be set on the host using vmrun.exe
-    # vmrun writeVariable "d:\VMWare\Windows Server 2019\Windows Server 2019.vmx" guestVar vmware./components.salt_minion.args "master=192.168.0.12 id=test_id"
+    #
+    # vmrun writeVariable "d:\VMWare\Windows Server 2019\Windows Server
+    #       2019.vmx" guestVar vmware./components.salt_minion.args
+    #       "master=192.168.0.12 id=test_id"
     #
     # Used by:
     # - Get-ConfigGuestVars
