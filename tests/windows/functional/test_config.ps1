@@ -79,16 +79,15 @@ function test_Get-MinionConfig_CLI {
 }
 
 function test_Add-MinionConfig {
-    $failed = 0
     # We have to try to mock getting guestVars
     function Get-GuestVars { "id=gv_minion" }
     # Set CLI Options
     $ConfigOptions = @("root_dir=cli_root_dir")
     Add-MinionConfig
     $content = Get-Content $salt_config_file
-    if (!($content -like "*id: gv_minion*")) { $failed = 1 }
-    if (!($content -like "*file_roots: C:\ProgramData\VMware\Salt Project\salt*")) { $failed = 1 }
-    if (!($content -like "*master: tc_master*")) { $failed = 1 }
-    if (!($content -like "*root_dir: cli_root_dir*")) { $failed = 1 }
-    return $failed
+    if (!($content -like "*id: gv_minion*")) { return 1 }
+    if (!($content -like "*file_roots: $salt_root_dir*")) { return 1 }
+    if (!($content -like "*master: tc_master*")) { return 1 }
+    if (!($content -like "*root_dir: cli_root_dir*")) { return 1 }
+    return 0
 }

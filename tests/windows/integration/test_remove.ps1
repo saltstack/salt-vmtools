@@ -29,22 +29,22 @@ function tearDownScript {
     }
 
     # Remove Program Data directory
-    if (Test-Path "$env:ProgramData\Salt Project") {
+    if (Test-Path "$base_salt_config_location") {
         Write-Host "Removing config directory: " -NoNewline
-        Remove-Item "$env:ProgramData\Salt Project" -Force -Recurse
+        Remove-Item "$base_salt_config_location" -Force -Recurse
         Write-Done
     }
 
     # Remove Program Files directory
-    if (Test-Path "$env:ProgramFiles\Salt Project") {
+    if (Test-Path "$base_salt_install_location") {
         Write-Host "Removing install directory: " -NoNewline
-        Remove-Item "$env:ProgramFiles\Salt Project" -Force -Recurse
+        Remove-Item "$base_salt_install_location" -Force -Recurse
         Write-Done
     }
 
     # Removing from the path
 
-    $path = "$env:ProgramFiles\Salt Project\salt"
+    $path = "$salt_dir"
     $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
     $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
     $new_path_list = [System.Collections.ArrayList]::new()
@@ -83,13 +83,13 @@ function test_Remove_status_notInstalled {
 
 function test_Remove_config_dir_removed {
     # Is the config directory removed
-    if (Test-Path "$env:ProgramData\Salt Project") { return 1 }
+    if (Test-Path "$base_salt_config_location") { return 1 }
     return 0
 }
 
 function test_Remove_install_dir_removed {
     # Is the install directory removed
-    if (Test-Path "$env:ProgramFiles\Salt Project") { return 1 }
+    if (Test-Path "$base_salt_install_location") { return 1 }
     return 0
 }
 
@@ -102,7 +102,7 @@ function test_Remove_service_removed {
 
 function test_Remove_path_removed {
     # Is salt removed from the system path
-    $path = "$env:ProgramFiles\Salt Project\salt"
+    $path = "$salt_dir"
     $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
     $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
     if ($current_path -like "*$path*") { return 1 }
