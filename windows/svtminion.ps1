@@ -642,8 +642,8 @@ function Add-SystemPathValue{
     $new_path_list = [System.Collections.ArrayList]::new()
 
     Write-Log "Verifying the target path is not already present" -Level debug
+    $regex_path = $Path.Replace("\", "\\")
     foreach ($item in $current_path.Split(";")) {
-        $regex_path = $Path.Replace("\", "\\")
         # Bail if we find the new path in the current path
         if ($item -imatch "^$regex_path(\\)?$") {
             Write-Log "Target path already exists: $Path" -Level warning
@@ -664,11 +664,9 @@ function Add-SystemPathValue{
         Write-Log "Updating system path" -Level debug
         Set-ItemProperty -Path $key -Name Path -Value $new_path
     } catch {
-        Write-Log "Failed to add $Path the system path" -Level error
-        Write-Log "Tried to write: $new_path" -Level error
-        Write-Log "Error message: $Error" -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
+        Write-Log "Failed to add $Path the system path" -Level warning
+        Write-Log "Tried to write: $new_path" -Level warning
+        Write-Log "Error message: $Error" -Level warning
     }
 }
 
@@ -700,29 +698,31 @@ function Remove-SystemPathValue {
     $new_path_list = [System.Collections.ArrayList]::new()
 
     Write-Log "Searching for $Path" -Level debug
+    $regex_path = $Path.Replace("\", "\\")
+    $removed = 0
     foreach ($item in $current_path.Split(";")) {
-        $regex_path = $Path.Replace("\", "\\")
-        # Bail if we find the new path in the current path
+        # Don't add if we find the new path
         if ($item -imatch "^$regex_path(\\)?$") {
             Write-Log "Removing target path: $Path" -Level debug
+            $removed = 1
         } else {
             # Add the item to our new path array
             $new_path_list.Add($item) | Out-Null
         }
     }
 
-    $new_path = $new_path_list -join ";"
-    $Error.Clear()
-    try {
-        Write-Log "Updating system path" -Level debug
-        Set-ItemProperty -Path $key -Name Path -Value $new_path
-    } catch {
-        $msg = "Failed to remove $Path from the system path: $new_path"
-        Write-Log $msg -Level error
-        Write-Log "Tried to write: $new_path" -Level error
-        Write-Log "Error message: $Error" -level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
+    if ($removed) {
+        $new_path = $new_path_list -join ";"
+        $Error.Clear()
+        try {
+            Write-Log "Updating system path" -Level debug
+            Set-ItemProperty -Path $key -Name Path -Value $new_path
+        } catch {
+            $msg = "Failed to remove $Path from the system path: $new_path"
+            Write-Log $msg -Level warning
+            Write-Log "Tried to write: $new_path" -Level warning
+            Write-Log "Error message: $Error" -level warning
+        }
     }
 }
 
@@ -749,14 +749,16 @@ function Remove-FileOrFolder {
     $tries = 1
     $max_tries = 5
     $success = $false
+
     Write-Log "Taking ownership: $Path" -Level debug
-    try {
-        & takeown /a /r /d Y /f $Path *> $null
-        # Pause here to avoid a race condition
-        Start-Sleep -Seconds 1
-    } catch {
+    & takeown /a /r /d Y /f $Path *> $null
+    if ($LASTEXITCODE) {
         Write-Log "Directory does not exist" -Level debug
     }
+
+    # Pause here to avoid a race condition
+    Start-Sleep -Seconds 1
+
     if (Test-Path -Path $Path) {
         while (!($success)) {
             $Error.Clear()
@@ -831,13 +833,15 @@ function Get-GuestVars {
     $stderr = $Process.StandardError.ReadToEnd()
     $exitcode = $Process.ExitCode
 
-    if (($exitcode -eq 0) -and !($stdout.Trim() -eq "")) {
-        $msg = "Value found for $GuestVarsPath : $($stdout.Trim())"
+    if ($exitcode -eq 0) {
+        $ret = $stdout.Trim()
+        $msg = "Value found for $GuestVarsPath : $ret"
         Write-Log $msg -Level debug
-        return $stdout.Trim()
+        return $ret
     } else {
         $msg = "No value found for $GuestVarsPath : $stderr"
         Write-Log $msg -Level debug
+        return ""
     }
 }
 
@@ -937,7 +941,7 @@ function Read-IniContent {
 
     if (!(Test-Path -Path $FilePath)) {
         Write-Log "File not found: $FilePath" -Level warning
-        return
+        return @{}
     }
 
     $ini = @{}
@@ -946,12 +950,12 @@ function Read-IniContent {
         # [Section]
         "^(?![#,;])\[(.+)\]$" {
             $section = $matches[1]
-            $ini[$section] = @{}
+            $ini[$section.Trim()] = @{}
         }
         # key=value
         "^(?![#,;])(.+?)\s*=(.*)$" {
             $key,$value = $matches[1..2]
-            $ini[$section][$key] = $value
+            $ini[$section.Trim()][$key.Trim()] = $value.Trim()
         }
     }
     return $ini
@@ -969,18 +973,19 @@ function Get-ConfigToolsConf {
     # Return hashtable
     $config_options = Read-IniContent -FilePath $vmtools_conf_file
     Write-Log "Checking for tools.conf config options" -Level debug
-    if ($config_options) {
+    if ($config_options.ContainsKey($guestvars_section)) {
         $count = $config_options[$guestvars_section].Count
         Write-Log "Found $count config options" -Level debug
         return $config_options[$guestvars_section]
     } else {
         Write-Log "Minion config not defined in tools.conf" -Level warning
+        return @{}
     }
 }
 
 
 function Get-MinionConfig {
-    # Get the minion config values to be place in the minion config file. The
+    # Get the minion config values to be placed in the minion config file. The
     # Order of priority is as follows:
     # - Get config from tools.conf (defined by VMtools - older method)
     # - Get config from GuestVars (defined by VMtools), overwrites matching
