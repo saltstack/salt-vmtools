@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-VMtools script for managing the salt minion on a Windows guest
+VMware Tools script for managing the salt minion on a Windows guest
 
 .DESCRIPTION
 This script manages the salt minion on a Windows guest. The minion is a tiamat
@@ -75,14 +75,6 @@ param(
     # random digits.
     [Switch] $Clear,
 
-    [Parameter(Mandatory=$false, ParameterSetName="Clear")]
-    [Alias("p")]
-    # The prefix to apply to the randomized minion id. The randomized minion id
-    # will be the previx, an underscore, and 5 random digits. The default is
-    # "minion". Therfore, the default randomized name will be something like
-    # "minion_dkE9l".
-    [String] $Prefix = "minion",
-
     [Parameter(Mandatory=$false, ParameterSetName="Status")]
     [Alias("s")]
     # Get the status of the salt minion installation. This returns a numeric
@@ -97,8 +89,8 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Depend")]
     [Alias("d")]
-    # Ensure the required dependencies are available. Exits with an error code
-    # if any dependencies are missing.
+    # Ensure the required dependencies are available. Exits with a scriptFailed
+    # error code (126) if any dependencies are missing.
     [Switch] $Depend,
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -115,8 +107,8 @@ param(
             "debug",
             IgnoreCase=$true)]
     [String]
-    # Sets the log level to display and log. Default is error. Silent suppresses
-    # all logging output
+    # Sets the log level to display and log. Default is warning. Silent
+    # suppresses all logging output
     $LogLevel = "warning",
 
     [Parameter(Mandatory=$false, ParameterSetName="Help")]
@@ -425,12 +417,16 @@ function Set-Status {
     # If it's notInstalled, just remove the propery name
     if ($status_code -eq $STATUS_CODES["notInstalled"]) {
         $Error.Clear()
-        try{
+        try
+        {
             Remove-ItemProperty -Path $vmtools_base_reg `
                                 -Name $vmtools_salt_minion_status_name
             $key = "$vmtools_base_reg\$vmtools_salt_minion_status_name"
             Write-Log "Removed reg key: $key" -Level debug
             Write-Log "Set status to $NewStatus" -Level debug
+        } catch [System.Management.Automation.PSArgumentException] {
+            Write-Log "Reg key not present: $key" -Level debug
+            Write-Log "Status already set to: $NewStatus" -Level debug
         } catch {
             Write-Log "Error removing reg key: $Error" -Level error
             exit $STATUS_CODES["scriptFailed"]
@@ -481,7 +477,7 @@ function Get-WebFile{
         [String] $OutFile
     )
     [System.Net.ServicePointManager]::SecurityProtocol = `
-        [System.Net.SecurityProtocolType]'Tls,Tls11,Tls12'
+        [System.Net.SecurityProtocolType]'Tls12'
     $url_name = $Url.SubString($Url.LastIndexOf('/'))
 
     $tries = 1
@@ -544,8 +540,8 @@ function Get-HashFromFile {
     Write-Log "Loading hashfile: $HashFile" -Level debug
     $lines = Get-Content -Path $HashFile
     Write-Log "Searching for hash for: $FileName" -Level debug
-    foreach ($lines in $lines) {
-        $file_hash, $file_name = $lines -split "\s+"
+    foreach ($line in $lines) {
+        $file_hash, $file_name = $line -split "\s+"
         if ($FileName -eq $file_name) {
             Write-Log "Found hash: $file_hash" -Level debug
             return $file_hash
@@ -1027,8 +1023,44 @@ function Get-MinionConfig {
 }
 
 
+function Set-Security {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path,
+
+        [Parameter(Mandatory=$false)]
+        [String] $Owner="SYSTEM"
+    )
+    # Define the Sddl
+
+    Write-Log "Getting ACL: $Path" -Level debug
+    $file_acl = Get-Acl -Path $Path
+
+    Write-Log "Setting Sddl" -Level debug
+    $ProtectDacl = 'D:PAI(A;OICI;0x1200a9;;;WD)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'
+    $Sddl = "O:BAG:SY" + $ProtectDacl
+    $file_acl.SetSecurityDescriptorSddlForm($Sddl)
+
+    Write-Log "Setting owner" -Level debug
+    $file_acl.SetOwner([System.Security.Principal.NTAccount]"$Owner")
+
+    Write-Log "Writing new ACL" -Level debug
+    Set-Acl -Path $Path -AclObject $file_acl
+    Write-Log "Finished setting security"
+}
+
+
 function Add-MinionConfig {
     # Write minion config options to the minion config file
+
+    if (!(Test-Path($salt_root_dir))) {
+        Write-Log "Creating config directory: $salt_root_dir" -Level debug
+        New-Item -Path $salt_root_dir -ItemType Directory | Out-Null
+
+        Write-Log "Securing root dir: $salt_root_dir" -Level info
+        Set-Security($salt_root_dir)
+    }
 
     # Make sure the config directory exists
     if (!(Test-Path($salt_config_dir))) {
@@ -1132,19 +1164,6 @@ function Confirm-Dependencies {
     #     Bool: False if missing dependencies, otherwise True
     $deps_present = $true
     Write-Log "Checking dependencies" -Level info
-
-    # Check for VMware registry location for storing status
-    Write-Log "Looking for valid VMtools installation" -Level debug
-    try {
-        $reg_key = Get-ItemProperty $vmtools_base_reg
-        if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
-            Write-Log "Unable to find valid VMtools installation" -Level error
-            $deps_present = $false
-        }
-    } catch {
-        Write-Log "Unable to find $vmtools_base_reg" -Level error
-        $deps_present = $false
-    }
 
     # VMtools files
     # Files required by this script

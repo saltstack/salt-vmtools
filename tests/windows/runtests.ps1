@@ -106,21 +106,28 @@ function Run-TestFile {
                 if ($setUp) {
                     Write-Header "Setting Things Up (Function)" -Filler "-"
                     & $setUp
-                    Write-Header -Filler "-"
                 }
                 if ($_.Name -like "test_*") {
                     Write-Host "$($_.Name): " -NoNewline
                     $individual_test_failed = 0
 
-                    $individual_test_failed = & $_.ScriptBlock
-                    $Script:total_tests += 1
-
-                    if ($individual_test_failed -ne 0) {
-                        $failed_tests.Add("$short_path::$($_.Name)") | Out-Null
-                        Write-Failed
-                    } else {
-                        Write-Success
+                    try {
+                        $test_success = $false
+                        $individual_test_failed = & $_.ScriptBlock
+                        $test_success = $true
+                        if ($individual_test_failed -ne 0) {
+                            $test_success = $false
+                        }
+                    } finally {
+                        $Script:total_tests += 1
+                        if (!($test_success)){
+                            $failed_tests.Add("$short_path::$($_.Name)") | Out-Null
+                            Write-Failed
+                        } else {
+                            Write-Success
+                        }
                     }
+
                 }
             } finally {
                 if ($tearDown) {
@@ -165,8 +172,11 @@ function Create-Report {
 
 if ($Path) {
     if (Test-Path -Path $Path) {
-        Run-TestFile -Path $Path
-        Create-Report
+        try {
+            Run-TestFile -Path $Path
+        } finally {
+            Create-Report
+        }
     } else {
         Write-Host "Invalid path: $Path"
     }
@@ -177,12 +187,15 @@ if ($Path) {
         $test_files = Get-ChildItem .\tests\windows\functional\
     }
     Write-Host "Found $($test_files.Count) test files"
-    $test_files | ForEach-Object {
-        if ($_.Name -like "test_*") {
-            Run-TestFile -Path $_.FullName
+    try {
+        $test_files | ForEach-Object {
+            if ($_.Name -like "test_*") {
+                Run-TestFile -Path $_.FullName
+            }
         }
+    } finally {
+        Create-Report
     }
-    Create-Report
 }
 
 if ($failed_tests.Count -eq 0) {
