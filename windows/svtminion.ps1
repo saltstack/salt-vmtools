@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-VMtools script for managing the salt minion on a Windows guest
+VMware Tools script for managing the salt minion on a Windows guest
 
 .DESCRIPTION
 This script manages the salt minion on a Windows guest. The minion is a tiamat
@@ -75,14 +75,6 @@ param(
     # random digits.
     [Switch] $Clear,
 
-    [Parameter(Mandatory=$false, ParameterSetName="Clear")]
-    [Alias("p")]
-    # The prefix to apply to the randomized minion id. The randomized minion id
-    # will be the previx, an underscore, and 5 random digits. The default is
-    # "minion". Therfore, the default randomized name will be something like
-    # "minion_dkE9l".
-    [String] $Prefix = "minion",
-
     [Parameter(Mandatory=$false, ParameterSetName="Status")]
     [Alias("s")]
     # Get the status of the salt minion installation. This returns a numeric
@@ -97,8 +89,8 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Depend")]
     [Alias("d")]
-    # Ensure the required dependencies are available. Exits with an error code
-    # if any dependencies are missing.
+    # Ensure the required dependencies are available. Exits with a scriptFailed
+    # error code (126) if any dependencies are missing.
     [Switch] $Depend,
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -115,8 +107,8 @@ param(
             "debug",
             IgnoreCase=$true)]
     [String]
-    # Sets the log level to display and log. Default is error. Silent suppresses
-    # all logging output
+    # Sets the log level to display and log. Default is warning. Silent
+    # suppresses all logging output
     $LogLevel = "warning",
 
     [Parameter(Mandatory=$false, ParameterSetName="Help")]
@@ -222,12 +214,12 @@ $salt_hash_name = "$salt_name-$salt_version" + "_SHA512"
 $salt_hash_url = "$base_url/$salt_version/$salt_hash_name"
 
 # Salt file and directory locations
-$base_salt_install_location = "$env:ProgramFiles\Salt Project"
+$base_salt_install_location = "$env:ProgramFiles\VMware\Salt Project"
 $salt_dir = "$base_salt_install_location\$salt_name"
 $salt_bin = "$salt_dir\salt\salt.exe"
 $ssm_bin = "$salt_dir\ssm.exe"
 
-$base_salt_config_location = "$env:ProgramData\Salt Project"
+$base_salt_config_location = "$env:ProgramData\VMware\Salt Project"
 $salt_root_dir = "$base_salt_config_location\$salt_name"
 $salt_config_dir = "$salt_root_dir\conf"
 $salt_config_name = "minion"
@@ -425,12 +417,16 @@ function Set-Status {
     # If it's notInstalled, just remove the propery name
     if ($status_code -eq $STATUS_CODES["notInstalled"]) {
         $Error.Clear()
-        try{
+        try
+        {
             Remove-ItemProperty -Path $vmtools_base_reg `
                                 -Name $vmtools_salt_minion_status_name
             $key = "$vmtools_base_reg\$vmtools_salt_minion_status_name"
             Write-Log "Removed reg key: $key" -Level debug
             Write-Log "Set status to $NewStatus" -Level debug
+        } catch [System.Management.Automation.PSArgumentException] {
+            Write-Log "Reg key not present: $key" -Level debug
+            Write-Log "Status already set to: $NewStatus" -Level debug
         } catch {
             Write-Log "Error removing reg key: $Error" -Level error
             exit $STATUS_CODES["scriptFailed"]
@@ -481,7 +477,7 @@ function Get-WebFile{
         [String] $OutFile
     )
     [System.Net.ServicePointManager]::SecurityProtocol = `
-        [System.Net.SecurityProtocolType]'Tls,Tls11,Tls12'
+        [System.Net.SecurityProtocolType]'Tls12'
     $url_name = $Url.SubString($Url.LastIndexOf('/'))
 
     $tries = 1
@@ -544,8 +540,8 @@ function Get-HashFromFile {
     Write-Log "Loading hashfile: $HashFile" -Level debug
     $lines = Get-Content -Path $HashFile
     Write-Log "Searching for hash for: $FileName" -Level debug
-    foreach ($lines in $lines) {
-        $file_hash, $file_name = $lines -split "\s+"
+    foreach ($line in $lines) {
+        $file_hash, $file_name = $line -split "\s+"
         if ($FileName -eq $file_name) {
             Write-Log "Found hash: $file_hash" -Level debug
             return $file_hash
@@ -1027,14 +1023,137 @@ function Get-MinionConfig {
 }
 
 
+function Get-IsSymlink {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path
+    )
+    $fd_path = Get-Item -Path $Path
+    return [bool]($fd_path.Attributes -band [IO.FileAttributes]::ReparsePoint)
+}
+
+
+function Get-IsSecureOwner {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path
+    )
+
+    $acl = Get-Acl($Path)
+    $owner = (($acl | Select-Object Owner).Owner).ToLower()
+    if (($owner.EndsWith("system")) -or ($owner.EndsWith("administrators"))) {
+        return $true
+    }
+    return $false
+}
+
+
+function Set-Security {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path,
+
+        [Parameter(Mandatory=$false)]
+        [String] $Owner = "Administrators"
+    )
+
+    Write-Log "Setting Security: $Path" -Level info
+
+    Write-Log "Getting ACL: $Path" -Level debug
+    $file_acl = Get-Acl -Path $Path
+
+    Write-Log "Setting Sddl" -Level debug
+    $Sddl = 'D:PAI(A;OICI;0x1200a9;;;WD)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'
+    $file_acl.SetSecurityDescriptorSddlForm($Sddl)
+
+    Write-Log "Setting Owner" -Level debug
+    $file_acl.SetOwner([System.Security.Principal.NTAccount]"$Owner")
+
+    Write-Log "Writing New ACL" -Level debug
+    Set-Acl -Path $Path -AclObject $file_acl
+}
+
+
+function New-SecureDirectory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [String] $Path
+    )
+    if (Test-Path -Path $Path) {
+        if (Get-IsSymlink -Path $Path) {
+            Write-Log "Found symlink: $Path" -Level warning
+            Write-Log "Renaming symlink (.insecure): $Path" -Level warning
+            if (Test-Path -Path "$Path.insecure") {
+                Write-Log "Insecure backup directory already exists." error
+                Write-Log "Please double check the existing directory" error
+                Write-Log "If you are not sure why it exists we recommend" error
+                Write-Log "that you remove all directories named $Path" error
+                Write-Host "Insecure directory exists. Terminating Script"
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            # We can't rename a symlink, we have to delete and recreate it
+            $target = (Get-Item $Path | Select-Object -ExpandProperty Target)
+            [System.IO.Directory]::Delete($Path, $true) | Out-Null
+            New-Item -ItemType SymbolicLink `
+                     -Path "$Path.insecure" `
+                     -Target $target | Out-Null
+        }
+    }
+    if (Test-Path -Path $Path) {
+        if (!(Get-IsSecureOwner -Path $Path)) {
+            Write-Log "Found insecure owner: $Path" -Level warning
+            Write-Log "Renaming directory (.insecure): $Path" -Level warning
+            if (Test-Path -Path "$Path.insecure") {
+                Write-Log "Insecure backup directory already exists." error
+                Write-Log "Please double check the existing directory" error
+                Write-Log "If you are not sure why it exists we recommend" error
+                Write-Log "that you remove all directories named $Path" error
+                Write-Host "Insecure directory exists. Terminating Script"
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            Move-Item -Path $Path `
+                      -Destination "$Path.insecure" `
+                      -Force | Out-Null
+        }
+    }
+    if (Test-Path -Path $Path) {
+        if((Get-ChildItem -Path $Path | Measure-Object).Count -ne 0) {
+            Write-Log "Found non-empty directory: $Path" -Level warning
+            Write-Log "Renaming file/folder (.insecure): $Path" -Level warning
+            if (Test-Path -Path "$Path.insecure") {
+                Write-Log "Insecure backup directory already exists." error
+                Write-Log "Please double check the existing directory" error
+                Write-Log "If you are not sure why it exists we recommend" error
+                Write-Log "that you remove all directories named $Path" error
+                Write-Host "Insecure directory exists. Terminating Script"
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            Move-Item -Path $Path `
+                      -Destination "$Path.insecure" `
+                      -Force | Out-Null
+        }
+    }
+    if (!(Test-Path -Path $Path)) {
+        Write-Log "Creating directory: $Path" -Level debug
+        New-Item -Path $Path -Type Directory | Out-Null
+    }
+
+    Set-Security -Path $Path
+}
+
+
 function Add-MinionConfig {
     # Write minion config options to the minion config file
 
     # Make sure the config directory exists
-    if (!(Test-Path($salt_config_dir))) {
-        Write-Log "Creating config directory: $salt_config_dir" -Level debug
-        New-Item -Path $salt_config_dir -ItemType Directory | Out-Null
-    }
+    New-SecureDirectory -Path $base_salt_config_location
+    New-SecureDirectory -Path $salt_root_dir
+    New-SecureDirectory -Path $salt_config_dir
+
     # Get the minion config
     $config_options = Get-MinionConfig
 
@@ -1132,19 +1251,6 @@ function Confirm-Dependencies {
     #     Bool: False if missing dependencies, otherwise True
     $deps_present = $true
     Write-Log "Checking dependencies" -Level info
-
-    # Check for VMware registry location for storing status
-    Write-Log "Looking for valid VMtools installation" -Level debug
-    try {
-        $reg_key = Get-ItemProperty $vmtools_base_reg
-        if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
-            Write-Log "Unable to find valid VMtools installation" -Level error
-            $deps_present = $false
-        }
-    } catch {
-        Write-Log "Unable to find $vmtools_base_reg" -Level error
-        $deps_present = $false
-    }
 
     # VMtools files
     # Files required by this script

@@ -54,5 +54,5 @@ function Write-Failed {
 }
 
 function Write-Done {
-    Write-Host "Done" -ForegroundColor Green
+    Write-Host "Done" -ForegroundColor Yellow
 }
