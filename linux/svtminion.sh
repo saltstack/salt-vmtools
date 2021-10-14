@@ -321,7 +321,8 @@ _set_log_level() {
 #       default 'latest'
 #
 #   Note: typically salt version includes the release number in addition to
-#                                                       version number
+#         version number or 'latest' for the most recent release
+#
 #           for example: 3003.3-1
 #
 # Results:
@@ -329,6 +330,11 @@ _set_log_level() {
 #
 
 _set_install_minion_version_fn() {
+
+    if [[ "$#" -ne 1 ]]; then
+        _error_log "$0:${FUNCNAME[0]} error expected one parameter "\
+            "specifying the version of the salt-minion to install or 'latest'"
+    fi
 
     _info_log "$0:${FUNCNAME[0]} processing setting salt version for "\
         "salt-minion to install"
@@ -446,7 +452,7 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
                         # if new section after doing salt config, we are done
                         break;
                     fi
-                    if [[ ${line_value} =
+                    if [[ ${line_value} = \
                         "[${vmtools_salt_minion_section_name}]" ]]; then
                         # have section, get configuration values, set flag and
                         #  start fresh salt-minion configuration file
