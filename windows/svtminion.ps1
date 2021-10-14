@@ -745,49 +745,53 @@ function Remove-FileOrFolder {
         [Parameter(Mandatory=$true)]
         [String] $Path
     )
+
+    if (!(Test-Path -Path $Path)) {
+        Write-Log "Path not found: $Path" -Level warning
+        return
+    }
+
     Write-Log "Removing: $Path" -Level info
     $tries = 1
     $max_tries = 5
     $success = $false
 
-    Write-Log "Taking ownership: $Path" -Level debug
-    & takeown /a /r /d Y /f $Path *> $null
-    if ($LASTEXITCODE) {
-        Write-Log "Directory does not exist" -Level debug
+    if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
+        Write-Log "Taking ownership: $Path" -Level debug
+        & takeown /a /r /d Y /f $Path *> $null
+        if ($LASTEXITCODE) {
+            Write-Log "Directory does not exist" -Level debug
+        }
     }
 
     # Pause here to avoid a race condition
     Start-Sleep -Seconds 1
 
-    if (Test-Path -Path $Path) {
-        while (!($success)) {
-            $Error.Clear()
-            try {
-                # Remove the file/dir
-                $msg = "Removing (try: $tries/$max_tries): $Path"
-                Write-Log $msg -Level debug
-                Remove-Item -Path $Path -Force -Recurse
-            } catch {
-                Write-Log "Error removing: $Path" -Level warning
-                Write-Log "Error message: $Error" -Level warning
-            } finally {
-                if (!(Test-Path -Path $Path)) {
-                    Write-Log "Finished removing $Path" -Level debug
-                    $success = $true
-                } else {
-                    $tries++
-                    if ($tries -gt $max_tries) {
-                        Write-Log "Retry count exceeded" -Level error
-                        Set-FailedStatus
-                        exit $STATUS_CODES["scriptFailed"]
-                    }
-                    Write-Log "Trying again after 5 seconds" -Level warning
-                    Start-Sleep -Seconds 5
+    while (!($success)) {
+        $Error.Clear()
+        try {
+            # Remove the file/dir
+            $msg = "Removing (try: $tries/$max_tries): $Path"
+            Write-Log $msg -Level debug
+            Remove-Item -Path $Path -Force -Recurse
+        } catch {
+            Write-Log "Error removing: $Path" -Level warning
+            Write-Log "Error message: $Error" -Level warning
+        } finally {
+            if (!(Test-Path -Path $Path)) {
+                Write-Log "Finished removing $Path" -Level debug
+                $success = $true
+            } else {
+                $tries++
+                if ($tries -gt $max_tries) {
+                    Write-Log "Retry count exceeded" -Level error
+                    Set-FailedStatus
+                    exit $STATUS_CODES["scriptFailed"]
                 }
+                Write-Log "Trying again after 5 seconds" -Level warning
+                Start-Sleep -Seconds 5
             }
         }
-    } else {
-        Write-Log "Path not found: $Path" -Level warning
     }
 }
 

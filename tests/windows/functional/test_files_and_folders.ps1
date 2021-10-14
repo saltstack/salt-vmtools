@@ -33,3 +33,8 @@ function test_Remove-FileOrFolder_file {
     if (Test-Path -Path $path_file) { return 1 }
     return 0
 }
+
+function test_Remove-FileOrFolder_not_exist {
+    Remove-FileOrFolder -Path "C:\path\that\does\not\exist"
+    return 0
+}
