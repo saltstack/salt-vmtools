@@ -289,8 +289,7 @@ _set_log_level() {
 
     local ip_level=""
     local valid_level=0
-    local old_log_level=""
-    old_log_level=${LOG_LEVEL}
+    local old_log_level=${LOG_LEVEL}
 
     ip_level=$( echo "$1" | cut -d ' ' -f 1)
     scam=${#LOG_MODES_AVAILABLE[@]}
@@ -322,7 +321,8 @@ _set_log_level() {
 #       default 'latest'
 #
 #   Note: typically salt version includes the release number in addition to
-#                                                       version number
+#         version number or 'latest' for the most recent release
+#
 #           for example: 3003.3-1
 #
 # Results:
@@ -330,6 +330,11 @@ _set_log_level() {
 #
 
 _set_install_minion_version_fn() {
+
+    if [[ "$#" -ne 1 ]]; then
+        _error_log "$0:${FUNCNAME[0]} error expected one parameter "\
+            "specifying the version of the salt-minion to install or 'latest'"
+    fi
 
     _info_log "$0:${FUNCNAME[0]} processing setting salt version for "\
         "salt-minion to install"
@@ -440,13 +445,15 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
         do
             line_value=$(_trim "${line}")
             if [[ -n "${line_value}" ]]; then
-                _debug_log "$0:${FUNCNAME[0]} processing tools.conf line '${line}'"
+                _debug_log "$0:${FUNCNAME[0]} processing tools.conf "\
+                    "line '${line}'"
                 if echo "${line_value}" | grep -q '^\[' ; then
                     if [[ ${salt_config_flag} -eq 1 ]]; then
                         # if new section after doing salt config, we are done
                         break;
                     fi
-                    if [[ ${line_value} = "[${vmtools_salt_minion_section_name}]" ]]; then
+                    if [[ ${line_value} = \
+                        "[${vmtools_salt_minion_section_name}]" ]]; then
                         # have section, get configuration values, set flag and
                         #  start fresh salt-minion configuration file
                         salt_config_flag=1
@@ -461,7 +468,8 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
                             "value '${cfg_value}', retcode '$?'";
                     }
                 else
-                    _debug_log "$0:${FUNCNAME[0]} skipping tools.conf line '${line}'"
+                    _debug_log "$0:${FUNCNAME[0]} skipping tools.conf "\
+                        "line '${line}'"
                 fi
             fi
         done < "${vmtools_base_dir_etc}/${vmtools_conf_file}"
@@ -533,7 +541,8 @@ _fetch_vmtools_salt_minion_conf_cli_args() {
     cli_args="$*"
     cli_no_args=$#
     if [[ ${cli_no_args} -ne 0 ]]; then
-        _debug_log "$0:${FUNCNAME[0]} processing command line arguments '${cli_args}'"
+        _debug_log "$0:${FUNCNAME[0]} processing command line "\
+            "arguments '${cli_args}'"
         for idx in ${cli_args}
         do
             # check for start of next option, idx starts with '-' (covers '--')
@@ -577,7 +586,8 @@ _randomize_minion_id() {
         #provided input
         ran_minion="${ip_string}_${RANDOM:0:5}"
     fi
-    _debug_log "$0:${FUNCNAME[0]} generated randomized minion identifier '${ran_minion}'"
+        _debug_log "$0:${FUNCNAME[0]} generated randomized minion "\
+            "identifier '${ran_minion}'"
     echo "${ran_minion}"
 }
 
@@ -589,8 +599,8 @@ _randomize_minion_id() {
 #
 # Results:
 #   Exits with new vmtools configuration file if none found
-#   or salt-minion configuration file updated with configuration read from vmtools
-#   configuration file section for salt_minion
+#   or salt-minion configuration file updated with configuration read from
+#   vmtools configuration file section for salt_minion
 #
 
 _fetch_vmtools_salt_minion_conf() {
@@ -1165,10 +1175,12 @@ _generate_minion_id () {
 
     if [[ ${salt_id_flag} -eq 0 ]]; then
         # no id field found, write minion_<random?
-        _debug_log "$0:${FUNCNAME[0]} no previous id field found, generating new identifier"
+        _debug_log "$0:${FUNCNAME[0]} no previous id field found, "\
+            "generating new identifier"
         minion_id=$(_randomize_minion_id)
     fi
-    _debug_log "$0:${FUNCNAME[0]} generated a salt-minion identifier '${minion_id}'"
+    _debug_log "$0:${FUNCNAME[0]} generated a salt-minion "\
+        "identifier '${minion_id}'"
     echo "${minion_id}"
     return 0
 }
