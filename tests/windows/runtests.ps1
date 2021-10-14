@@ -94,7 +94,7 @@ function Run-TestFile {
 
     try {
         if ($setUpScript) {
-            Write-Header "Setting Things Up (Script)" -Filler "-"
+            Write-Header "Setting Things Up" -Filler "-"
             & $setUpScript
             Write-Header -Filler "-"
         }
@@ -102,55 +102,53 @@ function Run-TestFile {
         $script_functions | ForEach-Object {
             $setUp = ($script_functions | Select-Object | Where-Object {$_.Name -like "setUp" }).Name
             $tearDown = ($script_functions | Select-Object | Where-Object {$_.Name -like "tearDown" }).Name
-            try {
+            if ($_.Name -like "test_*") {
                 if ($setUp) {
-                    Write-Header "Setting Things Up (Function)" -Filler "-"
+                    Write-Host "**** Setting Up ****"
                     & $setUp
                 }
-                if ($_.Name -like "test_*") {
+                $individual_test_failed = 0
+
+                try {
+                    $test_success = $false
+                    Write-Host "**** Running Test ****"
                     Write-Host "$($_.Name): " -NoNewline
-                    $individual_test_failed = 0
-
-                    try {
+                    $individual_test_failed = & $_.ScriptBlock
+                    $test_success = $true
+                    if ($individual_test_failed -ne 0) {
                         $test_success = $false
-                        $individual_test_failed = & $_.ScriptBlock
-                        $test_success = $true
-                        if ($individual_test_failed -ne 0) {
-                            $test_success = $false
-                        }
-                    } finally {
-                        $Script:total_tests += 1
-                        if (!($test_success)){
-                            $failed_tests.Add("$short_path::$($_.Name)") | Out-Null
-                            Write-Failed
-                        } else {
-                            Write-Success
-                        }
                     }
-
-                }
-            } finally {
-                if ($tearDown) {
-                    Write-Header "Cleaning Up (Function)" -Filler "-"
-                    & $tearDown
+                } finally {
+                    $Script:total_tests += 1
+                    if (!($test_success)){
+                        $failed_tests.Add("$short_path::$($_.Name)") | Out-Null
+                        Write-Failed
+                    } else {
+                        Write-Success
+                    }
+                    if ($tearDown) {
+                        Write-Host "**** Cleaning Up ****"
+                        & $tearDown
+                    }
                     Write-Header -Filler "-"
                 }
+
             }
         }
     } finally {
         if ($tearDownScript) {
-            Write-Header "Cleaning Up (Script)" -Filler "-"
+            Write-Header "Cleaning Up" -Filler "-"
             & $tearDownScript
             Write-Header -Filler "-"
         }
     }
 
     Write-Status $failed_tests.Count
-    if ($failed_tests.Count -gt 0) {
-        foreach ($test in $failed_tests) {
-            Write-Host $test
-        }
-    }
+#    if ($failed_tests.Count -gt 0) {
+#        foreach ($test in $failed_tests) {
+#            Write-Host $test
+#        }
+#    }
     Write-Header
     Write-Host ""
 }

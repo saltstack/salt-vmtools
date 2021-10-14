@@ -2,12 +2,16 @@
 
 $test_path = "$env:Temp\spongebob"
 
-function setUp {
+function setUpScript {
+    Write-Host "Creating test directory: " -NoNewline
     New-Item -Path $test_path -Type Directory -Force | Out-Null
+    Write-Done
 }
 
-function tearDown {
+function tearDownScript {
+    Write-Host "Removing test directory: " -NoNewline
     Remove-Item -Path $test_path -Force
+    Write-Done
 }
 
 function test_Set-Security_sddl {
@@ -24,13 +28,15 @@ function test_Set-Security_sddl {
 }
 
 function test_Set-Security_owner_default {
+    $sd = Get-Acl($test_path)
+    $before_owner = ($sd | Select-Object Owner).Owner
+
     Set-Security -Path $test_path
 
     $sd = Get-Acl($test_path)
+    $after_owner = ($sd | Select-Object Owner).Owner
 
-    $result = ($sd | Select-Object Owner).Owner
-
-    if ($result.EndsWith("SYSTEM")) { return 0 }
+    if ($before_owner -eq $after_owner) { return 0 }
     return 1
 }
 
@@ -42,5 +48,16 @@ function test_Set-Security_owner_administrators {
     $result = ($sd | Select-Object Owner).Owner
 
     if ($result.EndsWith("Administrators")) { return 0 }
+    return 1
+}
+
+function test_Set-Security_owner_system {
+    Set-Security -Path $test_path -Owner "SYSTEM"
+
+    $sd = Get-Acl($test_path)
+
+    $result = ($sd | Select-Object Owner).Owner
+
+    if ($result.EndsWith("SYSTEM")) { return 0 }
     return 1
 }

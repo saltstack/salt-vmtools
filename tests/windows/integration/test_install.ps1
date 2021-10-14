@@ -179,10 +179,9 @@ function test_Install_minion_id_in_config {
 
 function test_Install_salt_added_to_path {
     # Has salt been added to the system path
-    $path = "$env:ProgramFiles\Salt Project\salt"
     $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
     $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
-    if (!($current_path -like "*$path*")) { return 1 }
+    if (!($current_path -like "*$salt_dir*")) { return 1 }
     return 0
 }
 

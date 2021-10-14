@@ -13,6 +13,10 @@ function tearDownScript {
     Write-Host "Removing tools.conf: " -NoNewline
     Remove-Item -Path $vmtools_conf_file -Force | Out-Null
     Write-Done
+
+    Write-Host "Removing base config directory: " -NoNewline
+    Remove-Item -Path $base_salt_config_location -Recurse -Force
+    Write-Done
 }
 
 function test_Get-ConfigToolsConf {
@@ -83,7 +87,7 @@ function test_Add-MinionConfig {
     Add-MinionConfig
     $content = Get-Content $salt_config_file
     if (!($content -like "*id: gv_minion*")) { $failed = 1 }
-    if (!($content -like "*file_roots: C:\ProgramData\Salt Project\salt*")) { $failed = 1 }
+    if (!($content -like "*file_roots: C:\ProgramData\VMware\Salt Project\salt*")) { $failed = 1 }
     if (!($content -like "*master: tc_master*")) { $failed = 1 }
     if (!($content -like "*root_dir: cli_root_dir*")) { $failed = 1 }
     return $failed

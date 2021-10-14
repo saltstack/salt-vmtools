@@ -214,12 +214,12 @@ $salt_hash_name = "$salt_name-$salt_version" + "_SHA512"
 $salt_hash_url = "$base_url/$salt_version/$salt_hash_name"
 
 # Salt file and directory locations
-$base_salt_install_location = "$env:ProgramFiles\Salt Project"
+$base_salt_install_location = "$env:ProgramFiles\VMware\Salt Project"
 $salt_dir = "$base_salt_install_location\$salt_name"
 $salt_bin = "$salt_dir\salt\salt.exe"
 $ssm_bin = "$salt_dir\ssm.exe"
 
-$base_salt_config_location = "$env:ProgramData\Salt Project"
+$base_salt_config_location = "$env:ProgramData\VMware\Salt Project"
 $salt_root_dir = "$base_salt_config_location\$salt_name"
 $salt_config_dir = "$salt_root_dir\conf"
 $salt_config_name = "minion"
@@ -1023,6 +1023,33 @@ function Get-MinionConfig {
 }
 
 
+function Get-IsSymlink {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path
+    )
+    $fd_path = Get-Item -Path $Path
+    return [bool]($fd_path.Attributes -band [IO.FileAttributes]::ReparsePoint)
+}
+
+
+function Get-IsSecureOwner {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path
+    )
+
+    $acl = Get-Acl($Path)
+    $owner = (($acl | Select-Object Owner).Owner).ToLower()
+    if (($owner.EndsWith("system")) -or ($owner.EndsWith("administrators"))) {
+        return $true
+    }
+    return $false
+}
+
+
 function Set-Security {
     [CmdletBinding()]
     param(
@@ -1030,43 +1057,103 @@ function Set-Security {
         [String] $Path,
 
         [Parameter(Mandatory=$false)]
-        [String] $Owner="SYSTEM"
+        [String] $Owner = "Administrators"
     )
-    # Define the Sddl
+
+    Write-Log "Setting Security: $Path" -Level info
 
     Write-Log "Getting ACL: $Path" -Level debug
     $file_acl = Get-Acl -Path $Path
 
     Write-Log "Setting Sddl" -Level debug
-    $ProtectDacl = 'D:PAI(A;OICI;0x1200a9;;;WD)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'
-    $Sddl = "O:BAG:SY" + $ProtectDacl
+    $Sddl = 'D:PAI(A;OICI;0x1200a9;;;WD)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'
     $file_acl.SetSecurityDescriptorSddlForm($Sddl)
 
-    Write-Log "Setting owner" -Level debug
+    Write-Log "Setting Owner" -Level debug
     $file_acl.SetOwner([System.Security.Principal.NTAccount]"$Owner")
 
-    Write-Log "Writing new ACL" -Level debug
+    Write-Log "Writing New ACL" -Level debug
     Set-Acl -Path $Path -AclObject $file_acl
-    Write-Log "Finished setting security"
+}
+
+
+function New-SecureDirectory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [String] $Path
+    )
+    if (Test-Path -Path $Path) {
+        if (Get-IsSymlink -Path $Path) {
+            Write-Log "Found symlink: $Path" -Level warning
+            Write-Log "Renaming symlink (.insecure): $Path" -Level warning
+            if (Test-Path -Path "$Path.insecure") {
+                Write-Log "Insecure backup directory already exists." error
+                Write-Log "Please double check the existing directory" error
+                Write-Log "If you are not sure why it exists we recommend" error
+                Write-Log "that you remove all directories named $Path" error
+                Write-Host "Insecure directory exists. Terminating Script"
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            # We can't rename a symlink, we have to delete and recreate it
+            $target = (Get-Item $Path | Select-Object -ExpandProperty Target)
+            [System.IO.Directory]::Delete($Path, $true) | Out-Null
+            New-Item -ItemType SymbolicLink `
+                     -Path "$Path.insecure" `
+                     -Target $target | Out-Null
+        }
+    }
+    if (Test-Path -Path $Path) {
+        if (!(Get-IsSecureOwner -Path $Path)) {
+            Write-Log "Found insecure owner: $Path" -Level warning
+            Write-Log "Renaming directory (.insecure): $Path" -Level warning
+            if (Test-Path -Path "$Path.insecure") {
+                Write-Log "Insecure backup directory already exists." error
+                Write-Log "Please double check the existing directory" error
+                Write-Log "If you are not sure why it exists we recommend" error
+                Write-Log "that you remove all directories named $Path" error
+                Write-Host "Insecure directory exists. Terminating Script"
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            Move-Item -Path $Path `
+                      -Destination "$Path.insecure" `
+                      -Force | Out-Null
+        }
+    }
+    if (Test-Path -Path $Path) {
+        if((Get-ChildItem -Path $Path | Measure-Object).Count -ne 0) {
+            Write-Log "Found non-empty directory: $Path" -Level warning
+            Write-Log "Renaming file/folder (.insecure): $Path" -Level warning
+            if (Test-Path -Path "$Path.insecure") {
+                Write-Log "Insecure backup directory already exists." error
+                Write-Log "Please double check the existing directory" error
+                Write-Log "If you are not sure why it exists we recommend" error
+                Write-Log "that you remove all directories named $Path" error
+                Write-Host "Insecure directory exists. Terminating Script"
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            Move-Item -Path $Path `
+                      -Destination "$Path.insecure" `
+                      -Force | Out-Null
+        }
+    }
+    if (!(Test-Path -Path $Path)) {
+        Write-Log "Creating directory: $Path" -Level debug
+        New-Item -Path $Path -Type Directory | Out-Null
+    }
+
+    Set-Security -Path $Path
 }
 
 
 function Add-MinionConfig {
     # Write minion config options to the minion config file
 
-    if (!(Test-Path($salt_root_dir))) {
-        Write-Log "Creating config directory: $salt_root_dir" -Level debug
-        New-Item -Path $salt_root_dir -ItemType Directory | Out-Null
-
-        Write-Log "Securing root dir: $salt_root_dir" -Level info
-        Set-Security($salt_root_dir)
-    }
-
     # Make sure the config directory exists
-    if (!(Test-Path($salt_config_dir))) {
-        Write-Log "Creating config directory: $salt_config_dir" -Level debug
-        New-Item -Path $salt_config_dir -ItemType Directory | Out-Null
-    }
+    New-SecureDirectory -Path $base_salt_config_location
+    New-SecureDirectory -Path $salt_root_dir
+    New-SecureDirectory -Path $salt_config_dir
+
     # Get the minion config
     $config_options = Get-MinionConfig
 
