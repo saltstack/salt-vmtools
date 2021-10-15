@@ -1402,6 +1402,9 @@ mkdir -p "${script_log_dir}"
 log_file="${script_log_dir}/vmware-${SCRIPTNAME}-${curr_date}.log"
 LOGGING="${log_file}"
 
+
+CLI_ACTION=0
+
 ## need support at a minimum for the following:
 ## depends
 ## deploy
@@ -1479,68 +1482,78 @@ fi
 retn=0
 if [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
     # ensure logging level changes are processed before any actions
+    CLI_ACTION=1
     _set_log_level "${LOG_LEVEL_PARAMS}"
     retn=$?
 fi
 if [[ ${STATUS_CHK} -eq 1 ]]; then
+    CLI_ACTION=1
     _status_fn
     retn=$?
 fi
 if [[ ${DEPS_CHK} -eq 1 ]]; then
+    CLI_ACTION=1
     _deps_chk_fn
     retn=$?
 fi
 if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
     # ensure this is processed before install
     _set_install_minion_version_fn "${MINION_VERSION_PARAMS}"
     retn=$?
 fi
 if [[ ${INSTALL_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
     _install_fn "${INSTALL_PARAMS}"
     retn=$?
 fi
 if [[ ${CLEAR_ID_KEYS_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
     _clear_id_key_fn "${CLEAR_ID_KEYS_PARAMS}"
     retn=$?
 fi
 if [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
     _uninstall_fn
     retn=$?
 fi
 if [[ ${VERSION_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
     echo "${SCRIPT_VERSION}"
     retn=0
 fi
 
-# check if guest variables have an action
-# since none presented on the command line
-gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}" 2>/dev/null) \
-    || {
-        _warning_log "$0 unable to retrieve any action arguments from "\
-            "guest variables ${guestvars_salt_dir}, retcode '$?'";
-}
+if [[ ${CLI_ACTION} -ne 0 ]]; then
+    # check if guest variables have an action since none from CLI
+    # since none presented on the command line
+    gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}" \
+        2>/dev/null) || {
+            _warning_log "$0 unable to retrieve any action arguments from "\
+                "guest variables ${guestvars_salt_dir}, retcode '$?'";
+    }
 
-if [[ -n "${gvar_action}" ]]; then
-    case "${gvar_action}" in
-        depend)
-            _deps_chk_fn
-            retn=$?
-            ;;
-        add)
-            _install_fn
-            retn=$?
-            ;;
-        remove)
-            _uninstall_fn
-            retn=$?
-            ;;
-        status)
-            _status_fn
-            retn=$?
-            ;;
-        *)
-            ;;
-    esac
+    if [[ -n "${gvar_action}" ]]; then
+        case "${gvar_action}" in
+            depend)
+                _deps_chk_fn
+                retn=$?
+                ;;
+            add)
+                _install_fn
+                retn=$?
+                ;;
+            remove)
+                _uninstall_fn
+                retn=$?
+                ;;
+            status)
+                _status_fn
+                retn=$?
+                ;;
+            *)
+                ;;
+        esac
+    fi
 fi
 
 exit ${retn}
