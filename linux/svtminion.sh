@@ -1523,7 +1523,7 @@ if [[ ${VERSION_FLAG} -eq 1 ]]; then
     retn=0
 fi
 
-if [[ ${CLI_ACTION} -ne 0 ]]; then
+if [[ ${CLI_ACTION} -eq 0 ]]; then
     # check if guest variables have an action since none from CLI
     # since none presented on the command line
     gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}" \
