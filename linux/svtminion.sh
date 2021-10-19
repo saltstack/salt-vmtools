@@ -39,7 +39,7 @@ readonly salt_minion_conf_name="minion"
 readonly salt_minion_conf_file="${salt_conf_dir}/${salt_minion_conf_name}"
 readonly salt_master_sign_dir="${salt_conf_dir}/pki/${salt_minion_conf_name}"
 
-readonly script_log_dir="/var/log"
+readonly log_dir="/var/log"
 
 readonly list_file_dirs_to_remove="${base_salt_location}
 /etc/salt
@@ -112,8 +112,8 @@ readonly guestvars_salt_args="${guestvars_salt_dir}.args"
 # Array for minion configuration keys and values
 # allows for updates from number of configuration sources before final
 # write to /etc/salt/minion
-declare -a minion_conf_keys
-declare -a minion_conf_values
+declare -a m_cfg_keys
+declare -a m_cfg_values
 
 
 ## Component Manager Installer/Script return/exit status codes
@@ -176,7 +176,7 @@ _timestamp() {
 
 _log() {
     echo "$(_timestamp) $*" >> \
-        "${script_log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${curr_date}.log"
+        "${log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${logdate}.log"
 }
 
 _display() {
@@ -187,8 +187,7 @@ _display() {
 _error_log() {
     if [[ ${LOG_LEVELS_ARY[error]} -le ${LOG_LEVEL} ]]; then
         local log_file=""
-        log_file="${script_log_dir}/vmware-"\
-            "${SCRIPTNAME}-${LOG_ACTION}-${curr_date}.log"
+        log_file="${log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${logdate}.log"
         msg="ERROR: $*"
         echo "$msg" 1>&2
         echo "$(_timestamp) $msg" >> "${log_file}"
@@ -394,17 +393,17 @@ _update_minion_conf_ary() {
             "a key and a value"
     fi
 
-    # now search minion_conf_keys array to see if new key
-    key_ary_sz=${#minion_conf_keys[@]}
+    # now search m_cfg_keys array to see if new key
+    key_ary_sz=${#m_cfg_keys[@]}
     if [[ ${key_ary_sz} -ne 0 ]]; then
         # need to check if array has same key
         local chk_found=0
         for ((chk_idx=0; chk_idx<key_ary_sz; chk_idx++))
         do
-            if [[ "${minion_conf_keys[${chk_idx}]}" = "${cfg_key}" ]]; then
-                minion_conf_values[${chk_idx}]="${cfg_value}"
+            if [[ "${m_cfg_keys[${chk_idx}]}" = "${cfg_key}" ]]; then
+                m_cfg_values[${chk_idx}]="${cfg_value}"
                 _debug_log "$0:${FUNCNAME[0]} updating minion configuration "\
-                    "array key '${minion_conf_keys[${chk_idx}]}' with "\
+                    "array key '${m_cfg_keys[${chk_idx}]}' with "\
                     "value '${cfg_value}'"
                 chk_found=1
                 break;
@@ -412,15 +411,15 @@ _update_minion_conf_ary() {
         done
         if [[ ${chk_found} -eq 0 ]]; then
             # new key for array
-            minion_conf_keys[${key_ary_sz}]="${cfg_key}"
-            minion_conf_values[${key_ary_sz}]="${cfg_value}"
+            m_cfg_keys[${key_ary_sz}]="${cfg_key}"
+            m_cfg_values[${key_ary_sz}]="${cfg_value}"
             _debug_log "$0:${FUNCNAME[0]} adding to minion configuration "\
                 "array new key '${cfg_key}' and value '${cfg_value}'"
         fi
     else
         # initial entry
-        minion_conf_keys[0]="${cfg_key}"
-        minion_conf_values[0]="${cfg_value}"
+        m_cfg_keys[0]="${cfg_key}"
+        m_cfg_values[0]="${cfg_value}"
         _debug_log "$0:${FUNCNAME[0]} adding initial minion configuration "\
             "array, key '${cfg_key}' and value '${cfg_value}'"
     fi
@@ -639,8 +638,8 @@ _fetch_vmtools_salt_minion_conf() {
     }
 
     # now write minion conf array to salt-minion configuration file
-    local mykey_ary_sz=${#minion_conf_keys[@]}
-    local myvalue_ary_sz=${#minion_conf_values[@]}
+    local mykey_ary_sz=${#m_cfg_keys[@]}
+    local myvalue_ary_sz=${#m_cfg_values[@]}
     if [[ "${mykey_ary_sz}" -ne "${myvalue_ary_sz}" ]]; then
         _error_log "$0:${FUNCNAME[0]} key '${mykey_ary_sz}' and "\
             "value '${myvalue_ary_sz}' array sizes for minion_conf "\
@@ -657,17 +656,17 @@ _fetch_vmtools_salt_minion_conf() {
 
             # check for special case of signed master's public key
             # verify_master_pubkey_sign=master_sign.pub
-            if [[ "${minion_conf_keys[${chk_idx}]}" \
+            if [[ "${m_cfg_keys[${chk_idx}]}" \
                     = "verify_master_pubkey_sign" ]]; then
                 _debug_log "$0:${FUNCNAME[0]} processing minion "\
                     "configuration parameters for master public signed key"
-                echo "${minion_conf_keys[${chk_idx}]}: True" \
+                echo "${m_cfg_keys[${chk_idx}]}: True" \
                     >> "${salt_minion_conf_file}"
                 mkdir -p "/etc/salt/pki/minion"
-                cp -f "${minion_conf_values[${chk_idx}]}" \
+                cp -f "${m_cfg_values[${chk_idx}]}" \
                     "${salt_master_sign_dir}/"
             else
-                echo "${minion_conf_keys[${chk_idx}]}: ${minion_conf_values[${chk_idx}]}" \
+                echo "${m_cfg_keys[${chk_idx}]}: ${m_cfg_values[${chk_idx}]}" \
                     >> "${salt_minion_conf_file}"
             fi
         done
@@ -1411,29 +1410,29 @@ _clean_up_log_files() {
     _info_log "$0:${FUNCNAME[0]} removing and limiting log files"
     for idx in ${allowed_log_file_action_names}
     do
-        local files_count=0
-        local files_found=""
-        local -a files_found_ary
-        files_found=$(ls -t "${script_log_dir}/vmware-${SCRIPTNAME}-${idx}"*)
-        files_count=$(echo "${files_found}" | wc | awk -F" " '{print $2}')
-        mapfile -t files_found_ary <<< "${files_found}"
+        local count_f=0
+        local found_f=""
+        local -a found_f_ary
+        found_f=$(ls -t "${log_dir}/vmware-${SCRIPTNAME}-${idx}"* 2>/dev/null)
+        count_f=$(echo "${found_f}" | wc | awk -F" " '{print $2}')
+        mapfile -t found_f_ary <<< "${found_f}"
 
-        if [[ ${files_count} -gt ${LOG_FILE_NUMBER} ]]; then
+        if [[ ${count_f} -gt ${LOG_FILE_NUMBER} ]]; then
             # alloe for org-0
-            for ((i=files_count-1; i>=LOG_FILE_NUMBER; i--)); do
+            for ((i=count_f-1; i>=LOG_FILE_NUMBER; i--)); do
                 _debug_log "$0:${FUNCNAME[0]} removing log file "\
-                    "'${files_found_ary[i]}', for count '${i}', "\
+                    "'${found_f_ary[i]}', for count '${i}', "\
                     "limit '${LOG_FILE_NUMBER}'"
-                rm -f "${files_found_ary[i]}" || {
+                rm -f "${found_f_ary[i]}" || {
                     _error_log "$0:${FUNCNAME[0]} failed to remove file "\
-                    "'${files_found_ary[i]}', for count '${i}', "\
+                    "'${found_f_ary[i]}', for count '${i}', "\
                     "limit '${LOG_FILE_NUMBER}'"
                 }
             done
         else
-            _debug_log "$0:${FUNCNAME[0]} found '${files_count}' "\
+            _debug_log "$0:${FUNCNAME[0]} found '${count_f}' "\
                 "log files starting with "\
-                "${script_log_dir}/vmware-${SCRIPTNAME}-${idx}-"\
+                "${log_dir}/vmware-${SCRIPTNAME}-${idx}-"\
                 ", limit '${LOG_FILE_NUMBER}'"
         fi
     done
@@ -1452,12 +1451,12 @@ export CURRENT_STATUS
 
 ## build date-time tag used for loggging YYYYMMDDhhmmss
 ## YearMontDayHourMinuteSecondMicrosecond aka jid
-curr_date=$(date +%Y%m%d%H%M%S)
+logdate=$(date +%Y%m%d%H%M%S)
 
 # set logging infomation
 LOG_FILE_NUMBER=10
 SCRIPTNAME=$(basename "$0")
-mkdir -p "${script_log_dir}"
+mkdir -p "${log_dir}"
 
 # set to action e.g. 'remove', 'install'
 # default is for any logging not associated with a specific action
