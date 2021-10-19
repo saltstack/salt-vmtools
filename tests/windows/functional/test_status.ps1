@@ -146,7 +146,7 @@ function test_Set-Status_removeFailed {
 }
 
 function test_Set-FailedStatus_installFailed {
-    $Action = "add"
+    $Action = "install"
     Set-FailedStatus
     $result = Get-ItemProperty -Path $vmtools_base_reg `
                                -Name $vmtools_salt_minion_status_name

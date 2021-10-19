@@ -68,7 +68,7 @@ Import-Module .\windows\svtminion.ps1
 $log_level_value = 0
 
 $Script:total_tests = 0
-$failed_tests = [System.Collections.ArrayList]::new()
+$Script:failed_tests = [System.Collections.ArrayList]::new()
 
 function Run-TestFile {
     [CmdletBinding()]
@@ -76,6 +76,8 @@ function Run-TestFile {
         [Parameter(Mandatory=$true)]
         [String] $Path
     )
+
+    $file_failed_tests = [System.Collections.ArrayList]::new()
 
     # Load current functions
     $current_functions = Get-ChildItem function:
@@ -121,7 +123,8 @@ function Run-TestFile {
                 } finally {
                     $Script:total_tests += 1
                     if (!($test_success)){
-                        $failed_tests.Add("$short_path::$($_.Name)") | Out-Null
+                        $Script:failed_tests.Add("$short_path::$($_.Name)") | Out-Null
+                        $file_failed_tests.Add("$short_path::$($_.Name)") | Out-Null
                         Write-Failed
                     } else {
                         Write-Success
@@ -143,12 +146,12 @@ function Run-TestFile {
         }
     }
 
-    Write-Status $failed_tests.Count
-#    if ($failed_tests.Count -gt 0) {
-#        foreach ($test in $failed_tests) {
-#            Write-Host $test
-#        }
-#    }
+    Write-Status $file_failed_tests.Count
+    if ($file_failed_tests.Count -gt 0) {
+        foreach ($test in $file_failed_tests) {
+            Write-Host $test
+        }
+    }
     Write-Header
     Write-Host ""
 }
@@ -156,12 +159,12 @@ function Run-TestFile {
 function Create-Report {
     Write-Header "TESTING COMPLETE"
     Write-Host "$Script:total_tests Tests Run"
-    if ($failed_tests.Count -eq 0) {
+    if ($Script:failed_tests.Count -eq 0) {
         Write-Host "All Tests Completed Successfully" -ForegroundColor Green
     } else {
-        Write-Host "Test Failures: $($failed_tests.Count)" -ForegroundColor Red
+        Write-Host "Test Failures: $($Script:failed_tests.Count)" -ForegroundColor Red
         Write-Header "Failed Tests" -Filler "-"
-        foreach ($test in $failed_tests) {
+        foreach ($test in $Script:failed_tests) {
             Write-Host $test
         }
     }
@@ -196,7 +199,7 @@ if ($Path) {
     }
 }
 
-if ($failed_tests.Count -eq 0) {
+if ($Script:failed_tests.Count -eq 0) {
     exit 0
 } else {
     exit 1
