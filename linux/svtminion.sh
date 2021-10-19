@@ -39,18 +39,18 @@ readonly salt_minion_conf_name="minion"
 readonly salt_minion_conf_file="${salt_conf_dir}/${salt_minion_conf_name}"
 readonly salt_master_sign_dir="${salt_conf_dir}/pki/${salt_minion_conf_name}"
 
-readonly script_log_dir="/var/log/"
+readonly script_log_dir="/var/log"
 
 readonly list_file_dirs_to_remove="${base_salt_location}
 /etc/salt
 /var/run/salt
 /var/cache/salt
 /var/log/salt
-/var/log/vmware-${SCRIPTNAME}-*
 /usr/bin/salt-*
 /usr/lib/systemd/system/salt-minion.service
 /etc/systemd/system/salt-minion.service
 "
+## /var/log/vmware-${SCRIPTNAME}-*
 
 readonly salt_dep_file_list="systemctl
 curl
@@ -62,11 +62,20 @@ sed
 cut
 "
 
+readonly allowed_log_file_action_names="status
+depend
+install
+clear
+remove
+default
+"
+
 readonly salt_wrapper_file_list="minion
 call
 "
 
-readonly salt_minion_service_wrapper="# Copyright (c) 2021 VMware, Inc. All rights reserved.
+readonly salt_minion_service_wrapper=\
+"# Copyright (c) 2021 VMware, Inc. All rights reserved.
 
 [Unit]
 Description=The Salt Minion
@@ -95,7 +104,8 @@ readonly vmtools_salt_minion_section_name="salt_minion"
 
 ## VMware guestVars file and directory locations
 readonly guestvars_base_dir="guestinfo./vmware.components"
-readonly guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
+readonly \
+guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
 readonly guestvars_salt_args="${guestvars_salt_dir}.args"
 
 
@@ -161,24 +171,28 @@ LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 # helper functions
 
 _timestamp() {
-    date "+%Y-%m-%d %H:%M:%S:"
+    date "+%Y-%m-%d %H:%M:%S"
 }
 
 _log() {
-    echo "$(_timestamp) $1" >>"${LOGGING}"
+    echo "$(_timestamp) $*" >> \
+        "${script_log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${curr_date}.log"
 }
 
 _display() {
     if [[ ${VERBOSE_FLAG} -eq 1 ]]; then echo "$1"; fi
-    _log "$1"
+    _log "$*"
 }
 
 _error_log() {
     if [[ ${LOG_LEVELS_ARY[error]} -le ${LOG_LEVEL} ]]; then
-        msg="ERROR: $1"
+        local log_file=""
+        log_file="${script_log_dir}/vmware-"\
+            "${SCRIPTNAME}-${LOG_ACTION}-${curr_date}.log"
+        msg="ERROR: $*"
         echo "$msg" 1>&2
-        echo "$(_timestamp) $msg" >>"${LOGGING}"
-        echo "One or more errors found. See ${LOGGING} for details." 1>&2
+        echo "$(_timestamp) $msg" >> "${log_file}"
+        echo "One or more errors found. See ${log_file} for details." 1>&2
         CURRENT_STATUS=${STATUS_CODES_ARY[scriptFailed]}
         exit ${STATUS_CODES_ARY[scriptFailed]}
     fi
@@ -186,21 +200,22 @@ _error_log() {
 
 _info_log() {
     if [[ ${LOG_LEVELS_ARY[info]} -le ${LOG_LEVEL} ]]; then
-        _log "$1"
+        msg="INFO: $*"
+        _log "${msg}"
     fi
 }
 
 _warning_log() {
     if [[ ${LOG_LEVELS_ARY[error]} -le ${LOG_LEVEL} ]]; then
-        msg="WARNING: $1"
+        msg="WARNING: $*"
         _log "${msg}"
     fi
 }
 
 _debug_log() {
     if [[ ${LOG_LEVELS_ARY[debug]} -le ${LOG_LEVEL} ]]; then
-        msg="DEBUG: $1"
-        _log "$1"
+        msg="DEBUG: $*"
+        _log "${msg}"
     fi
 }
 
@@ -222,7 +237,8 @@ esac
 
  _usage() {
      echo ""
-     echo "usage: ${0}  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
+     echo "usage: ${0}"
+     echo "             [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
      echo "             [-l|--loglevel] [-m|--minionversion] [-r|--remove]"
      echo "             [-s|--status] [-v|--version]"
      echo ""
@@ -303,12 +319,12 @@ _set_log_level() {
     if [[ ${valid_level} -ne 1 ]]; then
         _warning_log "$0:${FUNCNAME[0]} attempted to set log_level with "\
             "invalid input, log_level unchanged, currently "\
-            "${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}"
+            "'${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}'"
     else
         LOG_LEVEL=${LOG_LEVELS_ARY[${ip_level}]}
         _info_log "$0:${FUNCNAME[0]} changed log_level from "\
-            "${LOG_MODES_AVAILABLE[${old_log_level}]} to "\
-            "${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}"
+            "'${LOG_MODES_AVAILABLE[${old_log_level}]}' to "\
+            "'${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}'"
     fi
     return 0
 }
@@ -496,9 +512,10 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
     local _retn=0
     local gvar_args=""
 
-    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null) || {
-        _warning_log "$0:${FUNCNAME[0]} unable to retrieve arguments from "\
-            "guest variables location ${guestvars_salt_args}, retcode '$?'";
+    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null)\
+        || { _warning_log "$0:${FUNCNAME[0]} unable to retrieve arguments "\
+            "from guest variables location ${guestvars_salt_args}, "\
+            "retcode '$?'";
     }
 
     if [[ -z "${gvar_args}" ]]; then return ${_retn}; fi
@@ -1380,6 +1397,48 @@ _uninstall_fn () {
 }
 
 
+#
+#  _clean_up_log_files
+#
+#   Limits number of log files by removing oldest log files which exceed
+#   limit LOG_FILE_NUMBER
+#
+# Results:
+#   Exits with 0 or error code
+#
+_clean_up_log_files() {
+
+    _info_log "$0:${FUNCNAME[0]} removing and limiting log files"
+    for idx in ${allowed_log_file_action_names}
+    do
+        local files_count=0
+        local files_found=""
+        local -a files_found_ary
+        files_found=$(ls -t "${script_log_dir}/vmware-${SCRIPTNAME}-${idx}"*)
+        files_count=$(echo "${files_found}" | wc | awk -F" " '{print $2}')
+        mapfile -t files_found_ary <<< "${files_found}"
+
+        if [[ ${files_count} -gt ${LOG_FILE_NUMBER} ]]; then
+            # alloe for org-0
+            for ((i=files_count-1; i>=LOG_FILE_NUMBER; i--)); do
+                _debug_log "$0:${FUNCNAME[0]} removing log file "\
+                    "'${files_found_ary[i]}', for count '${i}', "\
+                    "limit '${LOG_FILE_NUMBER}'"
+                rm -f "${files_found_ary[i]}" || {
+                    _error_log "$0:${FUNCNAME[0]} failed to remove file "\
+                    "'${files_found_ary[i]}', for count '${i}', "\
+                    "limit '${LOG_FILE_NUMBER}'"
+                }
+            done
+        else
+            _debug_log "$0:${FUNCNAME[0]} found '${files_count}' "\
+                "log files starting with "\
+                "${script_log_dir}/vmware-${SCRIPTNAME}-${idx}-"\
+                ", limit '${LOG_FILE_NUMBER}'"
+        fi
+    done
+    return 0
+}
 
 ################################### MAIN ####################################
 
@@ -1391,16 +1450,19 @@ CURRDIR=$(pwd)
 CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
 export CURRENT_STATUS
 
-## build designation tag used for auto builds is
+## build date-time tag used for loggging YYYYMMDDhhmmss
 ## YearMontDayHourMinuteSecondMicrosecond aka jid
-date_long=$(date +%Y%m%d%H%M%S%N)
-curr_date="${date_long::-2}"
+curr_date=$(date +%Y%m%d%H%M%S)
 
 # set logging infomation
+LOG_FILE_NUMBER=10
 SCRIPTNAME=$(basename "$0")
 mkdir -p "${script_log_dir}"
-log_file="${script_log_dir}/vmware-${SCRIPTNAME}-${curr_date}.log"
-LOGGING="${log_file}"
+
+# set to action e.g. 'remove', 'install'
+# default is for any logging not associated with a specific action
+# for example: debug logging and --version
+LOG_ACTION="default"
 
 
 CLI_ACTION=0
@@ -1480,6 +1542,7 @@ fi
 ##  MAIN BODY OF SCRIPT
 
 retn=0
+
 if [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
     # ensure logging level changes are processed before any actions
     CLI_ACTION=1
@@ -1488,11 +1551,13 @@ if [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
 fi
 if [[ ${STATUS_CHK} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="status"
     _status_fn
     retn=$?
 fi
 if [[ ${DEPS_CHK} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="depend"
     _deps_chk_fn
     retn=$?
 fi
@@ -1504,16 +1569,19 @@ if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
 fi
 if [[ ${INSTALL_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="install"
     _install_fn "${INSTALL_PARAMS}"
     retn=$?
 fi
 if [[ ${CLEAR_ID_KEYS_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="clear"
     _clear_id_key_fn "${CLEAR_ID_KEYS_PARAMS}"
     retn=$?
 fi
 if [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="remove"
     _uninstall_fn
     retn=$?
 fi
@@ -1535,18 +1603,22 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
     if [[ -n "${gvar_action}" ]]; then
         case "${gvar_action}" in
             depend)
+                LOG_ACTION="depend"
                 _deps_chk_fn
                 retn=$?
                 ;;
             add)
+                LOG_ACTION="install"
                 _install_fn
                 retn=$?
                 ;;
             remove)
+                LOG_ACTION="remove"
                 _uninstall_fn
                 retn=$?
                 ;;
             status)
+                LOG_ACTION="status"
                 _status_fn
                 retn=$?
                 ;;
@@ -1555,5 +1627,7 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
         esac
     fi
 fi
+
+_clean_up_log_files
 
 exit ${retn}
