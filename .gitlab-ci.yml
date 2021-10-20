@@ -170,7 +170,10 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --depend || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency, returned '${_retn}'"; exit 1; fi; }
     - ls -alh /var/log/vmware-svtminion.sh-depend-*
     - ./svtminion.sh --depend && { _retn=$?; echo "test failed - expecting 126 exit code, should be missing at least the vmtoolsd dependency"; exit 1; }
-    - if [[ 2 -eq $(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F\" \" \'{print $2}\') ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
+    ## - if [[ 2 -eq $(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F\" \" \'{print $2}\') ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
+    - ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l
+    - mydog=$(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F" " '{print $2}')
+    - if [[ 2 -eq ${mydog} ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend|| { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
