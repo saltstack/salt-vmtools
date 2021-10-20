@@ -170,13 +170,13 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --depend || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency, returned '${_retn}'"; exit 1; fi; }
     - ls -alh /var/log/vmware-svtminion.sh-depend-*
     - ./svtminion.sh --depend && { _retn=$?; echo "test failed - expecting 126 exit code, should be missing at least the vmtoolsd dependency"; exit 1; }
-    ## - if [[ 2 -eq $(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F\" \" \'{print $2}\') ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
-    - ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l
-    - mydog=$(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F" " '{print $2}')
-    - if [[ 2 -eq ${mydog} ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
     - yum -y install open-vm-tools
     - yum -y install curl
     - ./svtminion.sh --depend|| { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
+    - ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l
+    - mydog=$(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F" " '{print $2}')
+    - if [[ 2 -eq ${mydog} ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
+    - if [[ 2 -eq $(ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l) ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
     - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
     - ls -alh /var/log/vmware-svtminion.sh-status-*
     - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
@@ -227,7 +227,7 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --status
     - ./svtminion.sh --status
     - ./svtminion.sh --status
-    - if [[ 10 -eq $(ls -t /var/log/vmware-svtminion.sh-status-* | wc | awk -F\" \" \'{print $2}\') ]]; then echo "test correct"; else "test failed, should be only 10 status log files"; exit 1; fi
+    - if [[ 10 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 10 status log files"; exit 1; fi
 
   rules:
     - if: $CI_COMMIT_TAG
