@@ -174,10 +174,8 @@ test-salt-vmtools-linux:
     - yum -y install curl
     - ./svtminion.sh --depend --loglevel info || { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
     - ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l
-    - mydog=$(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F" " '{print $2}')
-    - if [[ 2 -eq ${mydog} ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
     - if [[ 2 -eq $(ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l) ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
     - ls -alh /var/log/vmware-svtminion.sh-status-*
     - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug
@@ -214,19 +212,19 @@ test-salt-vmtools-linux:
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
     - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
     - ./svtminion.sh --status || { _retn=$?; echo "test failed, salt-minion should be installed, returned '${_retn}'"; }
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
     - if [[ 10 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 10 status log files"; exit 1; fi
 
   rules:
@@ -282,10 +280,8 @@ test-tags-salt-vmtools-linux:
     - yum -y install curl
     - ./svtminion.sh --depend --loglevel info || { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
     - ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l
-    - mydog=$(ls -t /var/log/vmware-svtminion.sh-depend-* | wc | awk -F" " '{print $2}')
-    - if [[ 2 -eq ${mydog} ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
     - if [[ 2 -eq $(ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l) ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
-    - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
     - ls -alh /var/log/vmware-svtminion.sh-status-*
     - ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug
@@ -322,21 +318,20 @@ test-tags-salt-vmtools-linux:
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
     - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
     - ./svtminion.sh --status || { _retn=$?; echo "test failed, salt-minion should be installed, returned '${_retn}'"; }
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
-    - ./svtminion.sh --status
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
+    - ./svtminion.sh --status --loglevel debug
     - if [[ 10 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 10 status log files"; exit 1; fi
-
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
