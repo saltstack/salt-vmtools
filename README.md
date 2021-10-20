@@ -11,13 +11,14 @@ Python 3 Salt minion leveraging [PyInstaller's](https://www.pyinstaller.org/)
 onedir option internally. The Salt minion is fully self-contained and requires
 no additional dependencies.
 
-The script can install, remove, and check the status of an installed salt-minion
+The script can install, remove, and check the status of an installed Salt minion
 either by direct command line option or via VMware's use of Guest Variables,
 commonly referred to as guestVars.
 
+
 ## Configuration Options
 
-You can pass configuration to this script in 3 ways; tools.conf, guestVars, and
+You can pass configuration to this script in 3 ways: tools.conf, guestVars, and
 the command line. Each option has an order of precedence. The lowest being
 tools.conf, followed by guestVars, with the highest precedence being the command
 line. Each option is discussed below.
@@ -47,8 +48,8 @@ script action cannot be obtained from `tools.conf`.
 ### guestVars (medium preference)
 
 VMware guestVars can contain the action this script performs as well as the
-minion config options for this script. The config values here will override any
-preferences defined in `tools.conf` with the same name.
+minion config options to be set by this script. The config values here will
+override any config options defined in `tools.conf` with the same name.
 
 The guestVars paths are as follows:
 
@@ -56,6 +57,11 @@ The guestVars paths are as follows:
 | ------ | ------------------ |
 | Action | `vmware.components.salt_minion` |
 | Config | `vmware.components.salt_minion.args` |
+
+If set, the `Action` option will return a single word that is the action this
+script will perform. If set, the `Config` option will return a space delimited
+list of minion config options, eg: `master=192.168.0.12 id=my_minion
+multiprocessing=false`
 
 These values are set on the host OS using the `vmrun` binary. For example:
 
@@ -74,7 +80,8 @@ They can be read on the guest OS using the `vmtoolsd` binary. For example
 ### Command Line (highest preference)
 
 Any input passed to the script on the command line will take precedence over the
-action and config in guestVars and anything configured in `tools.conf`.
+action and config in guestVars and anything configured in `tools.conf` with the
+same name.
 
 Linux example:
 
@@ -97,7 +104,7 @@ highest precedence.
 
 **Note:*** On Windows, if the minion ID is not passed, the guest host name will
 be used. On Linux, however, there is no guarantee that a host name will be set.
-Therefore, a minion ID is automatically generated for the salt-minion. In either
+Therefore, a minion ID is automatically generated for the Salt minion. In either
 case the minion ID can be specified in any of the 3 config options. For example:
 
     id=myminion
@@ -105,7 +112,7 @@ case the minion ID can be specified in any of the 3 config options. For example:
 **Note:** At all times preference is given to actions presented on the command
 line over those available from guestVars.
 
-For example, if the follwing is passed on the command line:
+For example, if the following is passed on the command line:
 
     [root@fedora]# svtminion.sh --install
 
@@ -114,8 +121,60 @@ And the following is defined in guestVars:
     [root@fedora]# vmtoolsd --cmd "info-get guestinfo.vmware.components.salt_minion"
     remove
 
-Preference will be given to the command line argument and the salt-minion will
+Preference will be given to the command line argument and the Salt minion will
 be installed.
+
+
+## Logging
+
+This script creates a log file at the following location:
+
+| OS  | Location |
+| --- | -------- |
+| Linux | `/var/log` |
+| Windows | `C:\ProgramData\VMware\logs` |
+
+The content of the log file depends on the `LogLevel` passed on the command
+line. The default is `warning`. Valid options are:
+
+| Log Level | Description |
+| --------- | ----------- |
+| `silent`  | Suppresses displayed output but logs errors and warnings |
+| `error`   | Displays and logs only errors |  
+| `warning` | Displays and logs errors and warnings |
+| `info`    | Displays and logs errors, warnings, and info messages |
+| `debug`   | Displays and logs all messages |
+
+Log files are named based on the action that the script is performing. The
+`action` can be defined on the command line or by setting a value in guestVars.
+Any logging that is unrelated to an action uses the keyword `default`. Valid
+actions are as follows:
+
+- `clear`
+- `depend`
+- `install`
+- `remove`
+- `status`
+
+For example, running the script without a defined action will result in a log
+file with the following name:
+
+    # Linux
+    bash>svtminion.sh --version --loglevel debug
+
+    /etc/log/vmware-svtminion.sh-default-YYYYMMDDhhmmss.log
+
+    # Windows
+    PS>.\svtminion.ps1 -LogLevel debug
+
+    or
+
+    cmd>powershell -file .\svtminion.ps1 -LogLevel debug
+
+    C:\ProgramData\VMware\logs\vmware-svtminion-default-YYYYMMDDhhmmss.log
+
+Only the 10 most recent log files for each action are maintained. Excess log
+files are removed. Log files are not removed when the minion is uninstalled.
 
 
 ## Linux Environment:
@@ -156,25 +215,14 @@ pre-requisites:
           salt-minion vmtools integration script
               example: ./svtminion.sh --status
 
-Note: Log files are found in directory /var/log with the following format:
-
-/var/log/vmware-svtminion.sh-<clear|default|depend|install|remove|status>-YYYYMMDDhhmmss.log
-
-where actions 'clear', 'depend', 'install', 'remove' and 'status' log files are due
-to executing those options and 'default' is for any other commands which is executed and
-is not an action, for example:
-
-    svtminion.sh --versions --loglevel debug
-
-Only the 10 latest log files of each type of log file are maintained, excess log files
-are removed.  Log files are not removed when the 'remove' option is executed
-
 
 Windows Environment:
 --------------------
 
-On Windows systems the install scripts is a powershell script. You can get help
-for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
+On Windows systems the install script is a powershell script. The only
+prerequisite for Windows is the `vmtoolsd.exe` binary which is used to query
+guestVars data. You can get help for this script by running `svtminion.ps1 -h`
+or `Get-Help svtminion.ps1`:
 
     NAME
         .\svtminion.ps1
