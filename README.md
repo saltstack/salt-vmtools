@@ -177,19 +177,19 @@ On Windows systems the install scripts is a powershell script. You can get help
 for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
 
     NAME
-        C:\src\salt-vm-tools\windows\svtminion.ps1
+        .\svtminion.ps1
 
     SYNOPSIS
-        VMtools script for managing the salt minion on a Windows guest
+        VMware Tools script for managing the salt minion on a Windows guest
 
     SYNTAX
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Install] [-MinionVersion <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Clear] [-Prefix <String>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Status] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Help] [<CommonParameters>]
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Status] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Help] [<CommonParameters>]
+        .\svtminion.ps1 [-Version] [<CommonParameters>]
 
     DESCRIPTION
         This script manages the salt minion on a Windows guest. The minion is a tiamat
@@ -232,12 +232,6 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
             The randomized minion id will be the old minion id, an underscore, and 5
             random digits.
 
-        -Prefix <String>
-            The prefix to apply to the randomized minion id. The randomized minion id
-            will be the previx, an underscore, and 5 random digits. The default is
-            "minion". Therfore, the default randomized name will be something like
-            "minion_dkE9l".
-
         -Status [<SwitchParameter>]
             Get the status of the salt minion installation. This returns a numeric
             value that corresponds as follows:
@@ -249,12 +243,12 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
             105 - removeFailed
 
         -Depend [<SwitchParameter>]
-            Ensure the required dependencies are available. Exits with an error code
-            if any dependencies are missing.
+            Ensure the required dependencies are available. Exits with a scriptFailed
+            error code (126) if any dependencies are missing.
 
         -LogLevel <String>
-            Sets the log level to display and log. Default is error. Silent suppresses
-            all logging output
+            Sets the log level to display and log. Default is warning. Silent
+            suppresses all logging output
 
         -Help [<SwitchParameter>]
             Displays help for this script.
@@ -285,6 +279,6 @@ for this script by running `svtminion.ps1 -h` or `Get-Help svtminion.ps1`:
         PS>svtminion.ps1 -remove -loglevel debug
 
     REMARKS
-        To see the examples, type: "get-help C:\src\salt-vm-tools\windows\svtminion.ps1 -examples".
-        For more information, type: "get-help C:\src\salt-vm-tools\windows\svtminion.ps1 -detailed".
-        For technical information, type: "get-help C:\src\salt-vm-tools\windows\svtminion.ps1 -full".
+        To see the examples, type: "get-help .\svtminion.ps1 -examples".
+        For more information, type: "get-help .\svtminion.ps1 -detailed".
+        For technical information, type: "get-help .\svtminion.ps1 -full".
