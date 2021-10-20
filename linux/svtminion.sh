@@ -39,18 +39,18 @@ readonly salt_minion_conf_name="minion"
 readonly salt_minion_conf_file="${salt_conf_dir}/${salt_minion_conf_name}"
 readonly salt_master_sign_dir="${salt_conf_dir}/pki/${salt_minion_conf_name}"
 
-readonly script_log_dir="/var/log/"
+readonly log_dir="/var/log"
 
 readonly list_file_dirs_to_remove="${base_salt_location}
 /etc/salt
 /var/run/salt
 /var/cache/salt
 /var/log/salt
-/var/log/vmware-${SCRIPTNAME}-*
 /usr/bin/salt-*
 /usr/lib/systemd/system/salt-minion.service
 /etc/systemd/system/salt-minion.service
 "
+## /var/log/vmware-${SCRIPTNAME}-*
 
 readonly salt_dep_file_list="systemctl
 curl
@@ -62,11 +62,20 @@ sed
 cut
 "
 
+readonly allowed_log_file_action_names="status
+depend
+install
+clear
+remove
+default
+"
+
 readonly salt_wrapper_file_list="minion
 call
 "
 
-readonly salt_minion_service_wrapper="# Copyright (c) 2021 VMware, Inc. All rights reserved.
+readonly salt_minion_service_wrapper=\
+"# Copyright (c) 2021 VMware, Inc. All rights reserved.
 
 [Unit]
 Description=The Salt Minion
@@ -95,15 +104,16 @@ readonly vmtools_salt_minion_section_name="salt_minion"
 
 ## VMware guestVars file and directory locations
 readonly guestvars_base_dir="guestinfo./vmware.components"
-readonly guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
+readonly \
+guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
 readonly guestvars_salt_args="${guestvars_salt_dir}.args"
 
 
 # Array for minion configuration keys and values
 # allows for updates from number of configuration sources before final
 # write to /etc/salt/minion
-declare -a minion_conf_keys
-declare -a minion_conf_values
+declare -a m_cfg_keys
+declare -a m_cfg_values
 
 
 ## Component Manager Installer/Script return/exit status codes
@@ -161,24 +171,27 @@ LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 # helper functions
 
 _timestamp() {
-    date "+%Y-%m-%d %H:%M:%S:"
+    date "+%Y-%m-%d %H:%M:%S"
 }
 
 _log() {
-    echo "$(_timestamp) $1" >>"${LOGGING}"
+    echo "$(_timestamp) $*" >> \
+        "${log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${logdate}.log"
 }
 
 _display() {
     if [[ ${VERBOSE_FLAG} -eq 1 ]]; then echo "$1"; fi
-    _log "$1"
+    _log "$*"
 }
 
 _error_log() {
     if [[ ${LOG_LEVELS_ARY[error]} -le ${LOG_LEVEL} ]]; then
-        msg="ERROR: $1"
+        local log_file=""
+        log_file="${log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${logdate}.log"
+        msg="ERROR: $*"
         echo "$msg" 1>&2
-        echo "$(_timestamp) $msg" >>"${LOGGING}"
-        echo "One or more errors found. See ${LOGGING} for details." 1>&2
+        echo "$(_timestamp) $msg" >> "${log_file}"
+        echo "One or more errors found. See ${log_file} for details." 1>&2
         CURRENT_STATUS=${STATUS_CODES_ARY[scriptFailed]}
         exit ${STATUS_CODES_ARY[scriptFailed]}
     fi
@@ -186,21 +199,22 @@ _error_log() {
 
 _info_log() {
     if [[ ${LOG_LEVELS_ARY[info]} -le ${LOG_LEVEL} ]]; then
-        _log "$1"
+        msg="INFO: $*"
+        _log "${msg}"
     fi
 }
 
 _warning_log() {
     if [[ ${LOG_LEVELS_ARY[error]} -le ${LOG_LEVEL} ]]; then
-        msg="WARNING: $1"
+        msg="WARNING: $*"
         _log "${msg}"
     fi
 }
 
 _debug_log() {
     if [[ ${LOG_LEVELS_ARY[debug]} -le ${LOG_LEVEL} ]]; then
-        msg="DEBUG: $1"
-        _log "$1"
+        msg="DEBUG: $*"
+        _log "${msg}"
     fi
 }
 
@@ -222,7 +236,8 @@ esac
 
  _usage() {
      echo ""
-     echo "usage: ${0}  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
+     echo "usage: ${0}"
+     echo "             [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
      echo "             [-l|--loglevel] [-m|--minionversion] [-r|--remove]"
      echo "             [-s|--status] [-v|--version]"
      echo ""
@@ -303,12 +318,12 @@ _set_log_level() {
     if [[ ${valid_level} -ne 1 ]]; then
         _warning_log "$0:${FUNCNAME[0]} attempted to set log_level with "\
             "invalid input, log_level unchanged, currently "\
-            "${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}"
+            "'${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}'"
     else
         LOG_LEVEL=${LOG_LEVELS_ARY[${ip_level}]}
         _info_log "$0:${FUNCNAME[0]} changed log_level from "\
-            "${LOG_MODES_AVAILABLE[${old_log_level}]} to "\
-            "${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}"
+            "'${LOG_MODES_AVAILABLE[${old_log_level}]}' to "\
+            "'${LOG_MODES_AVAILABLE[${LOG_LEVEL}]}'"
     fi
     return 0
 }
@@ -378,17 +393,17 @@ _update_minion_conf_ary() {
             "a key and a value"
     fi
 
-    # now search minion_conf_keys array to see if new key
-    key_ary_sz=${#minion_conf_keys[@]}
+    # now search m_cfg_keys array to see if new key
+    key_ary_sz=${#m_cfg_keys[@]}
     if [[ ${key_ary_sz} -ne 0 ]]; then
         # need to check if array has same key
         local chk_found=0
         for ((chk_idx=0; chk_idx<key_ary_sz; chk_idx++))
         do
-            if [[ "${minion_conf_keys[${chk_idx}]}" = "${cfg_key}" ]]; then
-                minion_conf_values[${chk_idx}]="${cfg_value}"
+            if [[ "${m_cfg_keys[${chk_idx}]}" = "${cfg_key}" ]]; then
+                m_cfg_values[${chk_idx}]="${cfg_value}"
                 _debug_log "$0:${FUNCNAME[0]} updating minion configuration "\
-                    "array key '${minion_conf_keys[${chk_idx}]}' with "\
+                    "array key '${m_cfg_keys[${chk_idx}]}' with "\
                     "value '${cfg_value}'"
                 chk_found=1
                 break;
@@ -396,15 +411,15 @@ _update_minion_conf_ary() {
         done
         if [[ ${chk_found} -eq 0 ]]; then
             # new key for array
-            minion_conf_keys[${key_ary_sz}]="${cfg_key}"
-            minion_conf_values[${key_ary_sz}]="${cfg_value}"
+            m_cfg_keys[${key_ary_sz}]="${cfg_key}"
+            m_cfg_values[${key_ary_sz}]="${cfg_value}"
             _debug_log "$0:${FUNCNAME[0]} adding to minion configuration "\
                 "array new key '${cfg_key}' and value '${cfg_value}'"
         fi
     else
         # initial entry
-        minion_conf_keys[0]="${cfg_key}"
-        minion_conf_values[0]="${cfg_value}"
+        m_cfg_keys[0]="${cfg_key}"
+        m_cfg_values[0]="${cfg_value}"
         _debug_log "$0:${FUNCNAME[0]} adding initial minion configuration "\
             "array, key '${cfg_key}' and value '${cfg_value}'"
     fi
@@ -496,9 +511,10 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
     local _retn=0
     local gvar_args=""
 
-    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null) || {
-        _warning_log "$0:${FUNCNAME[0]} unable to retrieve arguments from "\
-            "guest variables location ${guestvars_salt_args}, retcode '$?'";
+    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null)\
+        || { _warning_log "$0:${FUNCNAME[0]} unable to retrieve arguments "\
+            "from guest variables location ${guestvars_salt_args}, "\
+            "retcode '$?'";
     }
 
     if [[ -z "${gvar_args}" ]]; then return ${_retn}; fi
@@ -622,8 +638,8 @@ _fetch_vmtools_salt_minion_conf() {
     }
 
     # now write minion conf array to salt-minion configuration file
-    local mykey_ary_sz=${#minion_conf_keys[@]}
-    local myvalue_ary_sz=${#minion_conf_values[@]}
+    local mykey_ary_sz=${#m_cfg_keys[@]}
+    local myvalue_ary_sz=${#m_cfg_values[@]}
     if [[ "${mykey_ary_sz}" -ne "${myvalue_ary_sz}" ]]; then
         _error_log "$0:${FUNCNAME[0]} key '${mykey_ary_sz}' and "\
             "value '${myvalue_ary_sz}' array sizes for minion_conf "\
@@ -640,17 +656,17 @@ _fetch_vmtools_salt_minion_conf() {
 
             # check for special case of signed master's public key
             # verify_master_pubkey_sign=master_sign.pub
-            if [[ "${minion_conf_keys[${chk_idx}]}" \
+            if [[ "${m_cfg_keys[${chk_idx}]}" \
                     = "verify_master_pubkey_sign" ]]; then
                 _debug_log "$0:${FUNCNAME[0]} processing minion "\
                     "configuration parameters for master public signed key"
-                echo "${minion_conf_keys[${chk_idx}]}: True" \
+                echo "${m_cfg_keys[${chk_idx}]}: True" \
                     >> "${salt_minion_conf_file}"
                 mkdir -p "/etc/salt/pki/minion"
-                cp -f "${minion_conf_values[${chk_idx}]}" \
+                cp -f "${m_cfg_values[${chk_idx}]}" \
                     "${salt_master_sign_dir}/"
             else
-                echo "${minion_conf_keys[${chk_idx}]}: ${minion_conf_values[${chk_idx}]}" \
+                echo "${m_cfg_keys[${chk_idx}]}: ${m_cfg_values[${chk_idx}]}" \
                     >> "${salt_minion_conf_file}"
             fi
         done
@@ -1380,6 +1396,48 @@ _uninstall_fn () {
 }
 
 
+#
+#  _clean_up_log_files
+#
+#   Limits number of log files by removing oldest log files which exceed
+#   limit LOG_FILE_NUMBER
+#
+# Results:
+#   Exits with 0 or error code
+#
+_clean_up_log_files() {
+
+    _info_log "$0:${FUNCNAME[0]} removing and limiting log files"
+    for idx in ${allowed_log_file_action_names}
+    do
+        local count_f=0
+        local found_f=""
+        local -a found_f_ary
+        found_f=$(ls -t "${log_dir}/vmware-${SCRIPTNAME}-${idx}"* 2>/dev/null)
+        count_f=$(echo "${found_f}" | wc | awk -F" " '{print $2}')
+        mapfile -t found_f_ary <<< "${found_f}"
+
+        if [[ ${count_f} -gt ${LOG_FILE_NUMBER} ]]; then
+            # alloe for org-0
+            for ((i=count_f-1; i>=LOG_FILE_NUMBER; i--)); do
+                _debug_log "$0:${FUNCNAME[0]} removing log file "\
+                    "'${found_f_ary[i]}', for count '${i}', "\
+                    "limit '${LOG_FILE_NUMBER}'"
+                rm -f "${found_f_ary[i]}" || {
+                    _error_log "$0:${FUNCNAME[0]} failed to remove file "\
+                    "'${found_f_ary[i]}', for count '${i}', "\
+                    "limit '${LOG_FILE_NUMBER}'"
+                }
+            done
+        else
+            _debug_log "$0:${FUNCNAME[0]} found '${count_f}' "\
+                "log files starting with "\
+                "${log_dir}/vmware-${SCRIPTNAME}-${idx}-"\
+                ", limit '${LOG_FILE_NUMBER}'"
+        fi
+    done
+    return 0
+}
 
 ################################### MAIN ####################################
 
@@ -1391,16 +1449,19 @@ CURRDIR=$(pwd)
 CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
 export CURRENT_STATUS
 
-## build designation tag used for auto builds is
+## build date-time tag used for loggging YYYYMMDDhhmmss
 ## YearMontDayHourMinuteSecondMicrosecond aka jid
-date_long=$(date +%Y%m%d%H%M%S%N)
-curr_date="${date_long::-2}"
+logdate=$(date +%Y%m%d%H%M%S)
 
 # set logging infomation
+LOG_FILE_NUMBER=10
 SCRIPTNAME=$(basename "$0")
-mkdir -p "${script_log_dir}"
-log_file="${script_log_dir}/vmware-${SCRIPTNAME}-${curr_date}.log"
-LOGGING="${log_file}"
+mkdir -p "${log_dir}"
+
+# set to action e.g. 'remove', 'install'
+# default is for any logging not associated with a specific action
+# for example: debug logging and --version
+LOG_ACTION="default"
 
 
 CLI_ACTION=0
@@ -1480,6 +1541,7 @@ fi
 ##  MAIN BODY OF SCRIPT
 
 retn=0
+
 if [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
     # ensure logging level changes are processed before any actions
     CLI_ACTION=1
@@ -1488,11 +1550,13 @@ if [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
 fi
 if [[ ${STATUS_CHK} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="status"
     _status_fn
     retn=$?
 fi
 if [[ ${DEPS_CHK} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="depend"
     _deps_chk_fn
     retn=$?
 fi
@@ -1504,16 +1568,19 @@ if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
 fi
 if [[ ${INSTALL_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="install"
     _install_fn "${INSTALL_PARAMS}"
     retn=$?
 fi
 if [[ ${CLEAR_ID_KEYS_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="clear"
     _clear_id_key_fn "${CLEAR_ID_KEYS_PARAMS}"
     retn=$?
 fi
 if [[ ${UNINSTALL_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
+    LOG_ACTION="remove"
     _uninstall_fn
     retn=$?
 fi
@@ -1535,18 +1602,22 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
     if [[ -n "${gvar_action}" ]]; then
         case "${gvar_action}" in
             depend)
+                LOG_ACTION="depend"
                 _deps_chk_fn
                 retn=$?
                 ;;
             add)
+                LOG_ACTION="install"
                 _install_fn
                 retn=$?
                 ;;
             remove)
+                LOG_ACTION="remove"
                 _uninstall_fn
                 retn=$?
                 ;;
             status)
+                LOG_ACTION="status"
                 _status_fn
                 retn=$?
                 ;;
@@ -1555,5 +1626,7 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
         esac
     fi
 fi
+
+_clean_up_log_files
 
 exit ${retn}

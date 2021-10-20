@@ -156,6 +156,19 @@ pre-requisites:
           salt-minion vmtools integration script
               example: ./svtminion.sh --status
 
+Note: Log files are found in directory /var/log with the following format:
+
+/var/log/vmware-svtminion.sh-<clear|default|depend|install|remove|status>-YYYYMMDDhhmmss.log
+
+where actions 'clear', 'depend', 'install', 'remove' and 'status' log files are due
+to executing those options and 'default' is for any other commands which is executed and
+is not an action, for example:
+
+    svtminion.sh --versions --loglevel debug
+
+Only the 10 latest log files of each type of log file are maintained, excess log files
+are removed.  Log files are not removed when the 'remove' option is executed
+
 
 Windows Environment:
 --------------------
