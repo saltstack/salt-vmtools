@@ -1,6 +1,6 @@
 # salt-vm-tools
 
-VMTools salt integration script to install/remove/check status for a Salt minion
+The VMTools salt integration script installs, removes, or checks the status of a Salt minion
 (`salt-minion`) in a VMware controlled Virtual Machine environment.
 
 This script operates as a BASH script in Linux environments and a PowerShell
@@ -12,21 +12,21 @@ onedir option internally. The Salt minion is fully self-contained and requires
 no additional dependencies.
 
 The script can install, remove, and check the status of an installed Salt minion
-either by direct command line option or via VMware's use of Guest Variables,
+either using a direct command line option or via VMware's use of Guest Variables,
 commonly referred to as guestVars.
 
 
-## Configuration Options
+## Configuration options
 
 You can pass configuration to this script in 3 ways: tools.conf, guestVars, and
 the command line. Each option has an order of precedence. The lowest being
 tools.conf, followed by guestVars, with the highest precedence being the command
-line. Each option is discussed below.
+line. Each option is explained in the following sections.
 
 ### tools.conf (lowest preference)
 
-The `tools.conf` file contains configuration for vmtools in an `.ini` format.
-This tool looks for the `salt_minion` section and uses all configuration defined
+The `tools.conf` file contains the configurations for vmtools in an `.ini` format.
+This tool looks for the `salt_minion` section and uses the configurations defined
 under that section. This file is stored at:
 
 | OS  | Location |
@@ -34,11 +34,11 @@ under that section. This file is stored at:
 | Linux | `/etc/vmware-tools/tools.conf` |
 | Windows | `C:\ProgramData\VMware\VMware Tools\tools.conf` |
 
-Below is a sample of the `salt_minion` section as it may be defined in
+Below is an example of the `salt_minion` section as it may be defined in
 `tools.conf`:
 
     [salt_minion]
-    master=192.168.0.118
+    master=203.0.113.1
     conf_file=/etc/salt/minion
     id=dev_minion
 
@@ -60,7 +60,7 @@ The guestVars paths are as follows:
 
 If set, the `Action` option will return a single word that is the action this
 script will perform. If set, the `Config` option will return a space delimited
-list of minion config options, eg: `master=192.168.0.12 id=my_minion
+list of minion config options. For example: `master=198.51.100.1 id=my_minion
 multiprocessing=false`
 
 These values are set on the host OS using the `vmrun` binary. For example:
@@ -69,43 +69,44 @@ These values are set on the host OS using the `vmrun` binary. For example:
     vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion "install"
 
     # To set the Config Options
-    vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion.args "master=192.168.0.120"
+    vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion.args "master=203.0.113.1"
 
-They can be read on the guest OS using the `vmtoolsd` binary. For example
+They can be read on the guest OS using the `vmtoolsd` binary. For example:
 
     # To read the Config Options
     [root@fedora]# vmtoolsd --cmd "info-get guestinfo.vmware.components.salt_minion.args"
-    master=192.168.0.120
+    master=203.0.113.1
 
 ### Command Line (highest preference)
 
-Any input passed to the script on the command line will take precedence over the
-action and config in guestVars and anything configured in `tools.conf` with the
-same name.
+Any input passed to the script on the command line will take precedence over:
+
+- The action and config options set in guestVars
+- Anything configured in `tools.conf` with the same name.
 
 Linux example:
 
-    [root@fedora]# svtminion.sh --install master=192.168.0.122
+    [root@fedora]# svtminion.sh --install master=198.51.100.1
 
 Windows example (note the single dash):
 
     # Powershell
-    PS> svtminion.ps1 -install master=192.168.0.122
+    PS> svtminion.ps1 -install master=198.51.100.1
 
     # cmd
-    C:\>powershell -file svtminion.ps1 -install master=192.168.0.122
+    C:\>powershell -file svtminion.ps1 -install master=198.51.100.1
 
 **Note:** Higher preference configuration options will supersede lower
-preference values.  For example: in the configuration preference examples
-outlined above, the final value for master is `192.168.0.122`. Commane line
-option for master overrides the `tools.conf` value of `192.168.0.118` and the
-guestVars value of `192.168.0.120` because the command line arguments have the
+preference values.  For example, in the configuration preference examples
+outlined above, the final value for master is `198.51.100.1`. Command line
+option for master overrides the `tools.conf` value of `203.0.113.1` and the
+guestVars value of `203.0.113.1` because the command line arguments have the
 highest precedence.
 
 **Note:*** On Windows, if the minion ID is not passed, the guest host name will
-be used. On Linux, however, there is no guarantee that a host name will be set.
+be used. However, on Linux there is no guarantee that a host name will be set.
 Therefore, a minion ID is automatically generated for the Salt minion. In either
-case the minion ID can be specified in any of the 3 config options. For example:
+case, the minion ID can be specified in any of the 3 config options. For example:
 
     id=myminion
 
@@ -121,7 +122,7 @@ And the following is defined in guestVars:
     [root@fedora]# vmtoolsd --cmd "info-get guestinfo.vmware.components.salt_minion"
     remove
 
-Preference will be given to the command line argument and the Salt minion will
+Preference is given to the command line argument and the Salt minion package will
 be installed.
 
 
@@ -135,7 +136,7 @@ This script creates a log file at the following location:
 | Windows | `C:\ProgramData\VMware\logs` |
 
 The content of the log file depends on the `LogLevel` passed on the command
-line. The default is `warning`. Valid options are:
+line. The default value is `warning`. Valid options are:
 
 | Log Level | Description |
 | --------- | ----------- |
@@ -145,7 +146,7 @@ line. The default is `warning`. Valid options are:
 | `info`    | Displays and logs errors, warnings, and info messages |
 | `debug`   | Displays and logs all messages |
 
-Log files are named based on the action that the script is performing. The
+The names of Log files are based on the action that the script is performing. The
 `action` can be defined on the command line or by setting a value in guestVars.
 Any logging that is unrelated to an action uses the keyword `default`. Valid
 actions are as follows:
@@ -156,7 +157,7 @@ actions are as follows:
 - `remove`
 - `status`
 
-For example, running the script without a defined action will result in a log
+For example, running the script without a defined action results in a log
 file with the following name:
 
     # Linux
@@ -174,12 +175,12 @@ file with the following name:
     C:\ProgramData\VMware\logs\vmware-svtminion-default-YYYYMMDDhhmmss.log
 
 Only the 10 most recent log files for each action are maintained. Excess log
-files are removed. Log files are not removed when the minion is uninstalled.
+files are removed. Log files are not removed when the salt-minion service is uninstalled.
 
 
 ## Linux Environment:
 
-On Linux systems the install script is a bash script with the following
+On Linux systems, the install script is a bash script with the following
 pre-requisites:
 
 - systemctl
@@ -219,8 +220,8 @@ pre-requisites:
 Windows Environment:
 --------------------
 
-On Windows systems the install script is a powershell script. The only
-prerequisite for Windows is the `vmtoolsd.exe` binary which is used to query
+On Windows systems, the install script is a powershell script. The only
+prerequisite for Windows is the `vmtoolsd.exe` binary, which is used to query
 guestVars data. You can get help for this script by running `svtminion.ps1 -h`
 or `Get-Help svtminion.ps1`:
 
@@ -245,10 +246,10 @@ or `Get-Help svtminion.ps1`:
         install the minion, remove it, check script dependencies, get the script status,
         and reset the minion.
 
-        When this script is run without any parameters the options will be obtained from
-        guestVars if present. If not they will be obtained from tools.conf. This
-        includes the action (install, remove, etc) and the minion config options
-        (master=192.168.10.10, etc.). The order of precedence is CLI options, then
+        When this script is run without any parameters, the options are obtained from
+        guestVars (if present). If not, they are obtained from tools.conf. This
+        includes the action (install, remove, etc.) and the minion config options
+        (master=198.51.100.1, etc.). The order of precedence is CLI options, then
         guestVars, and finally tools.conf.
 
         This script returns status exit codes when passing the Status option. Additional
@@ -268,20 +269,20 @@ or `Get-Help svtminion.ps1`:
 
         -ConfigOptions <String[]>
             Any number of minion config options specified by the name of the config
-            option as found in salt documentation. All options will be lower-cased and
+            option as found in Salt documentation. All options will be lowercase and
             written to the minion config as passed. All values are in the key=value.
-            format. eg: master=localhost
+            format. For example: master=localhost
 
         -Remove [<SwitchParameter>]
-            Stop and uninstall the salt-minion service.
+            Stops and uninstalls the salt-minion service.
 
         -Clear [<SwitchParameter>]
-            Reset the salt-minion. Randomize the minion id and remove the minion keys.
-            The randomized minion id will be the old minion id, an underscore, and 5
+            Resets the salt-minion by andomizing the minion ID and removing the minion keys.
+            The randomized minion ID will be the old minion ID, an underscore, and 5
             random digits.
 
         -Status [<SwitchParameter>]
-            Get the status of the salt minion installation. This returns a numeric
+            Get the status of the salt minion installation. This command returns a numeric
             value that corresponds as follows:
             100 - installed
             101 - installing
@@ -291,7 +292,7 @@ or `Get-Help svtminion.ps1`:
             105 - removeFailed
 
         -Depend [<SwitchParameter>]
-            Ensure the required dependencies are available. Exits with a scriptFailed
+            Ensures the required dependencies are available. Exits with a scriptFailed
             error code (126) if any dependencies are missing.
 
         -LogLevel <String>
