@@ -2,7 +2,7 @@
 
 # Copyright (c) 2021 VMware, Inc. All rights reserved.
 
-## Salt VTtools Integration script
+## Salt VMware Tools Integration script
 ##  integration with Component Manager and GuestStore Helper
 
 ## set -u
@@ -14,14 +14,11 @@ set -o pipefail
 # using bash for now
 # run this script as root, as needed to run salt
 
-SCRIPT_VERSION='SCRIPT_VERSION_REPLACE'
+readonly SCRIPT_VERSION='SCRIPT_VERSION_REPLACE'
 
 # definitions
 
 CURL_DOWNLOAD_RETRY_COUNT=5
-
-## TBD these definitions will parse repo.json for 'latest' and download that
-## when available these value in use for poc
 
 ## Repository locations and naming
 readonly default_salt_url_version="3003.3-1"
@@ -118,13 +115,14 @@ declare -a m_cfg_values
 
 ## Component Manager Installer/Script return/exit status codes
 # return/exit Status codes
-#  0 => installed
-#  1 => installing
-#  2 => notInstalled
-#  3 => installFailed
-#  4 => removing
-#  5 => removeFailed
+#  100 + 0 => installed
+#  100 + 1 => installing
+#  100 + 2 => notInstalled
+#  100 + 3 => installFailed
+#  100 + 4 => removing
+#  100 + 5 => removeFailed
 #  126 => scriptFailed
+#  130 => scriptTerminated
 declare -A STATUS_CODES_ARY
 STATUS_CODES_ARY[installed]=100
 STATUS_CODES_ARY[installing]=101
@@ -171,7 +169,7 @@ LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 # helper functions
 
 _timestamp() {
-    date "+%Y-%m-%d %H:%M:%S"
+    date -u "+%Y-%m-%d %H:%M:%S"
 }
 
 _log() {
@@ -1304,7 +1302,7 @@ _clear_id_key_fn () {
 #   Exits with 0 or error code
 #
 
- _remove_installed_files_dirs() {
+_remove_installed_files_dirs() {
     _debug_log "$0:${FUNCNAME[0]} removing directories and files "\
         "in '${list_file_dirs_to_remove}'"
     for idx in ${list_file_dirs_to_remove}
@@ -1449,9 +1447,9 @@ CURRDIR=$(pwd)
 CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
 export CURRENT_STATUS
 
-## build date-time tag used for loggging YYYYMMDDhhmmss
+## build date-time tag used for logging UTC YYYYMMDDhhmmss
 ## YearMontDayHourMinuteSecondMicrosecond aka jid
-logdate=$(date +%Y%m%d%H%M%S)
+logdate=$(date -u +%Y%m%d%H%M%S)
 
 # set logging infomation
 LOG_FILE_NUMBER=10
