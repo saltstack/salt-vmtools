@@ -10,11 +10,17 @@ build hosted on https://repo.saltproject.io/salt/vmware-tools-onedir. You can
 install the minion, remove it, check script dependencies, get the Salt minion
 installation status, and reset the Salt minion configuration.
 
-When this script is run without any parameters, the options are obtained from
-guestVars (if present). If not, they are obtained from tools.conf. This includes
-the action (install, remove, etc.) and the minion config options
-(master=198.51.100.1, etc.). The order of precedence is CLI options first, then
-guestVars, and finally tools.conf.
+When this script is run without any parameters, the action is obtained from
+guestVars (if present). If no action is found, the script will exit with a
+scriptFailed exit code.
+
+If an action is passed on the CLI or found in guestVars, minion config options
+(master=198.51.100.1, etc.) are queried from guestVars. Config options are then
+obtained from tools.conf. Config options obtained from tools.conf will overwrite
+any config options obtained from guestVars with the same name. Config options
+passed on the CLI will overwrite any config options obtained from either of the
+previous two methods. The order of precedence is CLI options first, then
+tools.conf, and finally guestVars.
 
 This script returns exit codes to signal its success or failure. The exit codes
 are as follows:
@@ -218,10 +224,11 @@ $Script:log_cleared = $false
 $download_retry_count = 5
 $script_date = Get-Date -Format "yyyyMMddHHmmss"
 $script_name = $MyInvocation.MyCommand.Name
-$script_log_dir = "$env:ProgramData\VMware\logs"
+$script_log_dir = "$env:SystemRoot\Temp"
 # log file name: vmware-svtminion-{0}-20211019152012.log
 $script_log_base_name = "vmware-$($script_name.Split(".")[0])-{0}"
 $script_log_name = "$script_log_base_name-$script_date.log"
+$script_log_file_count = 5
 $action_list = @("install", "remove", "depend", "clear", "status")
 
 ################################# VARIABLES ####################################
@@ -260,12 +267,12 @@ $Error.Clear()
 try{
     $reg_key = Get-ItemProperty $vmtools_base_reg
 } catch {
-    $msg = "Unable to find valid VMtools installation : $Error"
+    $msg = "Unable to find valid VMware Tools installation : $Error"
     Write-Host $mst -ForeGroundColor Red
     exit $STATUS_CODES["scriptFailed"]
 }
 if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
-    Write-Host "Unable to find valid VMtools installation" -ForeGroundColor Red
+    Write-Host "Unable to find valid VMware Tools installation" -ForeGroundColor Red
     exit $STATUS_CODES["scriptFailed"]
 }
 
@@ -297,7 +304,7 @@ function Clear-OldLogs {
     $total_files = $files.Count
     try {
         foreach ($file in $files) {
-            if ($total_files -ge 10) {
+            if ($total_files -ge $script_log_file_count) {
                 Remove-Item -Path $file.FullName -Force
                 $total_files -= 1
             } else {
@@ -372,7 +379,7 @@ function Get-ScriptRunningStatus {
                  Select-Object CommandLine,ProcessId
 
     $process_found = $false
-    foreach ($process in $processes){
+    foreach ($process in $processes) {
         [Int32]$process_pid = $process.ProcessId
         [String]$process_cmd = $process.commandline
         #Are other instances of this script already running?
@@ -465,10 +472,9 @@ function Set-Status {
     Write-Log "Setting status: $NewStatus" -Level info
     $status_code = $STATUS_CODES[$NewStatus]
     # If it's notInstalled, just remove the propery name
+    $Error.Clear()
     if ($status_code -eq $STATUS_CODES["notInstalled"]) {
-        $Error.Clear()
-        try
-        {
+        try {
             Remove-ItemProperty -Path $vmtools_base_reg `
                                 -Name $vmtools_salt_minion_status_name
             $key = "$vmtools_base_reg\$vmtools_salt_minion_status_name"
@@ -482,7 +488,6 @@ function Set-Status {
             exit $STATUS_CODES["scriptFailed"]
         }
     } else {
-        $Error.Clear()
         try {
             New-ItemProperty -Path $vmtools_base_reg `
                              -Name $vmtools_salt_minion_status_name `
@@ -629,6 +634,7 @@ function Expand-ZipFile {
         New-Item -ItemType directory -Path $Destination
     }
     Write-Log "Unzipping '$ZipFile' to '$Destination'" -Level debug
+    $Error.Clear()
     if ($PSVersionTable.PSVersion.Major -ge 5) {
         # PowerShell 5 introduced Expand-Archive
         try{
@@ -643,7 +649,6 @@ function Expand-ZipFile {
         # slow
         $objShell = New-Object -Com Shell.Application
         $objZip = $objShell.NameSpace($ZipFile)
-        $Error.Clear()
         try{
             foreach ($item in $objZip.Items()) {
                 $objShell.Namespace($Destination).CopyHere($item, 0x14)
@@ -799,14 +804,11 @@ function Remove-FileOrFolder {
 
     if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
         Write-Log "Taking ownership: $Path" -Level debug
-        & takeown /a /r /d Y /f $Path *> $null
+        takeown /a /r /d Y /f $Path *> $null
         if ($LASTEXITCODE) {
             Write-Log "Directory does not exist" -Level debug
         }
     }
-
-    # Pause here to avoid a race condition
-    Start-Sleep -Seconds 1
 
     while (!($success)) {
         $Error.Clear()
@@ -939,7 +941,7 @@ function Get-ConfigCLI {
     if ($ConfigOptions) {
         return _parse_config $ConfigOptions
     } else {
-        Write-Log "Minion config not passed on CLI" -Level warning
+        Write-Log "Minion config not passed on CLI" -Level debug
     }
 }
 
@@ -957,7 +959,7 @@ function Get-ConfigGuestVars {
     if ($config_options) {
         return _parse_config $config_options
     } else {
-        Write-Log "Minion config not defined in guestvars" -Level warning
+        Write-Log "Minion config not defined in guestvars" -Level debug
     }
 }
 
@@ -1016,7 +1018,7 @@ function Get-ConfigToolsConf {
         Write-Log "Found $count config options" -Level debug
         return $config_options[$guestvars_section]
     } else {
-        Write-Log "Minion config not defined in tools.conf" -Level warning
+        Write-Log "Minion config not defined in tools.conf" -Level debug
         return @{}
     }
 }
@@ -1025,11 +1027,11 @@ function Get-ConfigToolsConf {
 function Get-MinionConfig {
     # Get the minion config values to be placed in the minion config file. The
     # Order of priority is as follows:
-    # - Get config from tools.conf (defined by VMtools - older method)
-    # - Get config from GuestVars (defined by VMtools), overwrites matching
-    #   tools.conf
+    # - Get config from GuestVars (defined by VMware Tools)
+    # - Get config from tools.conf (defined by VMware Tools - older method),
+    #   overwrites guestVars with the same name
     # - Get config from the CLI (options passed to the script), overwrites
-    #   matching guestVars
+    #   guestVars and tools.conf settin
     # - No config found, use salt minion defaults (master: salt, id: hostname)
     #
     # Used by:
@@ -1038,19 +1040,19 @@ function Get-MinionConfig {
     # Returns a hash table of options or null if no options found
     Write-Log "Getting minion config" -Level info
     $config_options = @{}
-    # Get tools.conf config first
-    $tc_config = Get-ConfigToolsConf
-    if ($tc_config) {
-        foreach ($row in $tc_config.GetEnumerator()) {
+    # Get guestVars config, conflicting values will be overwritten by guestvars
+    $gv_config = Get-ConfigGuestVars
+    if ($gv_config) {
+        foreach ($row in $gv_config.GetEnumerator()) {
             if ($row.Value) {
                 $config_options[$row.Name] = $row.Value
             }
         }
     }
-    # Get guestVars config, conflicting values will be overwritten by guestvars
-    $gv_config = Get-ConfigGuestVars
-    if ($gv_config) {
-        foreach ($row in $gv_config.GetEnumerator()) {
+    # Get tools.conf config first
+    $tc_config = Get-ConfigToolsConf
+    if ($tc_config) {
+        foreach ($row in $tc_config.GetEnumerator()) {
             if ($row.Value) {
                 $config_options[$row.Name] = $row.Value
             }
@@ -1087,9 +1089,12 @@ function Get-IsSecureOwner {
         [String] $Path
     )
 
-    $acl = Get-Acl($Path)
+    $acl = Get-Acl -Path $Path
     $owner = (($acl | Select-Object Owner).Owner).ToLower()
-    if (($owner.EndsWith("system")) -or ($owner.EndsWith("administrators"))) {
+    if ($owner -eq "nt authority\system") {
+        return $true
+    }
+    if ($owner -eq "builtin\administrators") {
         return $true
     }
     return $false
@@ -1103,7 +1108,7 @@ function Set-Security {
         [String] $Path,
 
         [Parameter(Mandatory=$false)]
-        [String] $Owner = "Administrators"
+        [String] $Owner = "BUILTIN\Administrators"
     )
 
     Write-Log "Setting Security: $Path" -Level info
@@ -1133,62 +1138,49 @@ function New-SecureDirectory {
         if (Get-IsSymlink -Path $Path) {
             Write-Log "Found symlink: $Path" -Level warning
             Write-Log "Renaming symlink (.insecure): $Path" -Level warning
-            if (Test-Path -Path "$Path.insecure") {
-                Write-Log "Insecure backup directory already exists." error
-                Write-Log "Please double check the existing directory" error
-                Write-Log "If you are not sure why it exists we recommend" error
-                Write-Log "that you remove all directories named $Path" error
-                Write-Host "Insecure directory exists. Terminating Script"
-                exit $STATUS_CODES["scriptFailed"]
-            }
             # We can't rename a symlink, we have to delete and recreate it
             $target = (Get-Item $Path | Select-Object -ExpandProperty Target)
             [System.IO.Directory]::Delete($Path, $true) | Out-Null
             New-Item -ItemType SymbolicLink `
-                     -Path "$Path.insecure" `
+                     -Path "$Path-$script_date.insecure" `
                      -Target $target | Out-Null
+            $msg = "Insecure symlink renamed: $Path-$script_date.insecure"
+            Write-Log $msg -Level debug
         }
     }
     if (Test-Path -Path $Path) {
         if (!(Get-IsSecureOwner -Path $Path)) {
             Write-Log "Found insecure owner: $Path" -Level warning
             Write-Log "Renaming directory (.insecure): $Path" -Level warning
-            if (Test-Path -Path "$Path.insecure") {
-                Write-Log "Insecure backup directory already exists." error
-                Write-Log "Please double check the existing directory" error
-                Write-Log "If you are not sure why it exists we recommend" error
-                Write-Log "that you remove all directories named $Path" error
-                Write-Host "Insecure directory exists. Terminating Script"
-                exit $STATUS_CODES["scriptFailed"]
-            }
             Move-Item -Path $Path `
-                      -Destination "$Path.insecure" `
+                      -Destination "$Path-$script_date.insecure" `
                       -Force | Out-Null
+            $msg = "Insecure directory renamed: $Path-$script_date.insecure"
+            Write-Log $msg -Level debug
         }
-    }
-    if (Test-Path -Path $Path) {
-        if((Get-ChildItem -Path $Path | Measure-Object).Count -ne 0) {
-            Write-Log "Found non-empty directory: $Path" -Level warning
-            Write-Log "Renaming file/folder (.insecure): $Path" -Level warning
-            if (Test-Path -Path "$Path.insecure") {
-                Write-Log "Insecure backup directory already exists." error
-                Write-Log "Please double check the existing directory" error
-                Write-Log "If you are not sure why it exists we recommend" error
-                Write-Log "that you remove all directories named $Path" error
-                Write-Host "Insecure directory exists. Terminating Script"
-                exit $STATUS_CODES["scriptFailed"]
-            }
-            Move-Item -Path $Path `
-                      -Destination "$Path.insecure" `
-                      -Force | Out-Null
-        }
-    }
-    if (!(Test-Path -Path $Path)) {
-        Write-Log "Creating directory: $Path" -Level debug
-        New-Item -Path $Path -Type Directory | Out-Null
     }
 
-    Set-Security -Path $Path
+    $tries = 1
+    $max_tries = 5
+    while ($tries -le $max_tries) {
+        if (Test-Path -Path $Path) {
+            Remove-FileOrFolder -Path $Path
+        }
+
+        $msg = "Creating secure directory (try: $tries/$max_tries): $Path"
+        Write-Log $msg -Level debug
+        New-Item -Path $Path -Type Directory | Out-Null
+        Set-Security -Path $Path
+
+        if((Get-ChildItem -Path $Path | Measure-Object).Count -ne 0) {
+            # Someone is competing with us
+            Write-Log "Expected empty directory. Trying again..." -Level warning
+            $tries++
+            continue
+        }
+        Write-Log "Secure directory created successfully" -Level debug
+        break
+    }
 }
 
 
@@ -1197,14 +1189,16 @@ function Add-MinionConfig {
 
     # Make sure the config directory exists
     New-SecureDirectory -Path $base_salt_config_location
-    New-SecureDirectory -Path $salt_root_dir
-    New-SecureDirectory -Path $salt_config_dir
+
+    # Child directories will inherit the permissions
+    New-Item -Path $salt_root_dir -Type Directory | Out-Null
+    New-Item -Path $salt_config_dir -Type Directory | Out-Null
 
     # Get the minion config
     $config_options = Get-MinionConfig
 
-    if (!($config_options)) {
-        Write-Log "No minion config found. Defaults will be used" -Level warning
+    if ($config_options.Count -eq 0) {
+        Write-Log "No minion config found. Defaults will be used" -Level debug
     }
 
     # Add file_roots to point to ProgramData
@@ -1298,7 +1292,7 @@ function Confirm-Dependencies {
     $deps_present = $true
     Write-Log "Checking dependencies" -Level info
 
-    # VMtools files
+    # VMware Tools files
     # Files required by this script
     $salt_dep_files = @{}
     $salt_dep_files["vmtoolsd.exe"] = $vmtools_base_dir
@@ -1494,7 +1488,7 @@ function Install-SaltMinion {
     Write-Log "Installing salt-minion service" -Level info
     & $ssm_bin install salt-minion "$salt_bin" `
                 "minion -c """"$salt_config_dir""""" *> $null
-    & $ssm_bin set salt-minion Description Salt Minion from VMtools *> $null
+    & $ssm_bin set salt-minion Description Salt Minion from VMware Tools *> $null
     & $ssm_bin set salt-minion Start SERVICE_AUTO_START *> $null
     & $ssm_bin set salt-minion AppStopMethodConsole 24000 *> $null
     & $ssm_bin set salt-minion AppStopMethodWindow 2000 *> $null

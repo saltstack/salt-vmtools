@@ -47,30 +47,40 @@ function test-Get-ConfigCLI {
 }
 
 function test_Get-MinionConfig_tools.conf {
-    function Get-GuestVars { "" }
+    # tools.conf should superced guestVars
+    function Get-GuestVars { "master=gv_master id=gv_minion" }
+    function Read-IniContent { @{ salt_minion = @{ master = "tc_master" } } }
+
     $failed = 0
     $config = Get-MinionConfig
     if ($config["master"] -ne "tc_master") { $failed = 1 }
-    if ($config["id"] -ne "tc_minion") { $failed = 1 }
+    if ($config["id"] -ne "gv_minion") { $failed = 1 }
     return $failed
 }
 
 function test_Get-MinionConfig_guestVars {
+    # Least precedence
     $failed = 0
     # modify guestvars function
-    function Get-GuestVars { "master=gv_master" }
+    function Get-GuestVars { "master=gv_master id=gv_minion" }
+    # modify ini content so that we get all the guestVars
+    function Read-IniContent { @{} }
     # Clear CLI
     $ConfigOptions = $null
     $config = Get-MinionConfig
+
     if ($config["master"] -ne "gv_master") {$failed = 1}
-    if ($config["id"] -ne "tc_minion") { $failed = 1 }
+    if ($config["id"] -ne "gv_minion") { $failed = 1 }
     return $failed
 }
 
 function test_Get-MinionConfig_CLI {
     $failed = 0
-    # modify guestvars function
+    # We have to try to mock getting guestVars
     function Get-GuestVars { "master=gv_master" }
+    # We have to try to mock getting tools.conf
+    function Read-IniContent { @{ salt_minion = @{ master = "tc_master" } } }
+    # Set the CLI Options by defining ConfigOptions
     $ConfigOptions = @("master=cli_master"; "id=cli_minion")
     $config = Get-MinionConfig
     if ($config["master"] -ne "cli_master") { $failed = 1 }
@@ -80,7 +90,9 @@ function test_Get-MinionConfig_CLI {
 
 function test_Add-MinionConfig {
     # We have to try to mock getting guestVars
-    function Get-GuestVars { "id=gv_minion" }
+    function Get-GuestVars { "master=gv_master id=gv_minion" }
+    # We have to try to mock getting ini values
+    function Read-IniContent { @{ salt_minion = @{ master = "tc_master"; root_dir="tc_root_dir" } } }
     # Set CLI Options
     $ConfigOptions = @("root_dir=cli_root_dir")
     Add-MinionConfig
