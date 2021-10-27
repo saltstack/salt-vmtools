@@ -18,7 +18,7 @@ function setUpScript {
     Write-Host "Creating insecure owner test directory: " -NoNewline
     New-Item -Path $test_existing_insecure_owner -Type Directory -Force | Out-Null
     $file_acl = Get-Acl -Path $test_existing_insecure_owner
-    $file_acl.SetOwner([System.Security.Principal.NTAccount]"Users")
+    $file_acl.SetOwner([System.Security.Principal.NTAccount]"BUILTIN\Users")
     Set-Acl -Path $test_existing_insecure_owner -AclObject $file_acl
     Write-Done
 
@@ -78,28 +78,32 @@ function tearDownScript {
 }
 
 function test_New-SecureDirectory_existing {
+    # We're deleting anything we find, so the creation date should be different
     $before_time = (Get-Item -Path $test_existing).CreationTime
     New-SecureDirectory -Path $test_existing
     $after_time= (Get-Item -Path $test_existing).CreationTime
-    if ($before_time -eq $after_time) { return 0 }
+    if ($before_time -lt $after_time) { return 0 }
     return 1
 }
 
 function test_New-SecureDirectory_symlink {
+    # Should rename the symlink
     New-SecureDirectory -Path $test_existing_symlink
     if (Get-IsSymLink -Path $test_existing_symlink) { return 1 }
-    if (!(Test-Path -Path "$test_existing_symlink.insecure")) { return 1 }
+    if (!(Test-Path -Path "$test_existing_symlink-$script_date.insecure")) { return 1 }
     return 0
 }
 
 function test_New-SecureDirectory_insecure_owner {
+    # Should rename the directory
     New-SecureDirectory -Path $test_existing_insecure_owner
-    if (!(Test-Path -Path "$test_existing_insecure_owner.insecure")) { return 1 }
+    if (!(Test-Path -Path "$test_existing_insecure_owner-$script_date.insecure")) { return 1 }
     return 0
 }
 
 function test_New-SecureDirectory_not_empty {
+    # Should wipe out the directory and create a new empty directory
     New-SecureDirectory -Path $test_existing_not_empty
-    if (!(Test-Path -Path "$test_existing_not_empty.insecure")) { return 1 }
+    if((Get-ChildItem -Path $test_existing_not_empty | Measure-Object).Count -ne 0) { return 1 }
     return 0
 }

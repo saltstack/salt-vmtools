@@ -246,11 +246,17 @@ or `Get-Help svtminion.ps1`:
         install the minion, remove it, check script dependencies, get the Salt minion
         installation status, and reset the Salt minion configuration.
 
-        When this script is run without any parameters, the options are obtained from
-        guestVars (if present). If not, they are obtained from tools.conf. This includes
-        the action (install, remove, etc.) and the minion config options
-        (master=198.51.100.1, etc.). The order of precedence is CLI options first, then
-        guestVars, and finally tools.conf.
+        When this script is run without any parameters, the action is obtained from
+        guestVars (if present). If no action is found, the script will exit with a
+        scriptFailed exit code.
+
+        If an action is passed on the CLI or found in guestVars, minion config options
+        (master=198.51.100.1, etc.) are queried from guestVars. Config options are then
+        obtained from tools.conf. Config options obtained from tools.conf will overwrite
+        any config options obtained from guestVars with the same name. Config options
+        passed on the CLI will overwrite any config options obtained from either of the
+        previous two methods. The order of precedence is CLI options first, then
+        tools.conf, and finally guestVars.
 
         This script returns exit codes to signal its success or failure. The exit codes
         are as follows:
