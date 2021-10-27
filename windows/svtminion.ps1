@@ -2,43 +2,54 @@
 
 <#
 .SYNOPSIS
-VMware Tools script for managing the salt minion on a Windows guest
+VMware Tools script for managing the Salt minion on a Windows guest
 
 .DESCRIPTION
-This script manages the salt minion on a Windows guest. The minion is a tiamat
+This script manages the Salt minion on a Windows guest. The minion is a tiamat
 build hosted on https://repo.saltproject.io/salt/vmware-tools-onedir. You can
-install the minion, remove it, check script dependencies, get the script status,
-and reset the minion.
+install the minion, remove it, check script dependencies, get the Salt minion
+installation status, and reset the Salt minion configuration.
 
-When this script is run without any parameters the options will be obtained from
-guestVars if present. If not they will be obtained from tools.conf. This
-includes the action (install, remove, etc) and the minion config options
-(master=192.168.10.10, etc.). The order of precedence is CLI options, then
+When this script is run without any parameters, the options are obtained from
+guestVars (if present). If not, they are obtained from tools.conf. This includes
+the action (install, remove, etc.) and the minion config options
+(master=198.51.100.1, etc.). The order of precedence is CLI options first, then
 guestVars, and finally tools.conf.
 
-This script returns status exit codes when passing the Status option. Additional
-exit codes that may be returned by this script pertain to its success or
-failure. They are as follows:
+This script returns exit codes to signal its success or failure. The exit codes
+are as follows:
 
 0 - scriptSuccess
 126 - scriptFailed
 130 - scriptTerminated
 
-.EXAMPLE
-PS>svtminion.ps1 -install
-PS>svtminion.ps1 -install -version 3004-1 master=192.168.10.10 id=vmware_minion
+If the Status option is passed, then the exit code will signal the status of the
+Salt minion installation. Status exit codes are as follows:
+
+100 - installed
+101 - installing
+102 - notInstalled
+103 - installFailed
+104 - removing
+105 - removeFailed
+
+NOTE: This script must be run with Administrator privileges
 
 .EXAMPLE
-PS>svtminion.ps1 -clear -prefix new_minion
+PS>svtminion.ps1 -Install
+PS>svtminion.ps1 -Install -Version 3004-1 master=192.168.10.10 id=vmware_minion
 
 .EXAMPLE
-PS>svtminion.ps1 -status
+PS>svtminion.ps1 -Clear
 
 .EXAMPLE
-PS>svtminion.ps1 -depend
+PS>svtminion.ps1 -Status
 
 .EXAMPLE
-PS>svtminion.ps1 -remove -loglevel debug
+PS>svtminion.ps1 -Depend
+
+.EXAMPLE
+PS>svtminion.ps1 -Remove -LogLevel debug
 
 #>
 
@@ -47,38 +58,38 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("i")]
-    # Download, install, and start the salt-minion service.
+    # Downloads, installs, and starts the salt-minion service.
     [Switch] $Install,
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("m")]
-    # The version of salt minion to install. Default is 3003.3-1.
+    # The version of Salt minion to install. Default is 3003.3-1.
     [String] $MinionVersion="3003.3-1",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install",
             Position=0, ValueFromRemainingArguments=$true)]
     # Any number of minion config options specified by the name of the config
-    # option as found in salt documentation. All options will be lower-cased and
-    # written to the minion config as passed. All values are in the key=value.
-    # format. eg: master=localhost
+    # option as found in Salt documentation. All options will be lowercased and
+    # written to the minion config as passed. All values are in the key=value
+    # format. For example: master=localhost
     [String[]] $ConfigOptions,
 
     [Parameter(Mandatory=$false, ParameterSetName="Remove")]
     [Alias("r")]
-    # Stop and uninstall the salt-minion service.
+    # Stops and uninstalls the salt-minion service.
     [Switch] $Remove,
 
     [Parameter(Mandatory=$false, ParameterSetName="Clear")]
     [Alias("c")]
-    # Reset the salt-minion. Randomize the minion id and remove the minion keys.
-    # The randomized minion id will be the old minion id, an underscore, and 5
-    # random digits.
+    # Resets the salt-minion by randomizing the minion ID and removing the
+    # minion keys. The randomized minion ID will be the old minion ID, an
+    # underscore, and 5 random digits.
     [Switch] $Clear,
 
     [Parameter(Mandatory=$false, ParameterSetName="Status")]
     [Alias("s")]
-    # Get the status of the salt minion installation. This returns a numeric
-    # value that corresponds as follows:
+    # Gets the status of the Salt minion installation. This command returns an
+    # exit code that corresponds to one of the following:
     # 100 - installed
     # 101 - installing
     # 102 - notInstalled
@@ -89,8 +100,8 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Depend")]
     [Alias("d")]
-    # Ensure the required dependencies are available. Exits with a scriptFailed
-    # error code (126) if any dependencies are missing.
+    # Ensures the required dependencies are available. Exits with a scriptFailed
+    # exit code (126) if any dependencies are missing.
     [Switch] $Depend,
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -108,7 +119,12 @@ param(
             IgnoreCase=$true)]
     [String]
     # Sets the log level to display and log. Default is warning. Silent
-    # suppresses all logging output
+    # suppresses all logging output. Available options are:
+    # - silent
+    # - error
+    # - warning
+    # - info
+    # - debug
     $LogLevel = "warning",
 
     [Parameter(Mandatory=$false, ParameterSetName="Help")]
@@ -598,7 +614,7 @@ function Expand-ZipFile {
     #     Destination (string): The location to extract to
     #
     # Error:
-    #     Sets the failed status and exits with an error
+    #     Sets the failed status and exits with a scriptFailed exit code
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -654,9 +670,6 @@ function Add-SystemPathValue{
     #
     # Warning:
     #     Logs a warning if the target path does not exist
-    #
-    # Error:
-    #     Sets the failed status and exits with an error
     [Cmdletbinding()]
     param (
         [parameter(Mandatory=$True)]
@@ -714,9 +727,6 @@ function Remove-SystemPathValue {
     #
     # Args
     #     Path (string): The target path to remove
-    #
-    # Error:
-    #     Set failed status and exit with error code
     [Cmdletbinding()]
     param (
         [parameter(Mandatory=$True)]
@@ -771,9 +781,6 @@ function Remove-FileOrFolder {
     #
     # Args:
     #     Path (string): The file or folder to remove
-    #
-    # Error:
-    #     Sets failed status and exits with error code 1
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
@@ -1350,7 +1357,7 @@ function Get-SaltFromWeb {
     # Download the salt tiamat zip file from the web and verify the hash
     #
     # Error:
-    #     Set the status and exit with an error
+    #     Sets the failed status and exits with a scriptFailed exit code
 
     # Make sure the download directory exists
     if ( !( Test-Path -Path $base_salt_install_location) ) {
@@ -1457,7 +1464,7 @@ function Install-SaltMinion {
     # - Adds the new location to the system path
     #
     # Error:
-    #     Sets the failed status and exits with an error code
+    #     Sets the failed status and exits with a scriptFailed exit code
 
     # 1. Unzip into Program Files
     Write-Log "Unzipping salt (this may take a few minutes)" -Level info
@@ -1515,7 +1522,7 @@ function Remove-SaltMinion {
     # - Remove the entry from the system path
     #
     # Error:
-    #     Sets the failed status and exits with error code 1
+    #     Sets the failed status and exits with a scriptFailed exit code
 
     # Does the service exist
     $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
