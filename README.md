@@ -229,7 +229,7 @@ or `Get-Help svtminion.ps1`:
         .\svtminion.ps1
 
     SYNOPSIS
-        VMware Tools script for managing the salt minion on a Windows guest
+        VMware Tools script for managing the Salt minion on a Windows guest
 
     SYNTAX
         .\svtminion.ps1 [-Install] [-MinionVersion <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
@@ -241,49 +241,60 @@ or `Get-Help svtminion.ps1`:
         .\svtminion.ps1 [-Version] [<CommonParameters>]
 
     DESCRIPTION
-        This script manages the salt minion on a Windows guest. The minion is a tiamat
+        This script manages the Salt minion on a Windows guest. The minion is a tiamat
         build hosted on https://repo.saltproject.io/salt/vmware-tools-onedir. You can
-        install the minion, remove it, check script dependencies, get the script status,
-        and reset the minion.
+        install the minion, remove it, check script dependencies, get the Salt minion
+        installation status, and reset the Salt minion configuration.
 
         When this script is run without any parameters, the options are obtained from
-        guestVars (if present). If not, they are obtained from tools.conf. This
-        includes the action (install, remove, etc.) and the minion config options
-        (master=198.51.100.1, etc.). The order of precedence is CLI options, then
+        guestVars (if present). If not, they are obtained from tools.conf. This includes
+        the action (install, remove, etc.) and the minion config options
+        (master=198.51.100.1, etc.). The order of precedence is CLI options first, then
         guestVars, and finally tools.conf.
 
-        This script returns status exit codes when passing the Status option. Additional
-        exit codes that may be returned by this script pertain to its success or
-        failure. They are as follows:
+        This script returns exit codes to signal its success or failure. The exit codes
+        are as follows:
 
         0 - scriptSuccess
         126 - scriptFailed
         130 - scriptTerminated
 
+        If the Status option is passed, then the exit code will signal the status of the
+        Salt minion installation. Status exit codes are as follows:
+
+        100 - installed
+        101 - installing
+        102 - notInstalled
+        103 - installFailed
+        104 - removing
+        105 - removeFailed
+
+        NOTE: This script must be run with Administrator privileges
+
     PARAMETERS
         -Install [<SwitchParameter>]
-            Download, install, and start the salt-minion service.
+            Downloads, installs, and starts the salt-minion service.
 
         -MinionVersion <String>
-            The version of salt minion to install. Default is 3003.3-1.
+            The version of Salt minion to install. Default is 3003.3-1.
 
         -ConfigOptions <String[]>
             Any number of minion config options specified by the name of the config
-            option as found in Salt documentation. All options will be lowercase and
-            written to the minion config as passed. All values are in the key=value.
+            option as found in Salt documentation. All options will be lowercased and
+            written to the minion config as passed. All values are in the key=value
             format. For example: master=localhost
 
         -Remove [<SwitchParameter>]
             Stops and uninstalls the salt-minion service.
 
         -Clear [<SwitchParameter>]
-            Resets the salt-minion by andomizing the minion ID and removing the minion keys.
-            The randomized minion ID will be the old minion ID, an underscore, and 5
-            random digits.
+            Resets the salt-minion by randomizing the minion ID and removing the
+            minion keys. The randomized minion ID will be the old minion ID, an
+            underscore, and 5 random digits.
 
         -Status [<SwitchParameter>]
-            Get the status of the salt minion installation. This command returns a numeric
-            value that corresponds as follows:
+            Gets the status of the Salt minion installation. This command returns an
+            exit code that corresponds to one of the following:
             100 - installed
             101 - installing
             102 - notInstalled
@@ -293,11 +304,16 @@ or `Get-Help svtminion.ps1`:
 
         -Depend [<SwitchParameter>]
             Ensures the required dependencies are available. Exits with a scriptFailed
-            error code (126) if any dependencies are missing.
+            exit code (126) if any dependencies are missing.
 
         -LogLevel <String>
             Sets the log level to display and log. Default is warning. Silent
-            suppresses all logging output
+            suppresses all logging output. Available options are:
+            - silent
+            - error
+            - warning
+            - info
+            - debug
 
         -Help [<SwitchParameter>]
             Displays help for this script.
@@ -312,20 +328,20 @@ or `Get-Help svtminion.ps1`:
             about_CommonParameters (https:/go.microsoft.com/fwlink/?LinkID=113216).
 
         -------------------------- EXAMPLE 1 --------------------------
-        PS>svtminion.ps1 -install
-        PS>svtminion.ps1 -install -version 3004-1 master=192.168.10.10 id=vmware_minion
+        PS>svtminion.ps1 -Install
+        PS>svtminion.ps1 -Install -Version 3004-1 master=192.168.10.10 id=vmware_minion
 
         -------------------------- EXAMPLE 2 --------------------------
-        PS>svtminion.ps1 -clear -prefix new_minion
+        PS>svtminion.ps1 -Clear
 
         -------------------------- EXAMPLE 3 --------------------------
-        PS>svtminion.ps1 -status
+        PS>svtminion.ps1 -Status
 
         -------------------------- EXAMPLE 4 --------------------------
-        PS>svtminion.ps1 -depend
+        PS>svtminion.ps1 -Depend
 
         -------------------------- EXAMPLE 5 --------------------------
-        PS>svtminion.ps1 -remove -loglevel debug
+        PS>svtminion.ps1 -Remove -LogLevel debug
 
     REMARKS
         To see the examples, type: "get-help .\svtminion.ps1 -examples".
