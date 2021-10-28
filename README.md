@@ -279,7 +279,18 @@ or `Get-Help svtminion.ps1`:
 
     PARAMETERS
         -Install [<SwitchParameter>]
-            Downloads, installs, and starts the salt-minion service.
+            Downloads, installs, and starts the salt-minion service. Exits with
+            scriptFailed exit (126) code under the following conditions:
+            - Existing Standard Salt Installation detected
+            - Unknown status found
+            - Installation in progress
+            - Removal in progress
+            - Installation failed
+            - Missing script dependencies
+
+            Exits with scriptSuccess exit code (0) under the following conditions:
+            - Installed successfully
+            - Already installed
 
         -MinionVersion <String>
             The version of Salt minion to install. Default is 3003.3-1.
@@ -291,12 +302,30 @@ or `Get-Help svtminion.ps1`:
             format. For example: master=localhost
 
         -Remove [<SwitchParameter>]
-            Stops and uninstalls the salt-minion service.
+            Stops and uninstalls the salt-minion service. Exits with scriptFailed exit
+            code (126) under the following conditions:
+            - Unknown status found
+            - Installation in progress
+            - Removal in progress
+            - Installation failed
+            - Missing script dependencies
+
+            Exits with scriptSuccess exit code (0) under the following conditions:
+            - Removed successfully
+            - Already removed
 
         -Clear [<SwitchParameter>]
             Resets the salt-minion by randomizing the minion ID and removing the
             minion keys. The randomized minion ID will be the old minion ID, an
             underscore, and 5 random digits.
+
+            Exits with scriptFailed exit code (126) under the following conditions:
+            - Unknown status found
+            - Missing script dependencies
+
+            Exits with scriptSuccess exit code (0) under the following conditions:
+            - Cleared successfully
+            - Not installed
 
         -Status [<SwitchParameter>]
             Gets the status of the Salt minion installation. This command returns an
@@ -308,9 +337,14 @@ or `Get-Help svtminion.ps1`:
             104 - removing
             105 - removeFailed
 
+            Exits with scriptFailed exit code (126) under the following conditions:
+            - Unknown status found
+            - Missing script dependencies
+
         -Depend [<SwitchParameter>]
             Ensures the required dependencies are available. Exits with a scriptFailed
-            exit code (126) if any dependencies are missing.
+            exit code (126) if any dependencies are missing. Exits with a
+            scriptSuccess exit code (0) if all dependencies are present.
 
         -LogLevel <String>
             Sets the log level to display and log. Default is warning. Silent

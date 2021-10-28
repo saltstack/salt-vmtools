@@ -64,50 +64,84 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("i")]
-# Downloads, installs, and starts the salt-minion service.
+    # Downloads, installs, and starts the salt-minion service. Exits with
+    # scriptFailed exit (126) code under the following conditions:
+    # - Existing Standard Salt Installation detected
+    # - Unknown status found
+    # - Installation in progress
+    # - Removal in progress
+    # - Installation failed
+    # - Missing script dependencies
+    #
+    # Exits with scriptSuccess exit code (0) under the following conditions:
+    # - Installed successfully
+    # - Already installed
     [Switch] $Install,
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("m")]
-# The version of Salt minion to install. Default is 3003.3-1.
+    # The version of Salt minion to install. Default is 3003.3-1.
     [String] $MinionVersion="3003.3-1",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install",
             Position=0, ValueFromRemainingArguments=$true)]
-# Any number of minion config options specified by the name of the config
-# option as found in Salt documentation. All options will be lowercased and
-# written to the minion config as passed. All values are in the key=value
-# format. For example: master=localhost
+    # Any number of minion config options specified by the name of the config
+    # option as found in Salt documentation. All options will be lowercased and
+    # written to the minion config as passed. All values are in the key=value
+    # format. For example: master=localhost
     [String[]] $ConfigOptions,
 
     [Parameter(Mandatory=$false, ParameterSetName="Remove")]
     [Alias("r")]
-# Stops and uninstalls the salt-minion service.
+    # Stops and uninstalls the salt-minion service. Exits with scriptFailed exit
+    # code (126) under the following conditions:
+    # - Unknown status found
+    # - Installation in progress
+    # - Removal in progress
+    # - Installation failed
+    # - Missing script dependencies
+    #
+    # Exits with scriptSuccess exit code (0) under the following conditions:
+    # - Removed successfully
+    # - Already removed
     [Switch] $Remove,
 
     [Parameter(Mandatory=$false, ParameterSetName="Clear")]
     [Alias("c")]
-# Resets the salt-minion by randomizing the minion ID and removing the
-# minion keys. The randomized minion ID will be the old minion ID, an
-# underscore, and 5 random digits.
+    # Resets the salt-minion by randomizing the minion ID and removing the
+    # minion keys. The randomized minion ID will be the old minion ID, an
+    # underscore, and 5 random digits.
+    #
+    # Exits with scriptFailed exit code (126) under the following conditions:
+    # - Unknown status found
+    # - Missing script dependencies
+    #
+    # Exits with scriptSuccess exit code (0) under the following conditions:
+    # - Cleared successfully
+    # - Not installed
     [Switch] $Clear,
 
     [Parameter(Mandatory=$false, ParameterSetName="Status")]
     [Alias("s")]
-# Gets the status of the Salt minion installation. This command returns an
-# exit code that corresponds to one of the following:
-# 100 - installed
-# 101 - installing
-# 102 - notInstalled
-# 103 - installFailed
-# 104 - removing
-# 105 - removeFailed
+    # Gets the status of the Salt minion installation. This command returns an
+    # exit code that corresponds to one of the following:
+    # 100 - installed
+    # 101 - installing
+    # 102 - notInstalled
+    # 103 - installFailed
+    # 104 - removing
+    # 105 - removeFailed
+    #
+    # Exits with scriptFailed exit code (126) under the following conditions:
+    # - Unknown status found
+    # - Missing script dependencies
     [Switch] $Status,
 
     [Parameter(Mandatory=$false, ParameterSetName="Depend")]
     [Alias("d")]
-# Ensures the required dependencies are available. Exits with a scriptFailed
-# exit code (126) if any dependencies are missing.
+    # Ensures the required dependencies are available. Exits with a scriptFailed
+    # exit code (126) if any dependencies are missing. Exits with a
+    # scriptSuccess exit code (0) if all dependencies are present.
     [Switch] $Depend,
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -124,13 +158,13 @@ param(
             "debug",
             IgnoreCase=$true)]
     [String]
-# Sets the log level to display and log. Default is warning. Silent
-# suppresses all logging output. Available options are:
-# - silent
-# - error
-# - warning
-# - info
-# - debug
+    # Sets the log level to display and log. Default is warning. Silent
+    # suppresses all logging output. Available options are:
+    # - silent
+    # - error
+    # - warning
+    # - info
+    # - debug
     $LogLevel = "warning",
 
     [Parameter(Mandatory=$false, ParameterSetName="Help")]
@@ -141,7 +175,7 @@ param(
     [Parameter(ParameterSetName="Remove")]
     [Alias("h")]
     [Switch]
-# Displays help for this script.
+    # Displays help for this script.
     $Help,
 
     [Parameter(Mandatory=$false, ParameterSetName="Version")]
@@ -152,7 +186,7 @@ param(
     [Parameter(ParameterSetName="Remove")]
     [Alias("v")]
     [Switch]
-# Displays the version of this script.
+    # Displays the version of this script.
     $Version
 
 )
@@ -844,7 +878,7 @@ function Get-GuestVars {
     # They can be set on the host using vmrun.exe
     #
     # vmrun writeVariable "d:\VMWare\Windows Server 2019\Windows Server
-    #       2019.vmx" guestVar \vmware.components.salt_minion.args
+    #       2019.vmx" guestVar /vmware.components.salt_minion.args
     #       "master=192.168.0.12 id=test_id"
     #
     # Used by:
@@ -1346,7 +1380,6 @@ function Find-StandardSaltInstallation {
     $exists = $false
     foreach ($path in $locations) {
         if (Test-Path -Path "$path\bin\python.exe" ) {
-            Write-Host $path
             $version = Get-SaltVersion -Path $path
             Write-Log "Standard Installation detected" -Level error
             Write-Log "Version: $version" -Level error
@@ -1439,7 +1472,7 @@ function New-SaltMinionScript {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)]
-    # The location to create the script
+        # The location to create the script
         [String] $Path
     )
     $content = @(
