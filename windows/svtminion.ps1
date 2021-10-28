@@ -1662,15 +1662,6 @@ try {
         exit $exit_code
     }
 
-    # Let's make sure there's not already a standard salt installation on the
-    # system
-    if (Find-StandardSaltInstallation) {
-        $msg = "Found an existing salt installation on the system."
-        Write-Log $msg -Level error
-        Write-Host $msg -ForegroundColor Red
-        $exit_code = $STATUS_CODES["scriptFailed"]
-        exit $exit_code
-    }
 
     switch ($Action.ToLower()) {
         "depend" {
@@ -1680,6 +1671,15 @@ try {
             exit $exit_code
         }
         "install" {
+            # Let's make sure there's not already a standard salt installation
+            # on the system
+            if (Find-StandardSaltInstallation) {
+                $msg = "Found an existing salt installation on the system."
+                Write-Log $msg -Level error
+                Write-Host $msg -ForegroundColor Red
+                $exit_code = $STATUS_CODES["scriptFailed"]
+                exit $exit_code
+            }
             # If status is installed, installing, or removing, bail out
             $current_status = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
