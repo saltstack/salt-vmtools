@@ -18,34 +18,12 @@ commonly referred to as guestVars.
 
 ## Configuration options
 
-You can pass configuration to this script in 3 ways: tools.conf, guestVars, and
+You can pass configuration to this script in 3 ways: guestVars, tools.conf and
 the command line. Each option has an order of precedence. The lowest being
-tools.conf, followed by guestVars, with the highest precedence being the command
+guestVars, followed by tools.conf, with the highest precedence being the command
 line. Each option is explained in the following sections.
 
-### tools.conf (lowest preference)
-
-The `tools.conf` file contains the configurations for vmtools in an `.ini` format.
-This tool looks for the `salt_minion` section and uses the configurations defined
-under that section. This file is stored at:
-
-| OS  | Location |
-| --- | -------- |
-| Linux | `/etc/vmware-tools/tools.conf` |
-| Windows | `C:\ProgramData\VMware\VMware Tools\tools.conf` |
-
-Below is an example of the `salt_minion` section as it may be defined in
-`tools.conf`:
-
-    [salt_minion]
-    master=203.0.113.1
-    conf_file=/etc/salt/minion
-    id=dev_minion
-
-**Note:** Only minion config options are available in `tools.conf`. The desired
-script action cannot be obtained from `tools.conf`.
-
-### guestVars (medium preference)
+### guestVars (lowest preference)
 
 VMware guestVars can contain the action this script performs as well as the
 minion config options to be set by this script. The config values here will
@@ -76,6 +54,28 @@ They can be read on the guest OS using the `vmtoolsd` binary. For example:
     # To read the Config Options
     [root@fedora]# vmtoolsd --cmd "info-get guestinfo.vmware.components.salt_minion.args"
     master=203.0.113.1
+
+### tools.conf (medium preference)
+
+The `tools.conf` file contains the configurations for vmtools in an `.ini` format.
+This tool looks for the `salt_minion` section and uses the configurations defined
+under that section. This file is stored at:
+
+| OS  | Location |
+| --- | -------- |
+| Linux | `/etc/vmware-tools/tools.conf` |
+| Windows | `C:\ProgramData\VMware\VMware Tools\tools.conf` |
+
+Below is an example of the `salt_minion` section as it may be defined in
+`tools.conf`:
+
+    [salt_minion]
+    master=203.0.113.1
+    conf_file=/etc/salt/minion
+    id=dev_minion
+
+**Note:** Only minion config options are available in `tools.conf`. The desired
+script action cannot be obtained from `tools.conf`.
 
 ### Command Line (highest preference)
 
@@ -141,7 +141,7 @@ line. The default value is `warning`. Valid options are:
 | Log Level | Description |
 | --------- | ----------- |
 | `silent`  | Suppresses displayed output but logs errors and warnings |
-| `error`   | Displays and logs only errors |  
+| `error`   | Displays and logs only errors |
 | `warning` | Displays and logs errors and warnings |
 | `info`    | Displays and logs errors, warnings, and info messages |
 | `debug`   | Displays and logs all messages |

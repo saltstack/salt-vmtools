@@ -609,12 +609,14 @@ _randomize_minion_id() {
 #
 # _fetch_vmtools_salt_minion_conf
 #
-#   Retrieve the configuration for salt-minion from vmtools configuration file
+#   Retrieve the configuration for salt-minion
+#       precendence order: L -> H
+#           from VMware Tools guest Variables
+#           from VMware Tools configuration file tools.conf
+#           from any command line parameters
 #
 # Results:
-#   Exits with new vmtools configuration file if none found
-#   or salt-minion configuration file updated with configuration read from
-#   vmtools configuration file section for salt_minion
+#   Exits with new salt-minion configuration file written
 #
 
 _fetch_vmtools_salt_minion_conf() {
@@ -622,13 +624,13 @@ _fetch_vmtools_salt_minion_conf() {
     # from vmtoolsd configuration file
 
     _debug_log "$0:${FUNCNAME[0]} retrieving minion configuration parameters"
-    _fetch_vmtools_salt_minion_conf_tools_conf || {
-        _error_log "$0:${FUNCNAME[0]} failed to process tools.conf file, "\
-            "retcode '$?'";
-    }
     _fetch_vmtools_salt_minion_conf_guestvars || {
         _error_log "$0:${FUNCNAME[0]} failed to process guest variable "\
             "arguments, retcode '$?'";
+    }
+    _fetch_vmtools_salt_minion_conf_tools_conf || {
+        _error_log "$0:${FUNCNAME[0]} failed to process tools.conf file, "\
+            "retcode '$?'";
     }
     _fetch_vmtools_salt_minion_conf_cli_args "$*" || {
         _error_log "$0:${FUNCNAME[0]} failed to process command line "\
@@ -1041,10 +1043,10 @@ _install_fn () {
             "from repository , retcode '$?'";
     }
 
-    # get configuration for salt-minion from tools.conf
+    # get configuration for salt-minion
     _fetch_vmtools_salt_minion_conf "$@" || {
         _error_log "$0:${FUNCNAME[0]} failed , read configuration for "\
-            "salt-minion from tools.conf, retcode '$?'";
+            "salt-minion, retcode '$?'";
     }
 
     if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
