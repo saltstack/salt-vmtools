@@ -241,6 +241,13 @@ test-salt-vmtools-linux:
     - ls -l /var/log/vmware-svtminion.sh-status-*
     - ls -l /var/log/vmware-svtminion.sh-status-* | wc -l
     - if [[ 10 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 10 status log files"; exit 1; fi
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - rpm --import https://repo.saltproject.io/py3/redhat/8/x86_64/latest/SALTSTACK-GPG-KEY.pub
+    - curl -fsSL https://repo.saltproject.io/py3/redhat/8/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
+    - yum makecache
+    - yum -y install salt-minion
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -362,6 +369,13 @@ test-tags-salt-vmtools-linux:
     - ls -l /var/log/vmware-svtminion.sh-status-*
     - ls -l /var/log/vmware-svtminion.sh-status-* | wc -l
     - if [[ 10 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 10 status log files"; exit 1; fi
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - rpm --import https://repo.saltproject.io/py3/redhat/8/x86_64/latest/SALTSTACK-GPG-KEY.pub
+    - curl -fsSL https://repo.saltproject.io/py3/redhat/8/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
+    - yum makecache
+    - yum -y install salt-minion
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
