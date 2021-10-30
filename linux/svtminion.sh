@@ -609,12 +609,14 @@ _randomize_minion_id() {
 #
 # _fetch_vmtools_salt_minion_conf
 #
-#   Retrieve the configuration for salt-minion from vmtools configuration file
+#   Retrieve the configuration for salt-minion
+#       precendence order: L -> H
+#           from VMware Tools guest Variables
+#           from VMware Tools configuration file tools.conf
+#           from any command line parameters
 #
 # Results:
-#   Exits with new vmtools configuration file if none found
-#   or salt-minion configuration file updated with configuration read from
-#   vmtools configuration file section for salt_minion
+#   Exits with new salt-minion configuration file written
 #
 
 _fetch_vmtools_salt_minion_conf() {
@@ -622,13 +624,13 @@ _fetch_vmtools_salt_minion_conf() {
     # from vmtoolsd configuration file
 
     _debug_log "$0:${FUNCNAME[0]} retrieving minion configuration parameters"
-    _fetch_vmtools_salt_minion_conf_tools_conf || {
-        _error_log "$0:${FUNCNAME[0]} failed to process tools.conf file, "\
-            "retcode '$?'";
-    }
     _fetch_vmtools_salt_minion_conf_guestvars || {
         _error_log "$0:${FUNCNAME[0]} failed to process guest variable "\
             "arguments, retcode '$?'";
+    }
+    _fetch_vmtools_salt_minion_conf_tools_conf || {
+        _error_log "$0:${FUNCNAME[0]} failed to process tools.conf file, "\
+            "retcode '$?'";
     }
     _fetch_vmtools_salt_minion_conf_cli_args "$*" || {
         _error_log "$0:${FUNCNAME[0]} failed to process command line "\
@@ -791,6 +793,86 @@ _fetch_salt_minion() {
 
 
 #
+# _check_multiple_script_running
+#
+#   check if more than one version of the script is running
+#
+# Results:
+#   Echos the number of scripts running, allowing for forks etc
+#   from bash etc, a single instance of the script returns 3
+#
+
+_check_multiple_script_running() {
+    local count=0
+    local procs_found=""
+
+    _info_log "$0:${FUNCNAME[0]} checking how many versions of the "\
+        "script are running"
+
+    procs_found=$(pgrep -f "${SCRIPTNAME}")
+    count=$(echo "${procs_found}" | wc -l)
+
+    _debug_log "$0:${FUNCNAME[0]} checking versions of script are running, "\
+        "bashpid '${BASHPID}', processes found '${procs_found}', "\
+        "and count '${count}'"
+
+    echo "${count}"
+    return 0
+}
+
+
+#
+# _check_std_minion_install
+#
+# Check if standard salt-minion is installed for the OS
+#   for example: install salt-minion from rpm or deb package
+#
+# Results:
+#   0 - No standard install found and Salt version found output
+#   !0 - Standard install found and empty string output
+#
+
+_check_std_minion_install() {
+
+    # checks for /usr/bin, then /usr/local/bin
+    # this catches 80% to 90%  of the reqular cases
+    # if salt-call is there, then so is a salt-minion
+    # as they are installed together
+
+    local _retn=0
+    local max_file_sz=200
+    local list_of_files_check="
+/usr/bin/salt-call
+/usr/local/bin/salt-call
+"
+    _info_log "$0:${FUNCNAME[0]} check if standard salt-minion installed"
+
+    for idx in ${list_of_files_check}
+    do
+        if [[ -f "${idx}" ]]; then
+            #check size of file, if larger than 200, not script wrapper file
+            local file_sz=0
+            file_sz=$(( $(wc -c < "${idx}") ))
+            _debug_log "$0:${FUNCNAME[0]} found file '${idx}', "\
+                "size '${file_sz}'"
+            if [[ ${file_sz} -gt ${max_file_sz} ]]; then
+                # get salt-version
+                local s_ver=""
+                s_ver=$("${idx}" --local test.version |grep -v 'local:' |xargs)
+                _debug_log "$0:${FUNCNAME[0]} found standard salt-minion, "\
+                    "Salt version: '${s_ver}'"
+                echo "${s_ver}"
+                _retn=1
+                break
+            fi
+        fi
+    done
+    echo ""
+    return ${_retn}
+}
+
+
+#
 # _find_salt_pid
 #
 #   finds the pid for the salt process
@@ -937,8 +1019,14 @@ _create_helper_scripts() {
 _status_fn() {
     # return status
     local _retn_status=${STATUS_CODES_ARY[notInstalled]}
+    local script_count=0
 
     _info_log "$0:${FUNCNAME[0]} checking status for script"
+    script_count=$(_check_multiple_script_running)
+    if [[ ${script_count} -gt 3 ]]; then
+        _error_log "$0:${FUNCNAME[0]} failed to check status, " \
+            "multiple versions of the script are running"
+    fi
 
     svpid=$(_find_salt_pid)
     if [[ ! -f "${test_exists_file}" && -z ${svpid} ]]; then
@@ -1017,9 +1105,26 @@ _deps_chk_fn() {
 _install_fn () {
     # execute install of Salt minion
     local _retn=0
+    local script_count=0
     local existing_chk=""
+    local found_salt_ver=""
 
     _info_log "$0:${FUNCNAME[0]} processing script install"
+
+    script_count=$(_check_multiple_script_running)
+    if [[ ${script_count} -gt 3 ]]; then
+        _error_log "$0:${FUNCNAME[0]} failed to install, " \
+            "multiple versions of the script are running"
+    fi
+
+    found_salt_ver=$(_check_std_minion_install)
+    if [[ -n "${found_salt_ver}" ]]; then
+        _error_log "$0:${FUNCNAME[0]} failed to install, " \
+            "existing Standard Salt Installation detected, "\
+            "Salt version: '${found_salt_ver}'"
+    else
+        _debug_log "$0:${FUNCNAME[0]} no standardized install found"
+    fi
 
     # check if salt-minion or salt-master (salt-cloud etc req master)
     # and log warning that they will be overwritten
@@ -1041,10 +1146,10 @@ _install_fn () {
             "from repository , retcode '$?'";
     }
 
-    # get configuration for salt-minion from tools.conf
+    # get configuration for salt-minion
     _fetch_vmtools_salt_minion_conf "$@" || {
         _error_log "$0:${FUNCNAME[0]} failed , read configuration for "\
-            "salt-minion from tools.conf, retcode '$?'";
+            "salt-minion, retcode '$?'";
     }
 
     if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
@@ -1234,9 +1339,16 @@ _clear_id_key_fn () {
     local salt_id_flag=0
     local minion_id=""
     local minion_ip_id=""
+    local script_count=0
 
     _info_log "$0:${FUNCNAME[0]} processing clearing of salt-minion "\
         "identifier and its keys"
+
+    script_count=$(_check_multiple_script_running)
+    if [[ ${script_count} -gt 3 ]]; then
+        _error_log "$0:${FUNCNAME[0]} failed to clear, " \
+            "multiple versions of the script are running"
+    fi
 
     if [[ ! -f "${test_exists_file}" ]]; then
         _debug_log "$0:${FUNCNAME[0]} salt-minion is not installed, "\
@@ -1332,8 +1444,25 @@ _remove_installed_files_dirs() {
 _uninstall_fn () {
     # remove Salt minion
     local _retn=0
+    local script_count=0
 
     _info_log "$0:${FUNCNAME[0]} processing script remove"
+
+    script_count=$(_check_multiple_script_running)
+    if [[ ${script_count} -gt 3 ]]; then
+        _error_log "$0:${FUNCNAME[0]} failed to remove, " \
+            "multiple versions of the script are running"
+    fi
+
+    found_salt_ver=$(_check_std_minion_install)
+    if [[ -n "${found_salt_ver}" ]]; then
+        _error_log "$0:${FUNCNAME[0]} failed to remove, " \
+            "existing Standard Salt Installation detected, "\
+            "Salt version: '${found_salt_ver}'"
+    else
+        _debug_log "$0:${FUNCNAME[0]} no standardized install found"
+    fi
+
     if [[ ! -f "${test_exists_file}" ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
 
@@ -1461,20 +1590,7 @@ mkdir -p "${log_dir}"
 # for example: debug logging and --version
 LOG_ACTION="default"
 
-
 CLI_ACTION=0
-
-## need support at a minimum for the following:
-## depends
-## deploy
-## remove
-## check
-##
-## Optionals:
-##   predeploy
-##   postdeploy
-##   preremove
-##   postremove
 
 while true; do
     if [[ -z "$1" ]]; then break; fi
