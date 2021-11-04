@@ -302,11 +302,12 @@ try{
     $reg_key = Get-ItemProperty $vmtools_base_reg
 } catch {
     $msg = "Unable to find valid VMware Tools installation : $Error"
-    Write-Host $mst -ForeGroundColor Red
+    Write-Host $msg -ForeGroundColor Red
     exit $STATUS_CODES["scriptFailed"]
 }
 if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
-    Write-Host "Unable to find valid VMware Tools installation" -ForeGroundColor Red
+    $msg = "Unable to find valid VMware Tools installation"
+    Write-Host $msg -ForeGroundColor Red
     exit $STATUS_CODES["scriptFailed"]
 }
 
@@ -339,7 +340,7 @@ function Clear-OldLogs {
     try {
         foreach ($file in $files) {
             if ($total_files -ge $script_log_file_count) {
-                Remove-Item -Path $file.FullName -Force
+                Remove-Item -Path $file.FullName -Recurse -Force
                 $total_files -= 1
             } else {
                 break
@@ -831,10 +832,11 @@ function Remove-FileOrFolder {
         return
     }
 
-    Write-Log "Removing: $Path" -Level info
-    $tries = 1
-    $max_tries = 5
-    $success = $false
+    if (Get-IsReparsePoint -Path $Path) {
+        Write-Log "Removing junction/symlink/hardlink: $Path" -Level debug
+        [System.IO.Directory]::Delete($Path, $true) | Out-Null
+        return
+    }
 
     if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
         Write-Log "Taking ownership: $Path" -Level debug
@@ -844,6 +846,9 @@ function Remove-FileOrFolder {
         }
     }
 
+    $tries = 1
+    $max_tries = 5
+    $success = $false
     while (!($success)) {
         $Error.Clear()
         try {
@@ -1064,7 +1069,7 @@ function Get-MinionConfig {
     # - Get config from tools.conf (defined by VMware Tools - older method),
     #   overwrites guestVars with the same name
     # - Get config from the CLI (options passed to the script), overwrites
-    #   guestVars and tools.conf settin
+    #   guestVars and tools.conf settings with the same name
     # - No config found, use salt minion defaults (master: salt, id: hostname)
     #
     # Used by:
@@ -1104,7 +1109,7 @@ function Get-MinionConfig {
 }
 
 
-function Get-IsSymlink {
+function Get-IsReparsePoint {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
@@ -1147,17 +1152,17 @@ function Set-Security {
     Write-Log "Setting Security: $Path" -Level info
 
     Write-Log "Getting ACL: $Path" -Level debug
-    $file_acl = Get-Acl -Path $Path
+    $path_acl = Get-Acl -Path $Path
 
     Write-Log "Setting Sddl" -Level debug
     $Sddl = 'D:PAI(A;OICI;0x1200a9;;;WD)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'
-    $file_acl.SetSecurityDescriptorSddlForm($Sddl)
+    $path_acl.SetSecurityDescriptorSddlForm($Sddl)
 
     Write-Log "Setting Owner" -Level debug
-    $file_acl.SetOwner([System.Security.Principal.NTAccount]"$Owner")
+    $path_acl.SetOwner([System.Security.Principal.NTAccount]"$Owner")
 
     Write-Log "Writing New ACL" -Level debug
-    Set-Acl -Path $Path -AclObject $file_acl
+    Set-Acl -Path $Path -AclObject $path_acl
 }
 
 
@@ -1168,48 +1173,71 @@ function New-SecureDirectory {
         [String] $Path
     )
     if (Test-Path -Path $Path) {
-        if (Get-IsSymlink -Path $Path) {
+        if (Get-IsReparsePoint -Path $Path) {
             Write-Log "Found symlink: $Path" -Level warning
             Write-Log "Renaming symlink (.insecure): $Path" -Level warning
-            # We can't rename a symlink, we have to delete and recreate it
-            $target = (Get-Item $Path | Select-Object -ExpandProperty Target)
-            [System.IO.Directory]::Delete($Path, $true) | Out-Null
-            New-Item -ItemType SymbolicLink `
-                     -Path "$Path-$script_date.insecure" `
-                     -Target $target | Out-Null
-            $msg = "Insecure symlink renamed: $Path-$script_date.insecure"
+            [System.IO.Directory]::Move(
+                    $Path,
+                    "$Path-$script_date.insecure") | Out-Null
+            $msg = "Insecure reparse point renamed: $Path-$script_date.insecure"
             Write-Log $msg -Level debug
         }
     }
     if (Test-Path -Path $Path) {
         if (!(Get-IsSecureOwner -Path $Path)) {
             Write-Log "Found insecure owner: $Path" -Level warning
-            Write-Log "Renaming directory (.insecure): $Path" -Level warning
-            Move-Item -Path $Path `
-                      -Destination "$Path-$script_date.insecure" `
-                      -Force | Out-Null
-            $msg = "Insecure directory renamed: $Path-$script_date.insecure"
+            Write-Log "Renaming file/dir (.insecure): $Path" -Level warning
+            [System.IO.Directory]::Move(
+                    $Path,
+                    "$Path-$script_date.insecure") | Out-Null
+            $msg = "Insecure file/dir renamed: $Path-$script_date.insecure"
             Write-Log $msg -Level debug
         }
     }
 
     $tries = 1
     $max_tries = 5
-    while ($tries -le $max_tries) {
+    while ($true) {
+
+        # Remove any existing directory if it exists
         if (Test-Path -Path $Path) {
+            Write-Log "Removing existing directory: $Path" -Level debug
             Remove-FileOrFolder -Path $Path
         }
 
         $msg = "Creating secure directory (try: $tries/$max_tries): $Path"
         Write-Log $msg -Level debug
-        New-Item -Path $Path -Type Directory | Out-Null
+        try {
+            New-Item -Path $Path -Type Directory | Out-Null
+        } catch {
+            if ($tries -le $max_tries) {
+                $msg = "Failed to create directory: $Path. Trying again..."
+                Write-Log $msg -Level warning
+                $tries += 1
+                continue
+            } else {
+                $msg = "Failed to create secure directory. Try limit exceeded."
+                Write-Log $msg -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
+
         Set-Security -Path $Path
 
         if((Get-ChildItem -Path $Path | Measure-Object).Count -ne 0) {
             # Someone is competing with us
-            Write-Log "Expected empty directory. Trying again..." -Level warning
-            $tries++
-            continue
+            if ($tries -le $max_tries) {
+                $msg = "Expected empty directory. Trying again..."
+                Write-Log $msg -Level warning
+                $tries += 1
+                continue
+            } else {
+                $msg = "Expected empty directory. Try limit exceeded."
+                Write-Log $msg -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
         }
         Write-Log "Secure directory created successfully" -Level debug
         break
@@ -1261,17 +1289,37 @@ function Start-MinionService {
         [Parameter(Mandatory=$false)]
         [String] $ServiceName = "salt-minion"
     )
-    # Start the minion service
-    Write-Log "Starting the $ServiceName service" -Level info
-    Start-Service -Name $ServiceName *> $null
+    $service = Get-Service -Name $ServiceName
 
-    Write-Log "Checking the status of the $ServiceName service" -Level debug
-    if ((Get-Service -Name $ServiceName).Status -eq "Running") {
-        Write-Log "Service started successfully" -Level debug
-    } else {
-        Write-Log "Failed to start the $ServiceName service" -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
+    $tries = 1
+    $max_tries = 5
+    while ($service.Status -ne "Running") {
+        # Start the minion service
+        Write-Log "Starting the $ServiceName service" -Level info
+        try {
+            Start-Service -Name $ServiceName *> $null
+        } catch {
+            Write-Log "Failed to start the $ServiceName service." -Level error
+            Set-FailedStatus
+            exit $STATUS_CODES["scriptFailed"]
+        }
+        $service.Refresh()
+        if ($service.Status -eq "Running") {
+            Write-Log "Service started successfully" -Level debug
+        } else {
+            if ($tries -le $max_tries) {
+                $msg = "Service not started. Waiting 1 second to try again..."
+                Write-Log $msg -Level debug
+                $tries += 1
+                Start-Sleep -Seconds 1
+            } else {
+                $msg = "Failed to start the $ServiceName service. "
+                $msg += "Exceeded max tries"
+                Write-Log $msg -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
     }
 }
 
@@ -1282,17 +1330,37 @@ function Stop-MinionService {
         [Parameter(Mandatory=$false)]
         [String] $ServiceName = "salt-minion"
     )
-    # Stop the salt-minion service
-    Write-Log "Stopping the $ServiceName service" -Level info
-    Stop-Service -Name $ServiceName *> $null
+    $service = Get-Service -Name $ServiceName
 
-    Write-Log "Checking the status of the $ServiceName service" -Level debug
-    if ((Get-Service -Name $ServiceName).Status -eq "Stopped") {
-        Write-Log "Service stopped successfully" -Level debug
-    } else {
-        Write-Log "Failed to stop the $ServiceName service" -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
+    $tries = 1
+    $max_tries = 5
+    while ($service.Status -ne "Stopped") {
+        # Start the minion service
+        Write-Log "Stop the $ServiceName service" -Level info
+        try {
+            Stop-Service -Name $ServiceName *> $null
+        } catch {
+            Write-Log "Failed to stop the $ServiceName service." -Level error
+            Set-FailedStatus
+            exit $STATUS_CODES["scriptFailed"]
+        }
+        $service.Refresh()
+        if ($service.Status -eq "Stopped") {
+            Write-Log "Service stopped successfully" -Level debug
+        } else {
+            if ($tries -le $max_tries) {
+                $msg = "Service not stopped. Waiting 1 second to try again..."
+                Write-Log $msg -Level debug
+                $tries += 1
+                Start-Sleep -Seconds 1
+            } else {
+                $msg = "Failed to stop the $ServiceName service. "
+                $msg += "Exceeded max tries"
+                Write-Log $msg -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
     }
 }
 
@@ -1339,7 +1407,6 @@ function Confirm-Dependencies {
         }
     }
 
-    Write-Log "All dependencies found" -Level debug
     return $deps_present
 }
 
@@ -1536,7 +1603,8 @@ function Install-SaltMinion {
     Write-Log "Installing salt-minion service" -Level info
     & $ssm_bin install salt-minion "$salt_bin" `
                 "minion -c """"$salt_config_dir""""" *> $null
-    & $ssm_bin set salt-minion Description Salt Minion from VMware Tools *> $null
+    & $ssm_bin set salt-minion Description Salt Minion `
+                from VMware Tools *> $null
     & $ssm_bin set salt-minion Start SERVICE_AUTO_START *> $null
     & $ssm_bin set salt-minion AppStopMethodConsole 24000 *> $null
     & $ssm_bin set salt-minion AppStopMethodWindow 2000 *> $null
