@@ -340,7 +340,7 @@ function Clear-OldLogs {
     try {
         foreach ($file in $files) {
             if ($total_files -ge $script_log_file_count) {
-                Remove-Item -Path $file.FullName -Recurse -Force
+                Remove-FileOrFolder -Path $file.FullName
                 $total_files -= 1
             } else {
                 break
@@ -394,9 +394,7 @@ function Write-Log {
             "WARNING" { $color = "Yellow" }
             default { $color = "White"}
         }
-        if ($log_level_value -ge $LOG_LEVELS["error"] ) {
-            Write-Host $log_message -ForegroundColor $color
-        }
+        Write-Host $log_message -ForegroundColor $color
     }
 }
 
@@ -833,8 +831,12 @@ function Remove-FileOrFolder {
     }
 
     if (Get-IsReparsePoint -Path $Path) {
-        Write-Log "Removing junction/symlink/hardlink: $Path" -Level debug
-        [System.IO.Directory]::Delete($Path, $true) | Out-Null
+        Write-Log "Removing junction/symlink: $Path" -Level debug
+        if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
+            [System.IO.Directory]::Delete($Path, $true) | Out-Null
+        } else {
+            [System.IO.File]::Delete($Path) | Out-Null
+        }
         return
     }
 
@@ -1174,22 +1176,21 @@ function New-SecureDirectory {
     )
     if (Test-Path -Path $Path) {
         if (Get-IsReparsePoint -Path $Path) {
-            Write-Log "Found symlink: $Path" -Level warning
-            Write-Log "Renaming symlink (.insecure): $Path" -Level warning
-            [System.IO.Directory]::Move(
-                    $Path,
-                    "$Path-$script_date.insecure") | Out-Null
+            Write-Log "Found reparse point: $Path" -Level warning
+            Write-Log "Renaming reparse point (.insecure): $Path" -Level warning
+            Move-item -Path $Path `
+                    -Destination "$Path-$script_date.insecure" | Out-Null
             $msg = "Insecure reparse point renamed: $Path-$script_date.insecure"
             Write-Log $msg -Level debug
         }
     }
+
     if (Test-Path -Path $Path) {
         if (!(Get-IsSecureOwner -Path $Path)) {
             Write-Log "Found insecure owner: $Path" -Level warning
             Write-Log "Renaming file/dir (.insecure): $Path" -Level warning
-            [System.IO.Directory]::Move(
-                    $Path,
-                    "$Path-$script_date.insecure") | Out-Null
+            Move-item -Path $Path `
+                    -Destination "$Path-$script_date.insecure" | Out-Null
             $msg = "Insecure file/dir renamed: $Path-$script_date.insecure"
             Write-Log $msg -Level debug
         }
@@ -1199,9 +1200,9 @@ function New-SecureDirectory {
     $max_tries = 5
     while ($true) {
 
-        # Remove any existing directory if it exists
+        # Remove any existing file or directory if it exists
         if (Test-Path -Path $Path) {
-            Write-Log "Removing existing directory: $Path" -Level debug
+            Write-Log "Removing existing file/directory: $Path" -Level debug
             Remove-FileOrFolder -Path $Path
         }
 

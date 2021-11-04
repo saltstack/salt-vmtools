@@ -1,19 +1,21 @@
 # Copyright (c) 2021 VMware, Inc. All rights reserved.
+$target_dir = "$env:Temp\TargetDir"
+$target_file = "$env:Temp\TargetFile.txt"
 $path_dir = "$env:Temp\RemoveDir"
 $path_file = "$env:Temp\RemoveFile.txt"
 $path_link = "$env:Temp\RemoveSymlink.txt"
 $path_junction = "$env:Temp\RemoveJunction.txt"
 $path_hardlink = "$env:Temp\RemoveHardlink.txt"
-$path_hardlink_file = "$env:Temp\hardlink_target.txt"
 
 function setUpScript {
     Write-Host "Creating test files: " -NoNewline
+    New-Item -Path $target_dir -ItemType directory -Force | Out-Null
+    New-Item -Path $target_file -ItemType file -Force | Out-Null
     New-Item -Path $path_dir -ItemType directory -Force | Out-Null
     New-Item -Path $path_file -ItemType file -Force | Out-Null
-    New-Item -Path $path_link -ItemType SymbolicLink -Target $base_salt_install_location | Out-Null
-    New-Item -Path $path_junction -ItemType Junction -Target $base_salt_install_location | Out-Null
-    New-Item -Path $path_hardlink_file -ItemType File | Out-Null
-    New-Item -Path $path_hardlink -ItemType HardLink -Target $path_hardlink_file | Out-Null
+    New-Item -Path $path_link -ItemType SymbolicLink -Target $target_dir | Out-Null
+    New-Item -Path $path_junction -ItemType Junction -Target $target_dir | Out-Null
+    New-Item -Path $path_hardlink -ItemType HardLink -Target $target_file | Out-Null
     Write-Done
 }
 
@@ -43,9 +45,14 @@ function tearDownScript {
         [System.IO.Directory]::Delete($path_hardlink, $true) | Out-Null
         Write-Done
     }
-    if (Test-Path -Path "$path_hardlink_file") {
-        Write-Host "Removing $($path_hardlink_file): " -NoNewline
-        Remove-Item -Path "$path_hardlink_file"
+    if (Test-Path -Path "$target_dir") {
+        Write-Host "Removing $($target_dir): " -NoNewline
+        Remove-Item -Path "$target_dir"
+        Write-Done
+    }
+    if (Test-Path -Path "$target_file") {
+        Write-Host "Removing $($target_file): " -NoNewline
+        Remove-Item -Path "$target_file"
         Write-Done
     }
 }
