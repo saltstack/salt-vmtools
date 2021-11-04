@@ -2,6 +2,8 @@
 
 $test_existing = "$env:Temp\spongebob"
 $test_existing_symlink = "$env:Temp\squarepants"
+$test_existing_junction = "$env:Temp\sandy"
+$test_existing_hardlink = "$env:Temp\plankton"
 $test_existing_insecure_owner = "$env:Temp\squidward"
 $test_existing_not_empty = "$env:Temp\patrick"
 
@@ -13,6 +15,14 @@ function setUpScript {
 
     Write-Host "Creating symlink test directory: " -NoNewline
     New-Item -ItemType SymbolicLink -Path $test_existing_symlink -Target $test_existing | Out-Null
+    Write-Done
+
+    Write-Host "Creating junction test directory: " -NoNewline
+    New-Item -ItemType Junction -Path $test_existing_junction -Target $test_existing | Out-Null
+    Write-Done
+
+    Write-Host "Creating hardlink test directory: " -NoNewline
+    New-Item -ItemType Junction -Path $test_existing_hardlink -Target $test_existing | Out-Null
     Write-Done
 
     Write-Host "Creating insecure owner test directory: " -NoNewline
@@ -29,7 +39,6 @@ function setUpScript {
     New-Item -Path "$test_existing_not_empty\file1.txt" -Type File -Force | Out-Null
     New-Item -Path "$test_existing_not_empty\file2.txt" -Type File -Force | Out-Null
     Write-Done
-
 }
 
 function tearDownScript {
@@ -39,9 +48,33 @@ function tearDownScript {
         Write-Done
     }
 
-    if (Test-Path -Path "$test_existing_symlink.insecure") {
+    if (Test-Path -Path "$test_existing_symlink-$script_date.insecure") {
         Write-Host "Removing symlink insecure directory: " -NoNewline
-        [System.IO.Directory]::Delete("$test_existing_symlink.insecure", $true) | Out-Null
+        [System.IO.Directory]::Delete("$test_existing_symlink-$script_date.insecure", $true) | Out-Null
+        Write-Done
+    }
+
+    if (Test-Path -Path $test_existing_junction) {
+        Write-Host "Removing junction test directory: " -NoNewline
+        [System.IO.Directory]::Delete($test_existing_junction, $true) | Out-Null
+        Write-Done
+    }
+
+    if (Test-Path -Path "$test_existing_junction-$script_date.insecure") {
+        Write-Host "Removing junction insecure directory: " -NoNewline
+        [System.IO.Directory]::Delete("$test_existing_junction-$script_date.insecure", $true) | Out-Null
+        Write-Done
+    }
+
+    if (Test-Path -Path $test_existing_hardlink) {
+        Write-Host "Removing hardlink test directory: " -NoNewline
+        [System.IO.Directory]::Delete($test_existing_hardlink, $true) | Out-Null
+        Write-Done
+    }
+
+    if (Test-Path -Path "$test_existing_hardlink-$script_date.insecure") {
+        Write-Host "Removing hardlink insecure directory: " -NoNewline
+        [System.IO.Directory]::Delete("$test_existing_hardlink-$script_date.insecure", $true) | Out-Null
         Write-Done
     }
 
@@ -51,9 +84,9 @@ function tearDownScript {
         Write-Done
     }
 
-    if (Test-Path -Path "$test_existing_insecure_owner.insecure") {
+    if (Test-Path -Path "$test_existing_insecure_owner-$script_date.insecure") {
         Write-Host "Removing owner insecure test directory: " -NoNewline
-        Remove-Item -Path "$test_existing_insecure_owner.insecure" -Force
+        Remove-Item -Path "$test_existing_insecure_owner-$script_date.insecure" -Force
         Write-Done
     }
 
@@ -63,9 +96,10 @@ function tearDownScript {
         Write-Done
     }
 
-    if (Test-Path -Path "$test_existing_not_empty.insecure") {
+    if (Test-Path -Path "$test_existing_not_empty-$script_date.insecure") {
+        # This shouldn't get hit
         Write-Host "Removing not empty insecure test directory: " -NoNewline
-        Remove-Item -Path "$test_existing_not_empty.insecure" -Recurse -Force
+        Remove-Item -Path "$test_existing_not_empty-$script_date.insecure" -Recurse -Force
         Write-Done
     }
 
@@ -74,7 +108,6 @@ function tearDownScript {
         Remove-Item -Path $test_existing -Recurse -Force
         Write-Done
     }
-
 }
 
 function test_New-SecureDirectory_existing {
@@ -88,22 +121,64 @@ function test_New-SecureDirectory_existing {
 
 function test_New-SecureDirectory_symlink {
     # Should rename the symlink
+    $failed = 0
+    $before_time = (Get-Item -Path $test_existing_symlink).CreationTime
     New-SecureDirectory -Path $test_existing_symlink
-    if (Get-IsSymLink -Path $test_existing_symlink) { return 1 }
-    if (!(Test-Path -Path "$test_existing_symlink-$script_date.insecure")) { return 1 }
-    return 0
+    $after_time= (Get-Item -Path $test_existing_symlink).CreationTime
+    if (!($before_time -lt $after_time)) { $failed = 1 }
+    if (!(Test-Path -Path "$test_existing_symlink-$script_date.insecure")) { $failed = 1 }
+    if (!(Get-IsReparsePoint -Path "$test_existing_symlink-$script_date.insecure")) { $failed = 1 }
+    if ((Get-Item -Path "$test_existing_symlink-$script_date.insecure").LinkType -ne "SymbolicLink") { $failed = 1 }
+    return $failed
+}
+
+function test_New-SecureDirectory_junction {
+    # Should rename the symlink
+    $failed = 0
+    $before_time = (Get-Item -Path $test_existing_junction).CreationTime
+    New-SecureDirectory -Path $test_existing_junction
+    $after_time= (Get-Item -Path $test_existing_junction).CreationTime
+    if (!($before_time -lt $after_time)) { $failed = 1 }
+    if (!(Test-Path -Path "$test_existing_junction-$script_date.insecure")) { $failed = 1 }
+    if (!(Get-IsReparsePoint -Path "$test_existing_junction-$script_date.insecure")) { $failed = 1 }
+    if ((Get-Item -Path "$test_existing_junction-$script_date.insecure").LinkType -ne "Junction") { $failed = 1 }
+    return $failed
+}
+
+function test_New-SecureDirectory_hardlink {
+    # Should rename the symlink
+    $failed = 0
+    $before_time = (Get-Item -Path $test_existing_hardlink).CreationTime
+    New-SecureDirectory -Path $test_existing_hardlink
+    $after_time= (Get-Item -Path $test_existing_hardlink).CreationTime
+    if (!($before_time -lt $after_time)) { $failed = 1 }
+    if (!(Test-Path -Path "$test_existing_hardlink-$script_date.insecure")) { $failed = 1 }
+    if (!(Get-IsReparsePoint -Path "$test_existing_hardlink-$script_date.insecure")) { $failed = 1 }
+    if ((Get-Item -Path "$test_existing_hardlink-$script_date.insecure").LinkType -ne "Junction") { $failed = 1 }
+    return $failed
 }
 
 function test_New-SecureDirectory_insecure_owner {
-    # Should rename the directory
+    # Should rename the directory and keep owner
+    $failed = 0
+    $before_time = (Get-Item -Path $test_existing_insecure_owner).CreationTime
     New-SecureDirectory -Path $test_existing_insecure_owner
-    if (!(Test-Path -Path "$test_existing_insecure_owner-$script_date.insecure")) { return 1 }
-    return 0
+    $after_time= (Get-Item -Path $test_existing_insecure_owner).CreationTime
+    if (!($before_time -lt $after_time)) { $failed = 1 }
+    if (!(Test-Path -Path "$test_existing_insecure_owner-$script_date.insecure")) { $failed = 1 }
+    # Make sure we didn't change the owner
+    $file_acl = Get-Acl -Path "$test_existing_insecure_owner-$script_date.insecure"
+    if ($file_acl.Owner -ne "BUILTIN\Users") { $failed = 1 }
+    return $failed
 }
 
 function test_New-SecureDirectory_not_empty {
     # Should wipe out the directory and create a new empty directory
+    $failed = 0
+    $before_time = (Get-Item -Path $test_existing_not_empty).CreationTime
     New-SecureDirectory -Path $test_existing_not_empty
-    if((Get-ChildItem -Path $test_existing_not_empty | Measure-Object).Count -ne 0) { return 1 }
-    return 0
+    $after_time= (Get-Item -Path $test_existing_not_empty).CreationTime
+    if (!($before_time -lt $after_time)) { $failed = 1 }
+    if((Get-ChildItem -Path $test_existing_not_empty | Measure-Object).Count -ne 0) { $failed = 1 }
+    return $failed
 }
