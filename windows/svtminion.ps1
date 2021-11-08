@@ -297,11 +297,10 @@ $file_dirs_to_remove.Add($base_salt_install_location) | Out-Null
 $vmtools_base_reg = "HKLM:\SOFTWARE\VMware, Inc.\VMware Tools"
 $vmtools_salt_minion_status_name = "SaltMinionStatus"
 
-$Error.Clear()
 try{
     $reg_key = Get-ItemProperty $vmtools_base_reg
 } catch {
-    $msg = "Unable to find valid VMware Tools installation : $Error"
+    $msg = "Unable to find valid VMware Tools installation : $_"
     Write-Host $msg -ForeGroundColor Red
     exit $STATUS_CODES["scriptFailed"]
 }
@@ -438,14 +437,13 @@ function Get-Status {
     $script_running_status = Get-ScriptRunningStatus
 
     Write-Log "Getting status" -Level info
-    $Error.Clear()
     try {
         $current_status = Get-ItemPropertyValue `
                             -Path $vmtools_base_reg `
                             -Name $vmtools_salt_minion_status_name
         Write-Log "Found status code: $current_status" -Level debug
     } catch {
-        Write-Log "Key not set, not installed : $Error" -Level debug
+        Write-Log "Key not set, not installed : $_" -Level debug
         $current_status = $STATUS_CODES["notInstalled"]
     }
 
@@ -505,7 +503,6 @@ function Set-Status {
     Write-Log "Setting status: $NewStatus" -Level info
     $status_code = $STATUS_CODES[$NewStatus]
     # If it's notInstalled, just remove the propery name
-    $Error.Clear()
     if ($status_code -eq $STATUS_CODES["notInstalled"]) {
         try {
             Remove-ItemProperty -Path $vmtools_base_reg `
@@ -517,7 +514,7 @@ function Set-Status {
             Write-Log "Reg key not present: $key" -Level debug
             Write-Log "Status already set to: $NewStatus" -Level debug
         } catch {
-            Write-Log "Error removing reg key: $Error" -Level error
+            Write-Log "Error removing reg key: $_" -Level error
             exit $STATUS_CODES["scriptFailed"]
         }
     } else {
@@ -528,7 +525,7 @@ function Set-Status {
                              -Force | Out-Null
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
-            Write-Log "Error writing status: $Error" -Level error
+            Write-Log "Error writing status: $_" -Level error
             exit $STATUS_CODES["scriptFailed"]
         }
     }
@@ -571,7 +568,6 @@ function Get-WebFile{
     $tries = 1
     $success = $false
     do {
-        $Error.Clear()
         try {
             # Download the file
             $msg = "Downloading (try: $tries/$download_retry_count): $url_name"
@@ -579,7 +575,7 @@ function Get-WebFile{
             Invoke-WebRequest -Uri $Url -OutFile $OutFile
         } catch {
             Write-Log "Error downloading: $Url" -Level warning
-            Write-Log "Error message: $Error" -Level warning
+            Write-Log "Error message: $_" -Level warning
         } finally {
             if ((Test-Path -Path "$OutFile") `
                 -and `
@@ -667,13 +663,12 @@ function Expand-ZipFile {
         New-Item -ItemType directory -Path $Destination
     }
     Write-Log "Unzipping '$ZipFile' to '$Destination'" -Level debug
-    $Error.Clear()
     if ($PSVersionTable.PSVersion.Major -ge 5) {
         # PowerShell 5 introduced Expand-Archive
         try{
             Expand-Archive -Path $ZipFile -DestinationPath $Destination -Force
         } catch {
-            Write-Log "Failed to unzip $ZipFile : $Error" -Level error
+            Write-Log "Failed to unzip $ZipFile : $_" -Level error
             Set-FailedStatus
             exit $STATUS_CODES["scriptFailed"]
         }
@@ -687,7 +682,7 @@ function Expand-ZipFile {
                 $objShell.Namespace($Destination).CopyHere($item, 0x14)
             }
         } catch {
-            Write-Log "Failed to unzip $ZipFile : $Error" -Level error
+            Write-Log "Failed to unzip $ZipFile : $_" -Level error
             Set-FailedStatus
             exit $STATUS_CODES["scriptFailed"]
         }
@@ -744,14 +739,13 @@ function Add-SystemPathValue{
     $new_path_list.Add($Path) | Out-Null
 
     $new_path = $new_path_list -join ";"
-    $Error.Clear()
     try{
         Write-Log "Updating system path" -Level debug
         Set-ItemProperty -Path $key -Name Path -Value $new_path
     } catch {
         Write-Log "Failed to add $Path the system path" -Level warning
         Write-Log "Tried to write: $new_path" -Level warning
-        Write-Log "Error message: $Error" -Level warning
+        Write-Log "Error message: $_" -Level warning
     }
 }
 
@@ -795,7 +789,6 @@ function Remove-SystemPathValue {
 
     if ($removed) {
         $new_path = $new_path_list -join ";"
-        $Error.Clear()
         try {
             Write-Log "Updating system path" -Level debug
             Set-ItemProperty -Path $key -Name Path -Value $new_path
@@ -803,7 +796,7 @@ function Remove-SystemPathValue {
             $msg = "Failed to remove $Path from the system path: $new_path"
             Write-Log $msg -Level warning
             Write-Log "Tried to write: $new_path" -Level warning
-            Write-Log "Error message: $Error" -level warning
+            Write-Log "Error message: $_" -level warning
         }
     }
 }
@@ -852,7 +845,6 @@ function Remove-FileOrFolder {
     $max_tries = 5
     $success = $false
     while (!($success)) {
-        $Error.Clear()
         try {
             # Remove the file/dir
             $msg = "Removing (try: $tries/$max_tries): $Path"
@@ -860,7 +852,7 @@ function Remove-FileOrFolder {
             Remove-Item -Path $Path -Force -Recurse
         } catch {
             Write-Log "Error removing: $Path" -Level warning
-            Write-Log "Error message: $Error" -Level warning
+            Write-Log "Error message: $_" -Level warning
         } finally {
             if (!(Test-Path -Path $Path)) {
                 Write-Log "Finished removing $Path" -Level debug
@@ -1189,7 +1181,7 @@ function New-SecureDirectory {
         if (!(Get-IsSecureOwner -Path $Path)) {
             Write-Log "Found insecure owner: $Path" -Level warning
             Write-Log "Renaming file/dir (.insecure): $Path" -Level warning
-            Move-item -Path $Path `
+            Move-Item -Path $Path `
                     -Destination "$Path-$script_date.insecure" | Out-Null
             $msg = "Insecure file/dir renamed: $Path-$script_date.insecure"
             Write-Log $msg -Level debug
@@ -1219,6 +1211,7 @@ function New-SecureDirectory {
             } else {
                 $msg = "Failed to create secure directory. Try limit exceeded."
                 Write-Log $msg -Level error
+                Write-Log $_ -Level error
                 Set-FailedStatus
                 exit $STATUS_CODES["scriptFailed"]
             }
@@ -1270,14 +1263,12 @@ function Add-MinionConfig {
         $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
     }
     $config_content = $new_content -join "`r`n"
-    $Error.Clear()
     try {
         Write-Log "Writing minion config" -Level info
         Set-Content -Path $salt_config_file -Value $config_content
         Write-Log "Finished writing minion config" -Level debug
     } catch {
-        $msg = "Failed to write minion config: $config_content : $Error"
-        Write-Log $msg -Level error
+        $msg = "Failed to write minion config: $config_content : $_"
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
@@ -1290,19 +1281,40 @@ function Start-MinionService {
         [Parameter(Mandatory=$false)]
         [String] $ServiceName = "salt-minion"
     )
-    $service = Get-Service -Name $ServiceName
 
+    try {
+        $service = Get-Service -Name $ServiceName
+    } catch {
+        switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
+            "NoServiceFoundForGivenName" {
+                # We'll hard fail here because the service is not present
+                Write-Log "$ServiceName is not installed" -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            Default {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
+    }
+
+    # Not sure this is needed as the Start-Service cmdlet seems to wait until
+    # the service is started before returning
     $tries = 1
     $max_tries = 5
     while ($service.Status -ne "Running") {
-        # Start the minion service
-        Write-Log "Starting the $ServiceName service" -Level info
-        try {
-            Start-Service -Name $ServiceName *> $null
-        } catch {
-            Write-Log "Failed to start the $ServiceName service." -Level error
-            Set-FailedStatus
-            exit $STATUS_CODES["scriptFailed"]
+        if ($service.Status -eq "Stopped") {
+            # Start the minion service
+            Write-Log "Starting the $ServiceName service" -Level info
+            try {
+                Start-Service -Name $ServiceName *> $null
+            } catch {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
         }
         $service.Refresh()
         if ($service.Status -eq "Running") {
@@ -1331,19 +1343,40 @@ function Stop-MinionService {
         [Parameter(Mandatory=$false)]
         [String] $ServiceName = "salt-minion"
     )
-    $service = Get-Service -Name $ServiceName
 
+    try {
+        $service = Get-Service -Name $ServiceName
+    } catch {
+        switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
+            "NoServiceFoundForGivenName" {
+                # We'll return here because we don't need to stop a service that
+                # isn't installed
+                Write-Log "$ServiceName is not installed" -Level info
+                return
+            }
+            Default {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
+    }
+
+    # Not sure this is needed as the Stop-Service cmdlet seems to wait until
+    # the service is stopped before returning
     $tries = 1
     $max_tries = 5
     while ($service.Status -ne "Stopped") {
-        # Start the minion service
-        Write-Log "Stop the $ServiceName service" -Level info
-        try {
-            Stop-Service -Name $ServiceName *> $null
-        } catch {
-            Write-Log "Failed to stop the $ServiceName service." -Level error
-            Set-FailedStatus
-            exit $STATUS_CODES["scriptFailed"]
+        if ($service.Status -eq "Running") {
+            # Start the minion service
+            Write-Log "Stop the $ServiceName service" -Level info
+            try {
+                Stop-Service -Name $ServiceName *> $null
+            } catch {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
         }
         $service.Refresh()
         if ($service.Status -eq "Stopped") {
@@ -1587,7 +1620,8 @@ function Install-SaltMinion {
         Write-Log "Creating $salt_dir\salt-call.bat" -Level debug
         New-SaltCallScript -Path "$salt_dir\salt-call.bat"
     } catch {
-        Write-Log "Failed creating $salt_dir\salt-call.bat" -Level error
+        Write-Log "Failed to create $salt_dir\salt-call.bat" -Level error
+        Write-Log $_ -Level error
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
@@ -1595,7 +1629,8 @@ function Install-SaltMinion {
         Write-Log "Creating $salt_dir\salt-minion.bat" -Level debug
         New-SaltMinionScript -Path "$salt_dir\salt-minion.bat"
     } catch {
-        Write-Log "Failed creating $salt_dir\salt-minion.bat" -Level error
+        Write-Log "Failed to create $salt_dir\salt-minion.bat" -Level error
+        Write-Log $_ -Level error
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
@@ -1610,12 +1645,24 @@ function Install-SaltMinion {
     & $ssm_bin set salt-minion AppStopMethodConsole 24000 *> $null
     & $ssm_bin set salt-minion AppStopMethodWindow 2000 *> $null
     & $ssm_bin set salt-minion AppRestartDelay 60000 *> $null
-    if (!(Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
-        Write-Log "Failed to install salt-minion service" -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
-    } else {
-        Write-Log "Finished installing salt-minion service" -Level debug
+
+    try {
+        $service = Get-Service -Name salt-minion
+        Write-Log "salt-minion service installed successfully" -Level debug
+    } catch {
+        switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
+            "NoServiceFoundForGivenName" {
+                $msg = "Failed to install salt-minion service"
+                Write-Log $msg -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+            Default {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
     }
 
     # 4. Modify the system path
@@ -1636,11 +1683,25 @@ function Remove-SaltMinion {
     #     Sets the failed status and exits with a scriptFailed exit code
 
     # Does the service exist
-    $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
 
-    if ($null -eq $service) {
-        Write-Log "salt-minion service not found" -Level warning
-    } else {
+    try {
+        $service = Get-Service -Name salt-minion
+    } catch {
+        switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
+            "NoServiceFoundForGivenName" {
+                # We'll return here because we don't need to remove a service
+                # that isn't installed
+                Write-Log "salt-minion service not found" -Level warning
+            }
+            Default {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
+    }
+
+    if ($null -ne $service) {
 
         # Stop the minion service
         Stop-MinionService
@@ -1650,12 +1711,24 @@ function Remove-SaltMinion {
         $service = Get-WmiObject -Class Win32_Service `
                                  -Filter "Name='salt-minion'"
         $service.delete() *> $null
-        if ((Get-Service salt-minion -ErrorAction SilentlyContinue).Status) {
+
+        try {
+            $service = Get-Service -Name salt-minion
             Write-Log "Failed to uninstall salt-minion service" -Level error
             Set-FailedStatus
             exit $STATUS_CODES["scriptFailed"]
-        } else {
-            Write-Log "Finished uninstalling salt-minion service" -Level debug
+        } catch {
+            switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
+                "NoServiceFoundForGivenName" {
+                    $msg = "Finished uninstalling salt-minion service"
+                    Write-Log $msg -Level debug
+                }
+                Default {
+                    Write-Log $_ -Level error
+                    Set-FailedStatus
+                    exit $STATUS_CODES["scriptFailed"]
+                }
+            }
         }
     }
 
@@ -1697,11 +1770,10 @@ function Reset-SaltMinion {
         }
         $config_content = $new_content -join "`r`n"
         Write-Log "Writing new minion config"
-        $Error.Clear()
         try {
             Set-Content -Path $salt_config_file -Value $config_content
         } catch {
-            Write-Log "Failed to write new minion config : $Error" -Level error
+            Write-Log "Failed to write new minion config : $_" -Level error
             exit $STATUS_CODES["scriptFailed"]
         }
     }

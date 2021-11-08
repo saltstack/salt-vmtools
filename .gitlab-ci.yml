@@ -381,3 +381,26 @@ test-tags-salt-vmtools-linux:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
       when: always
     - when: never
+
+
+test-tags-salt-vmtools-windows:
+  stage: test_svt
+  tags:
+    - shared-windows
+    - windows
+    - windows-1809
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    expire_in: 120 days
+  needs:
+    - job: build-tags-salt-vmtools-windows
+  script:
+    # Running functional tests (must be run with powershell -file)
+    - powershell -file .\tests\windows\runtests.ps1
+    # Running integration tests (must be run with powershell -file)
+    - powershell -file .\tests\windows\runtests.ps1 -Integration
+
+  rules:
+    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
+      when: always
+    - when: never
