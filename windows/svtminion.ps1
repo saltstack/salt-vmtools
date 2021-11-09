@@ -43,7 +43,7 @@ NOTE: This script must be run with Administrator privileges
 
 .EXAMPLE
 PS>svtminion.ps1 -Install
-PS>svtminion.ps1 -Install -Version 3004-1 master=192.168.10.10 id=vmware_minion
+PS>svtminion.ps1 -Install -MinionVersion 3004-1 master=192.168.10.10 id=dev_box
 
 .EXAMPLE
 PS>svtminion.ps1 -Clear
@@ -80,8 +80,8 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("m")]
-    # The version of Salt minion to install. Default is 3003.3-1.
-    [String] $MinionVersion="3003.3-1",
+    # The version of Salt minion to install. Default is "latest".
+    [String] $MinionVersion="latest",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install",
             Position=0, ValueFromRemainingArguments=$true)]
@@ -268,12 +268,7 @@ $action_list = @("install", "remove", "depend", "clear", "status")
 ################################# VARIABLES ####################################
 # Repository locations and names
 $salt_name = "salt"
-$salt_version = $MinionVersion
 $base_url = "https://repo.saltproject.io/salt/vmware-tools-onedir"
-$salt_web_file_name = "$salt_name-$salt_version-windows-amd64.zip"
-$salt_web_file_url = "$base_url/$salt_version/$salt_web_file_name"
-$salt_hash_name = "$salt_name-$salt_version" + "_SHA512"
-$salt_hash_url = "$base_url/$salt_version/$salt_hash_name"
 
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
@@ -339,7 +334,14 @@ function Clear-OldLogs {
     try {
         foreach ($file in $files) {
             if ($total_files -ge $script_log_file_count) {
-                Remove-FileOrFolder -Path $file.FullName
+                # Remove the file/dir/synlink/junction
+                $file_obj = Get-Item -Path $file.FullName
+                if ($file_obj -is [System.IO.DirectoryInfo]) {
+                    [System.IO.Directory]::Delete(`
+                        $file.FullName, $true) | Out-Null
+                } else {
+                    [System.IO.File]::Delete($file.FullName) | Out-Null
+                }
                 $total_files -= 1
             } else {
                 break
@@ -380,7 +382,7 @@ function Write-Log {
         $log_file_message = "[$date_time] [$script_pid] [$level_text] $Message"
         if (!(Test-Path($script_log_dir))) {
             Write-Host "[$timestamp] [INFO   ] : Creating log file directory"
-            New-Item -Path $script_log_dir -ItemType Directory | Out-Null
+            New-Item -Path $script_log_dir -Type Directory | Out-Null
         }
         if (!($action_list -contains $Action)) { $Action = "Default" }
 
@@ -563,11 +565,15 @@ function Get-WebFile{
     )
     [System.Net.ServicePointManager]::SecurityProtocol = `
         [System.Net.SecurityProtocolType]'Tls12'
+    $parent_dir = Split-Path $OutFile
+    if ( !( Test-Path $parent_dir )) {
+        New-Item $parent_dir -Type Directory | Out-Null
+    }
     $url_name = $Url.SubString($Url.LastIndexOf('/'))
 
     $tries = 1
     $success = $false
-    do {
+    while (!$success){
         try {
             # Download the file
             $msg = "Downloading (try: $tries/$download_retry_count): $url_name"
@@ -577,6 +583,7 @@ function Get-WebFile{
             Write-Log "Error downloading: $Url" -Level warning
             Write-Log "Error message: $_" -Level warning
         } finally {
+            $tries++
             if ((Test-Path -Path "$OutFile") `
                 -and `
                 ((Get-Item "$OutFile").Length -gt 0kb
@@ -584,7 +591,6 @@ function Get-WebFile{
                 Write-Log "Finished downloading: $url_name" -Level debug
                 $success = $true
             } else {
-                $tries++
                 if ($tries -gt $download_retry_count) {
                     Write-Log "Retry count exceeded" -Level error
                     Set-FailedStatus
@@ -594,7 +600,7 @@ function Get-WebFile{
                 Start-Sleep -Seconds 10
             }
         }
-    } while (!($success))
+    }
 }
 
 
@@ -823,47 +829,42 @@ function Remove-FileOrFolder {
         return
     }
 
-    if (Get-IsReparsePoint -Path $Path) {
-        Write-Log "Removing junction/symlink: $Path" -Level debug
-        if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
-            [System.IO.Directory]::Delete($Path, $true) | Out-Null
-        } else {
-            [System.IO.File]::Delete($Path) | Out-Null
-        }
-        return
-    }
-
-    if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
-        Write-Log "Taking ownership: $Path" -Level debug
-        takeown /a /r /d Y /f $Path *> $null
-        if ($LASTEXITCODE) {
-            Write-Log "Directory does not exist" -Level debug
-        }
-    }
-
     $tries = 1
     $max_tries = 5
     $success = $false
-    while (!($success)) {
+    while (!$success) {
+        $msg = "Removing (try: $tries/$max_tries): $Path"
+        Write-Log $msg -Level debug
         try {
-            # Remove the file/dir
-            $msg = "Removing (try: $tries/$max_tries): $Path"
-            Write-Log $msg -Level debug
-            Remove-Item -Path $Path -Force -Recurse
+            # Remove the file/dir/symlink/junction
+            if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
+                [System.IO.Directory]::Delete($Path, $true) | Out-Null
+            } else {
+                [System.IO.File]::Delete($Path) | Out-Null
+            }
         } catch {
             Write-Log "Error removing: $Path" -Level warning
             Write-Log "Error message: $_" -Level warning
         } finally {
+            $tries++
             if (!(Test-Path -Path $Path)) {
                 Write-Log "Finished removing $Path" -Level debug
                 $success = $true
             } else {
-                $tries++
                 if ($tries -gt $max_tries) {
                     Write-Log "Retry count exceeded" -Level error
                     Set-FailedStatus
                     exit $STATUS_CODES["scriptFailed"]
                 }
+
+                if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
+                    Write-Log "Taking ownership: $Path" -Level debug
+                    takeown /a /r /d Y /f $Path *> $null
+                    if ($LASTEXITCODE) {
+                        Write-Log "Directory does not exist" -Level debug
+                    }
+                }
+
                 Write-Log "Trying again after 5 seconds" -Level warning
                 Start-Sleep -Seconds 5
             }
@@ -1206,7 +1207,7 @@ function New-SecureDirectory {
             if ($tries -le $max_tries) {
                 $msg = "Failed to create directory: $Path. Trying again..."
                 Write-Log $msg -Level warning
-                $tries += 1
+                $tries++
                 continue
             } else {
                 $msg = "Failed to create secure directory. Try limit exceeded."
@@ -1243,11 +1244,17 @@ function Add-MinionConfig {
     # Write minion config options to the minion config file
 
     # Make sure the config directory exists
-    New-SecureDirectory -Path $base_salt_config_location
+    if ( !( Test-Path -path $base_salt_config_location )) {
+        New-SecureDirectory -Path $base_salt_config_location
+    }
 
     # Child directories will inherit the permissions
-    New-Item -Path $salt_root_dir -Type Directory | Out-Null
-    New-Item -Path $salt_config_dir -Type Directory | Out-Null
+    if ( !( Test-Path -path $salt_root_dir)) {
+        New-Item -Path $salt_root_dir -Type Directory | Out-Null
+    }
+    if ( !( Test-Path -path $salt_config_dir)) {
+        New-Item -Path $salt_config_dir -Type Directory | Out-Null
+    }
 
     # Get the minion config
     $config_options = Get-MinionConfig
@@ -1496,6 +1503,73 @@ function Find-StandardSaltInstallation {
 }
 
 
+function Convert-PSObjectToHashtable {
+    param (
+        [Parameter(ValueFromPipeline)]
+        $InputObject
+    )
+    if ($null -eq $InputObject) { return $null }
+
+    $is_enum = $InputObject -is [System.Collections.IEnumerable]
+    $not_string = $InputObject -isnot [string]
+    if ($is_enum -and $not_string) {
+        $collection = @(
+            foreach ($object in $InputObject) {
+                Convert-PSObjectToHashtable $object
+            }
+        )
+
+        Write-Output -NoEnumerate $collection
+    } elseif ($InputObject -is [PSObject]) {
+        $hash = @{}
+
+        foreach ($property in $InputObject.PSObject.Properties) {
+            $hash[$property.Name] = Convert-PSObjectToHashtable $property.Value
+        }
+
+        $hash
+    } else {
+        $InputObject
+    }
+}
+
+
+function Get-SaltPackageInfo {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $MinionVersion
+    )
+    $response = Invoke-WebRequest -Uri "$base_url/repo.json" -UseBasicParsing
+    $psobj = $response.Content | ConvertFrom-Json
+    $hash = Convert-PSObjectToHashtable $psobj
+
+    $salt_file_name = ""
+    $salt_version = ""
+    $salt_sha512 = ""
+    $search_version = $MinionVersion.ToLower()
+    if ($hash.Contains($search_version)) {
+        foreach ($item in $hash.($search_version).Keys) {
+            if ($item.EndsWith(".zip")) {
+                $salt_file_name = $hash.($search_version).($item).name
+                $salt_version = $hash.($search_version).($item).version
+                $salt_sha512 = $hash.($search_version).($item).SHA512
+            }
+        }
+    }
+
+    if ($salt_file_name -and $salt_version -and $salt_sha512) {
+        return @{
+            url = @($base_url, $salt_version, $salt_file_name) -join "/";
+            hash = $salt_sha512;
+            file_name = $salt_file_name
+        }
+    } else {
+        return @{}
+    }
+}
+
+
 function Get-SaltFromWeb {
     # Download the salt tiamat zip file from the web and verify the hash
     #
@@ -1503,34 +1577,32 @@ function Get-SaltFromWeb {
     #     Sets the failed status and exits with a scriptFailed exit code
 
     # Make sure the download directory exists
-    if ( !( Test-Path -Path $base_salt_install_location) ) {
-        Write-Log "Creating directory: $base_salt_install_location" -Level debug
-        New-Item -Path $base_salt_install_location `
-                 -ItemType Directory | Out-Null
-    }
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Url,
+
+        [Parameter(Mandatory=$true)]
+        [String] $Destination,
+
+        [Parameter(Mandatory=$true)]
+        [String] $Hash
+    )
 
     # Download the salt file
     Write-Log "Downloading salt" -Level info
-    $salt_file = "$base_salt_install_location\$salt_web_file_name"
-    Get-WebFile -Url $salt_web_file_url -OutFile $salt_file
-
-    # Download the hash file
-    Write-Log "Downloading hash file" -Level info
-    $hash_file = "$base_salt_install_location\$salt_hash_name"
-    Get-WebFile -Url $salt_hash_url -OutFile $hash_file
+    Get-WebFile -Url $Url -OutFile $Destination
 
     # Get the hash for the salt file
-    $file_hash = (Get-FileHash -Path $salt_file -Algorithm SHA512).Hash
-    $expected_hash = Get-HashFromFile -HashFile $hash_file `
-                                      -FileName $salt_web_file_name
+    $file_hash = (Get-FileHash -Path $Destination -Algorithm SHA512).Hash
 
     Write-Log "Verifying hash" -Level info
-    if ($file_hash -like $expected_hash) {
+    if ($file_hash -like $Hash) {
         Write-Log "Hash verified" -Level debug
     } else {
         Write-Log "Failed to verify hash:" -Level error
         Write-Log "  - $file_hash" -Level error
-        Write-Log "  - $expected_hash" -Level error
+        Write-Log "  - $Hash" -Level error
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
@@ -1610,9 +1682,13 @@ function Install-SaltMinion {
     #     Sets the failed status and exits with a scriptFailed exit code
 
     # 1. Unzip into Program Files
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path
+    )
     Write-Log "Unzipping salt (this may take a few minutes)" -Level info
-    Expand-ZipFile -ZipFile "$base_salt_install_location\$salt_web_file_name" `
-                   -Destination $base_salt_install_location
+    Expand-ZipFile -ZipFile $Path -Destination $base_salt_install_location
 
     # 2. Copy the scripts into Program Files
     Write-Log "Copying scripts" -Level info
@@ -1685,23 +1761,8 @@ function Remove-SaltMinion {
     # Does the service exist
 
     try {
+        # This command will throw an exception if the service is missing
         $service = Get-Service -Name salt-minion
-    } catch {
-        switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
-            "NoServiceFoundForGivenName" {
-                # We'll return here because we don't need to remove a service
-                # that isn't installed
-                Write-Log "salt-minion service not found" -Level warning
-            }
-            Default {
-                Write-Log $_ -Level error
-                Set-FailedStatus
-                exit $STATUS_CODES["scriptFailed"]
-            }
-        }
-    }
-
-    if ($null -ne $service) {
 
         # Stop the minion service
         Stop-MinionService
@@ -1713,11 +1774,17 @@ function Remove-SaltMinion {
         $service.delete() *> $null
 
         try {
+            # This command will throw an exception if the service is missing
             $service = Get-Service -Name salt-minion
+
+            # If we were able to connect to the service, no exception thrown,
+            # then we failed to remove the service
             Write-Log "Failed to uninstall salt-minion service" -Level error
             Set-FailedStatus
             exit $STATUS_CODES["scriptFailed"]
         } catch {
+            # This would catch a missing service after the removal meaning the
+            # service was removed successfully
             switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
                 "NoServiceFoundForGivenName" {
                     $msg = "Finished uninstalling salt-minion service"
@@ -1728,6 +1795,21 @@ function Remove-SaltMinion {
                     Set-FailedStatus
                     exit $STATUS_CODES["scriptFailed"]
                 }
+            }
+        }
+    } catch {
+        # This would catch a missing service before trying to Stop and Remove it
+        # That would mean the service is already removed
+        switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
+            "NoServiceFoundForGivenName" {
+                # We'll return here because we don't need to remove a service
+                # that isn't installed
+                Write-Log "salt-minion service not found" -Level warning
+            }
+            Default {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
             }
         }
     }
@@ -1787,12 +1869,40 @@ function Reset-SaltMinion {
 
 
 function Install {
+    # Set status and update the log
     Write-Log "Installing salt minion" -Level info
     Set-Status installing
-    Get-SaltFromWeb
-    Install-SaltMinion
+
+    # Make sure the base install location exists
+    if ( !( Test-Path -Path $base_salt_install_location) ) {
+        Write-Log "Creating directory: $base_salt_install_location" -Level debug
+        New-Item -Path $base_salt_install_location -Type Directory | Out-Null
+    }
+
+    # Get URL from repo.json
+    $info = Get-SaltPackageInfo -MinionVersion $MinionVersion
+    $zip_file = "$base_salt_install_location\$($info.file_name)"
+
+    if (!$info) {
+        $msg = "Failed to get Package Info for Version: $MinionVersion"
+        Write-Log $msg -Level error
+        Set-FailedStatus
+        exit $STATUS_CODES["scriptFailed"]
+    }
+
+    # Download Salt from the Web
+    Get-SaltFromWeb -Url $info.url -Destination $zip_file -Hash $info.hash
+
+    # Install the Salt Package
+    Install-SaltMinion -Path $zip_file
+
+    # Generate and update the minion config
     Add-MinionConfig
+
+    # Start the Minion Service
     Start-MinionService
+
+    # Update the Status and output the Log
     Set-Status installed
     Write-Log "Salt minion installed successfully" -Level info
 }

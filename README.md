@@ -293,7 +293,7 @@ or `Get-Help svtminion.ps1`:
             - Already installed
 
         -MinionVersion <String>
-            The version of Salt minion to install. Default is 3003.3-1.
+            The version of Salt minion to install. Default is "latest".
 
         -ConfigOptions <String[]>
             Any number of minion config options specified by the name of the config
@@ -369,7 +369,7 @@ or `Get-Help svtminion.ps1`:
 
         -------------------------- EXAMPLE 1 --------------------------
         PS>svtminion.ps1 -Install
-        PS>svtminion.ps1 -Install -Version 3004-1 master=192.168.10.10 id=vmware_minion
+        PS>svtminion.ps1 -Install -MinionVersion 3004-1 master=192.168.10.10 id=dev_box
 
         -------------------------- EXAMPLE 2 --------------------------
         PS>svtminion.ps1 -Clear
