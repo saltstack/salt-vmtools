@@ -62,6 +62,7 @@ New-ItemProperty -Path $vmtools_base_reg -Name InstallPath -Value "$vmtools_base
 New-Item -Path "$vmtools_base_path" -ItemType directory -Force | Out-Null
 New-Item -Path "$vmtools_base_path\vmtoolsd.exe" -ItemType file -Force | Out-Null
 
+$MinionVersion = "latest"
 $Action = "test"
 Import-Module .\windows\svtminion.ps1
 # Suppress error messages
