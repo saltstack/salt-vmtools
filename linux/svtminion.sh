@@ -1581,7 +1581,7 @@ export CURRENT_STATUS
 logdate=$(date -u +%Y%m%d%H%M%S)
 
 # set logging infomation
-LOG_FILE_NUMBER=10
+LOG_FILE_NUMBER=5
 SCRIPTNAME=$(basename "$0")
 mkdir -p "${log_dir}"
 
