@@ -25,6 +25,8 @@ readonly default_salt_url_version="3003.3-1"
 readonly salt_name="salt"
 salt_url_version="${default_salt_url_version}"
 readonly base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
+readonly repo_json_file="repo.json"
+readonly base_url_json_file="${base_url}/${repo_json_file}"
 
 # Salt file and directory locations
 readonly base_salt_location="/opt/saltstack"
@@ -693,6 +695,8 @@ _curl_download() {
     local download_retry_failed=1       # assume issues
     local _retn=0
 
+    _info_log "$0:${FUNCNAME[0]} attempting download of file '${file_name}'"
+
     for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
     do
         curl -o "${file_name}" -fsSL "${file_url}"
@@ -720,6 +724,101 @@ _curl_download() {
 
 
 #
+# _parse_json_latest
+#
+#   Retrieve the salt-minion from Salt repository
+#
+# Results:
+#   Echos string containing colon separated version, name and sha512
+#   from parsed input repo json file
+#   Echos empty '' if 'latest' is not found in repo json file
+#
+ _parse_json_latest() {
+    local file_name="$1"
+    local file_value=""
+    local blk_count=0
+    local latest_blk_count=0
+    local latest_flag=0
+    local found_latest_linux=0
+
+    local var1=""
+    local var2=""
+    declare -A rdict
+
+    _info_log "$0:${FUNCNAME[0]} parsing of repo json file '${file_name}'"
+
+    file_value=$(<"${file_name}")
+
+    # limit 80 cols
+    var1=$(echo "${file_value}" | sed 's/,/,\n/g' | sed 's/{/\n{\n/g')
+    var2=$(echo "${var1}" | sed 's/}/\n}\n/g' | sed 's/,//g' | sed 's/"//g')
+
+    while IFS= read -r line
+    do
+        _debug_log "$0:${FUNCNAME[0]} parsing line '${line}'"
+        if [[ -z "${line}" ]]; then
+            continue
+        fi
+        if [[ "${line}" = "{" ]]; then
+            (( blk_count++ ))
+        elif [[ "${line}" = "}" ]]; then
+            # examine directory just read in
+            if [[  ${latest_flag} -eq 1 ]]; then
+                if [[ "${rdict['os']}" = "linux" ]]; then
+                    # have linux values for latest
+                    _debug_log "$0:${FUNCNAME[0]} parsed following linux for "\
+                    "'latest' from repo json file '${file_name}', os "\
+                    "${rdict['os']}, version ${rdict['version']}, "\
+                    "name ${rdict['name']}, SHA512 "\
+                    "${rdict['SHA512']}"
+                    found_latest_linux=1
+                    break
+                fi
+            fi
+
+            if [[ ${blk_count} -eq ${latest_blk_count} ]]; then
+                latest_flag=0
+                break
+            fi
+            (( blk_count-- ))
+        else
+            line_key=$(echo "${line}" | cut -d ':' -f 1 | xargs)
+            line_value=$(echo "${line}" | cut -d ':' -f 2 | xargs)
+            if [[ "${line_key}" = "latest" ]]; then
+                # note blk_count encountered 'latest' for closing brace check
+                latest_flag=1
+                latest_blk_count=${blk_count}
+                (( latest_blk_count++ ))
+            else
+                rdict["${line_key}"]="${line_value}"
+                _debug_log "$0:${FUNCNAME[0]} updated dictionary with "\
+                "line_key '${line_key}' and line_value '${line_value}'"
+            fi
+        fi
+    done <<< "${var2}"
+
+    if [[ ${found_latest_linux} -eq 1 ]]; then
+        echo "${rdict['version']}:${rdict['name']}:${rdict['SHA512']}"
+    else
+        echo ""
+    fi
+    return 0
+}
+
+
+#
+# _fetch_salt_minion
+#
+#   Retrieve the salt-minion from Salt repository
+#
+# Side Effects:
+#   CURRENT_STATUS updated
+#
+# Results:
+#   Exits with 0 or error code
+#
+
+#
 # _fetch_salt_minion
 #
 #   Retrieve the salt-minion from Salt repository
@@ -743,32 +842,64 @@ _fetch_salt_minion() {
     local salt_url=""
     local salt_url_chksum_file=""
     local salt_url_chksum=""
+    local json_version_name_sha=""
+
+    _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check "\
+        "its validity"
 
     salt_pkg_name="${salt_name}-${salt_url_version}-linux-amd64.tar.gz"
     salt_url="${base_url}/${salt_url_version}/${salt_pkg_name}"
     salt_url_chksum_file="${salt_name}-${salt_url_version}_SHA512"
     salt_url_chksum="${base_url}/${salt_url_version}/${salt_url_chksum_file}"
 
-    _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check "\
-        "its validity"
-
     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
-    _curl_download "${salt_pkg_name}" "${salt_url}"
+    _curl_download "${repo_json_file}" "${base_url_json_file}"
     _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
-        "'${salt_url}' into file '${salt_pkg_name}'"
-    _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
-    _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
-        "'${salt_url_chksum}' into file '${salt_url_chksum_file}'"
-    calc_sha512sum=$(grep "${salt_pkg_name}" \
-        "${salt_url_chksum_file}" | sha512sum --check --status)
-    if [[ ${calc_sha512sum} -ne 0 ]]; then
-        CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-        _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' "\
-            "failed to match checksum in file '${salt_url_chksum}'"
-    fi
+        "'${base_url_json_file}' into file '${repo_json_file}'"
 
+    json_version_name_sha=$(_parse_json_latest "${repo_json_file}")
+    if [[ -n "${json_version_name_sha}" ]]; then
+        # use latest from repo.json file, (version:name:sha512)
+        local salt_json_version=""
+        local salt_json_name=""
+        local salt_json_sha512=""
+        local salt_pkg_sha512=""
+
+        salt_json_version=$(\
+            echo "${json_version_name_sha}" | awk -F":" '{print $1}')
+        salt_json_name=$(\
+            echo "${json_version_name_sha}" | awk -F":" '{print $2}')
+        salt_json_sha512=$(\
+            echo "${json_version_name_sha}" | awk -F":" '{print $3}')
+        _debug_log "$0:${FUNCNAME[0]} using repo.json values version "\
+            "'${salt_json_version}', name '${salt_json_name}, sha512 "\
+            "'${salt_json_sha512}'"
+        salt_pkg_name="${salt_json_name}"
+        salt_url="${base_url}/${salt_json_version}/${salt_pkg_name}"
+        salt_pkg_sha512=$(sha512sum "${salt_pkg_name}" |awk -F" " '{print $1}')
+        if [[ "${salt_pkg_sha512}" -ne "${salt_json_sha512}" ]]; then
+            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' "\
+                "failed to match checksum in file '${repo_json_file}'"
+        fi
+    else
+        # use defaults
+        _curl_download "${salt_pkg_name}" "${salt_url}"
+        _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
+            "'${salt_url}' into file '${salt_pkg_name}'"
+        _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
+        _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
+            "'${salt_url_chksum}' into file '${salt_url_chksum_file}'"
+        calc_sha512sum=$(grep "${salt_pkg_name}" \
+            "${salt_url_chksum_file}" | sha512sum --check --status)
+        if [[ ${calc_sha512sum} -ne 0 ]]; then
+            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' "\
+                "failed to match checksum in file '${salt_url_chksum}'"
+        fi
+    fi
     _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
 
     tar xzf "${salt_pkg_name}" 1>/dev/null
