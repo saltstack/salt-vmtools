@@ -878,6 +878,9 @@ _fetch_salt_minion() {
             "'${salt_json_sha512}'"
         salt_pkg_name="${salt_json_name}"
         salt_url="${base_url}/${salt_json_version}/${salt_pkg_name}"
+        _curl_download "${salt_pkg_name}" "${salt_url}"
+        _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
+            "'${salt_url}' into file '${salt_pkg_name}'"
         salt_pkg_sha512=$(sha512sum "${salt_pkg_name}" |awk -F" " '{print $1}')
         if [[ "${salt_pkg_sha512}" -ne "${salt_json_sha512}" ]]; then
             CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
