@@ -1243,12 +1243,10 @@ function New-SecureDirectory {
 function Add-MinionConfig {
     # Write minion config options to the minion config file
 
-    # Make sure the config directory exists
-    if ( !( Test-Path -path $base_salt_config_location )) {
-        New-SecureDirectory -Path $base_salt_config_location
-    }
+    # New-SecureDirectory will handle reparse points and ownership issues
+    New-SecureDirectory -Path $base_salt_config_location
 
-    # Child directories will inherit the permissions
+    # Child directories will inherit permissions from the parent
     if ( !( Test-Path -path $salt_root_dir)) {
         New-Item -Path $salt_root_dir -Type Directory | Out-Null
     }
@@ -1881,7 +1879,6 @@ function Install {
 
     # Get URL from repo.json
     $info = Get-SaltPackageInfo -MinionVersion $MinionVersion
-    $zip_file = "$base_salt_install_location\$($info.file_name)"
 
     if (!$info) {
         $msg = "Failed to get Package Info for Version: $MinionVersion"
@@ -1889,6 +1886,8 @@ function Install {
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
+
+    $zip_file = "$base_salt_install_location\$($info.file_name)"
 
     # Download Salt from the Web
     Get-SaltFromWeb -Url $info.url -Destination $zip_file -Hash $info.hash
@@ -1935,6 +1934,10 @@ function Main {
             Write-Host $msg -ForegroundColor Red
             Write-Host "Please specify an action" -ForegroundColor Yellow
             return $STATUS_CODES["scriptFailed"]
+        }
+        switch ($Action.ToLower()) {
+            "present" { $Action = "install" }
+            "absent" { $Action = "remove" }
         }
     }
 
