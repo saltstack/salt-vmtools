@@ -287,6 +287,9 @@ $salt_pki_dir = "$salt_config_dir\pki\$salt_config_name"
 $file_dirs_to_remove = [System.Collections.ArrayList]::new()
 $file_dirs_to_remove.Add($base_salt_config_location) | Out-Null
 $file_dirs_to_remove.Add($base_salt_install_location) | Out-Null
+# Old salt install location left behind by older versions of Salt
+# Pre 3004
+$file_dirs_to_remove.Add("C:\salt") | Out-Null
 
 ## VMware registry locations
 $vmtools_base_reg = "HKLM:\SOFTWARE\VMware, Inc.\VMware Tools"
@@ -825,7 +828,7 @@ function Remove-FileOrFolder {
     )
 
     if (!(Test-Path -Path $Path)) {
-        Write-Log "Path not found: $Path" -Level warning
+        Write-Log "Path not found: $Path" -Level debug
         return
     }
 
