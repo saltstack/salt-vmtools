@@ -19,14 +19,14 @@ function test_Main_failed_dependencies {
     return 1
 }
 
-function test_Main_depend {
+function test_Main_Depend {
     $Action = "Depend"
     $result = Main
     if ($result -eq $STATUS_CODES["scriptSuccess"]) { return 0 }
     return 1
 }
 
-function test_Main_install_existing_salt {
+function test_Main_Install_existing_salt {
     $Action = "Install"
     function Find-StandardSaltInstallation { return $true }
     $result = Main
@@ -34,7 +34,7 @@ function test_Main_install_existing_salt {
     return 1
 }
 
-function test_Main_install_unknown_status {
+function test_Main_Install_unknown_status {
     $Action = "Install"
     function Get-Status { return 99 }
     $result = Main
@@ -42,7 +42,7 @@ function test_Main_install_unknown_status {
     return 1
 }
 
-function test_Main_install_status_installed {
+function test_Main_Install_status_installed {
     $Action = "Install"
     function Get-Status { return $STATUS_CODES["installed"] }
     $result = Main
@@ -50,7 +50,7 @@ function test_Main_install_status_installed {
     return 1
 }
 
-function test_Main_install_status_installing {
+function test_Main_Install_status_installing {
     $Action = "Install"
     function Get-Status { return $STATUS_CODES["installing"] }
     $result = Main
@@ -58,7 +58,7 @@ function test_Main_install_status_installing {
     return 1
 }
 
-function test_Main_install_status_removing {
+function test_Main_Install_status_removing {
     $Action = "Install"
     function Get-Status { return $STATUS_CODES["removing"] }
     $result = Main
@@ -66,7 +66,7 @@ function test_Main_install_status_removing {
     return 1
 }
 
-function test_Main_install_success {
+function test_Main_Install_success {
     $Action = "Install"
     function Get-Status { return $STATUS_CODES["notInstalled"] }
     function Install {}
@@ -75,14 +75,14 @@ function test_Main_install_success {
     return 1
 }
 
-function test_Main_remove_unknown_status {
+function test_Main_Remove_unknown_status {
     $Action = "Remove"
     function Get-Status { return 99 }
     $result = Main
     if ($result -eq $STATUS_CODES["scriptFailed"]) { return 0 }
     return 1
 }
-function test_Main_remove_status_installing {
+function test_Main_Remove_status_installing {
     $Action = "Remove"
     function Get-Status { return $STATUS_CODES["installing"] }
     $result = Main
@@ -90,21 +90,21 @@ function test_Main_remove_status_installing {
     return 1
 }
 
-function test_Main_remove_status_notInstalled {
+function test_Main_Remove_status_notInstalled {
     $Action = "Remove"
     function Get-Status { return $STATUS_CODES["notInstalled"] }
     $result = Main
     if ($result -eq $STATUS_CODES["scriptSuccess"]) { return 0 }
     return 1
 }
-function test_Main_remove_status_removing {
+function test_Main_Remove_status_removing {
     $Action = "Remove"
     function Get-Status { return $STATUS_CODES["removing"] }
     $result = Main
     if ($result -eq $STATUS_CODES["scriptFailed"]) { return 0 }
     return 1
 }
-function test_Main_remove_success {
+function test_Main_Remove_success {
     $Action = "Remove"
     function Get-Status { return $STATUS_CODES["installed"] }
     function Remove {}
@@ -113,21 +113,21 @@ function test_Main_remove_success {
     return 1
 }
 
-function test_Clear_unknown_status {
+function test_Main_Clear_unknown_status {
     $Action = "Clear"
     function Get-Status { return 99 }
     $result = Main
     if ($result -eq $STATUS_CODES["scriptFailed"]) { return 0 }
     return 1
 }
-function test_Clear_status_not_installed {
+function test_Main_Clear_status_not_installed {
     $Action = "Clear"
     function Get-Status { return $STATUS_CODES["notInstalled"] }
     $result = Main
     if ($result -eq $STATUS_CODES["scriptSuccess"]) { return 0 }
     return 1
 }
-function test_Clear_success {
+function test_Main_Clear_success {
     $Action = "Clear"
     function Get-Status { return $STATUS_CODES["installed"] }
     function Reset-SaltMinion {}
@@ -136,52 +136,72 @@ function test_Clear_success {
     return 1
 }
 
-function test_Status_unknown_status {
+function test_Main_Status_unknown_status {
     $Action = "Status"
     function Get-Status { return 99 }
     $result = Main
     if ($result -eq $STATUS_CODES["scriptFailed"]) { return 0 }
     return 1
 }
-function test_Status_installed {
+function test_Main_Status_installed {
     $Action = "Status"
     function Get-Status { return $STATUS_CODES["installed"] }
     $result = Main
     if ($result -eq $STATUS_CODES["installed"]) { return 0 }
     return 1
 }
-function test_Status_installing {
+function test_Main_Status_installing {
     $Action = "Status"
     function Get-Status { return $STATUS_CODES["installing"] }
     $result = Main
     if ($result -eq $STATUS_CODES["installing"]) { return 0 }
     return 1
 }
-function test_Status_notInstalled {
+function test_Main_Status_notInstalled {
     $Action = "Status"
     function Get-Status { return $STATUS_CODES["notInstalled"] }
     $result = Main
     if ($result -eq $STATUS_CODES["notInstalled"]) { return 0 }
     return 1
 }
-function test_Status_installFailed {
+function test_Main_Status_installFailed {
     $Action = "Status"
     function Get-Status { return $STATUS_CODES["installFailed"] }
     $result = Main
     if ($result -eq $STATUS_CODES["installFailed"]) { return 0 }
     return 1
 }
-function test_Status_removing {
+function test_Main_Status_removing {
     $Action = "Status"
     function Get-Status { return $STATUS_CODES["removing"] }
     $result = Main
     if ($result -eq $STATUS_CODES["removing"]) { return 0 }
     return 1
 }
-function test_Status_removeFailed {
+function test_Main_Status_removeFailed {
     $Action = "Status"
     function Get-Status { return $STATUS_CODES["removeFailed"] }
     $result = Main
     if ($result -eq $STATUS_CODES["removeFailed"]) { return 0 }
+    return 1
+}
+
+function test_Main_present_guestvars_success {
+    $Action = ""
+    function Get-GuestVars { return "present" }
+    function Get-Status { return $STATUS_CODES["notInstalled"] }
+    function Install {}
+    $result = Main
+    if ($result -eq $STATUS_CODES["scriptSuccess"]) { return 0 }
+    return 1
+}
+
+function test_Main_absent_success {
+    $Action = ""
+    function Get-GuestVars { return "absent" }
+    function Get-Status { return $STATUS_CODES["installed"] }
+    function Remove {}
+    $result = Main
+    if ($result -eq $STATUS_CODES["scriptSuccess"]) { return 0 }
     return 1
 }
