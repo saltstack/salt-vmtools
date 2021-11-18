@@ -43,8 +43,11 @@ multiprocessing=false`
 
 These values are set on the host OS using the `vmrun` binary. For example:
 
-    # To set the Action
-    vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion "install"
+    # To set the Action to install the salt-minion
+    vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion "present"
+
+    # To set the Action to remove the salt-minion
+    vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion "absent"
 
     # To set the Config Options
     vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion.args "master=203.0.113.1"

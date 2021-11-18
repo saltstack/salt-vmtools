@@ -699,7 +699,8 @@ _curl_download() {
 
     for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
     do
-        curl -o "${file_name}" -fsSL "${file_url}"
+        # ensure minimum version of TLS used is v1.2
+        curl -o "${file_name}" --tlsv1.2 -fsSL "${file_url}"
         _retn=$?
         if [[ ${_retn} -ne 0 ]]; then
             _warning_log "$0:${FUNCNAME[0]} failed to download file "\
@@ -1854,12 +1855,12 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
                 _deps_chk_fn
                 retn=$?
                 ;;
-            add)
+            present)
                 LOG_ACTION="install"
                 _install_fn
                 retn=$?
                 ;;
-            remove)
+            absent)
                 LOG_ACTION="remove"
                 _uninstall_fn
                 retn=$?
