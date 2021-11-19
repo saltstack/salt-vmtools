@@ -320,16 +320,13 @@ $guestvars_base = "guestinfo./vmware.components"
 $guestvars_section = "salt_minion"
 $guestvars_salt = "$guestvars_base.$guestvars_section"
 $guestvars_salt_args = "$guestvars_salt.args"
+$guestvars_salt_desiredstate = "$guestvars_salt.desiredstate"
 
 
 ############################### HELPER FUNCTIONS ###############################
 
 
 function Clear-OldLogs {
-
-    if ($Script:log_cleared) {
-        return
-    }
 
     $filter = "*$script_log_base_name*.log" -f $Action.ToLower()
     $files = Get-ChildItem $script_log_dir -Filter $filter | Sort-Object
@@ -389,7 +386,9 @@ function Write-Log {
         }
         if (!($action_list -contains $Action)) { $Action = "Default" }
 
-        Clear-OldLogs
+        if (!$Script:log_cleared) {
+            Clear-OldLogs
+        }
 
         $log_path = "$script_log_dir\$script_log_name" -f $Action
         Add-Content -Path $log_path.ToLower() -Value $log_file_message
@@ -1277,6 +1276,7 @@ function Add-MinionConfig {
         Write-Log "Finished writing minion config" -Level debug
     } catch {
         $msg = "Failed to write minion config: $config_content : $_"
+        Write-Log $msg -Level error
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
@@ -1418,7 +1418,8 @@ function Get-RandomizedMinionId {
         [String] $Length = 5
     )
     $chars = (0x30..0x39) + ( 0x41..0x5A) + ( 0x61..0x7A)
-    $rand_string = (-join ($chars | Get-Random -Count $Length | % {[char]$_}))
+    $rand_chars = $chars | Get-Random -Count $Length
+    $rand_string = -join ($rand_chars | ForEach-Object {[char]$_})
     return -join ($Prefix, "_", $rand_string)
 }
 
@@ -1724,7 +1725,7 @@ function Install-SaltMinion {
     & $ssm_bin set salt-minion AppRestartDelay 60000 *> $null
 
     try {
-        $service = Get-Service -Name salt-minion
+        Get-Service -Name salt-minion
         Write-Log "salt-minion service installed successfully" -Level debug
     } catch {
         switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
@@ -1930,7 +1931,7 @@ function Main {
     if ($Remove) { $Action = "remove" }
     if (!$Action) {
         # We're not logging yet because we don't know the status
-        $Action = Get-GuestVars -GuestVarsPath $guestvars_salt
+        $Action = Get-GuestVars -GuestVarsPath $guestvars_salt_desiredstate
         if (!$Action) {
             $msg = "No action found in guestVars or specified on CLI"
             Write-Log $msg -Level error
