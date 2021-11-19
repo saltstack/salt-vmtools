@@ -106,6 +106,7 @@ readonly guestvars_base_dir="guestinfo./vmware.components"
 readonly \
 guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
 readonly guestvars_salt_args="${guestvars_salt_dir}.args"
+readonly guestvars_salt_desiredstate="${guestvars_salt_dir}.desiredstate"
 
 
 # Array for minion configuration keys and values
@@ -1842,10 +1843,10 @@ fi
 if [[ ${CLI_ACTION} -eq 0 ]]; then
     # check if guest variables have an action since none from CLI
     # since none presented on the command line
-    gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_dir}" \
+    gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_desiredstate}" \
         2>/dev/null) || {
             _warning_log "$0 unable to retrieve any action arguments from "\
-                "guest variables ${guestvars_salt_dir}, retcode '$?'";
+                "guest variables ${guestvars_salt_desiredstate}, retcode '$?'";
     }
 
     if [[ -n "${gvar_action}" ]]; then
