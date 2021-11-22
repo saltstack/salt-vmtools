@@ -840,8 +840,16 @@ function Remove-FileOrFolder {
         try {
             # Remove the file/dir/symlink/junction
             if ((Get-Item -Path $Path) -is [System.IO.DirectoryInfo]) {
-                [System.IO.Directory]::Delete($Path, $true) | Out-Null
+                if (Get-IsReparsePoint -Path $Path) {
+                    Write-Log "Removing reparse point" -Level debug
+                    [System.IO.Directory]::Delete($Path, $true) | Out-Null
+                } else {
+                    Write-Log "Removing directory" -Level debug
+                    # Handles nested readonly files
+                    Remove-Item -Path $Path -Force -Recurse
+                }
             } else {
+                Write-Log "Removing file" -Level debug
                 [System.IO.File]::Delete($Path) | Out-Null
             }
         } catch {
