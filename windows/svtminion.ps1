@@ -320,7 +320,7 @@ $guestvars_base = "guestinfo./vmware.components"
 $guestvars_section = "salt_minion"
 $guestvars_salt = "$guestvars_base.$guestvars_section"
 $guestvars_salt_args = "$guestvars_salt.args"
-$guestvars_salt_desiredstate = "$guestvars_salt.desiredstate"
+$guestvars_salt_desired_state = "$guestvars_salt.desiredstate"
 
 
 ############################### HELPER FUNCTIONS ###############################
@@ -1939,7 +1939,7 @@ function Main {
     if ($Remove) { $Action = "remove" }
     if (!$Action) {
         # We're not logging yet because we don't know the status
-        $Action = Get-GuestVars -GuestVarsPath $guestvars_salt_desiredstate
+        $Action = Get-GuestVars -GuestVarsPath $guestvars_salt_desired_state
         if (!$Action) {
             $msg = "No action found in guestVars or specified on CLI"
             Write-Log $msg -Level error
