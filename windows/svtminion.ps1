@@ -191,6 +191,10 @@ param(
 
 )
 
+# Set TLS1.2 as default
+[System.Net.ServicePointManager]::SecurityProtocol = `
+        [System.Net.SecurityProtocolType]'Tls12'
+
 ################################ HELP/VERSION ##################################
 # We'll put these functions first because they don't require administrator
 # privileges to run
@@ -284,7 +288,7 @@ $salt_config_file = "$salt_config_dir\$salt_config_name"
 $salt_pki_dir = "$salt_config_dir\pki\$salt_config_name"
 
 # Files/Dirs to remove
-$file_dirs_to_remove = [System.Collections.ArrayList]::new()
+$file_dirs_to_remove = New-Object System.Collections.Generic.List[String]
 $file_dirs_to_remove.Add($base_salt_config_location) | Out-Null
 $file_dirs_to_remove.Add($base_salt_install_location) | Out-Null
 # Old salt install location left behind by older versions of Salt
@@ -309,8 +313,9 @@ if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
 }
 
 ## VMware file and directory locations
-$vmtools_base_dir = Get-ItemPropertyValue -Path $vmtools_base_reg `
-                                          -Name "InstallPath"
+$vmtools_base
+$vmtools_reg = Get-ItemProperty -Path $vmtools_base_reg -Name "InstallPath"
+$vmtools_base_dir = $vmtools_reg.InstallPath
 $vmtools_conf_dir = "$env:ProgramData\VMware\VMware Tools"
 $vmtools_conf_file = "$vmtools_conf_dir\tools.conf"
 $vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
@@ -442,9 +447,10 @@ function Get-Status {
 
     Write-Log "Getting status" -Level info
     try {
-        $current_status = Get-ItemPropertyValue `
+        $current_status = Get-ItemProperty `
                             -Path $vmtools_base_reg `
                             -Name $vmtools_salt_minion_status_name
+        $current_status = $current_status.($vmtools_salt_minion_status_name)
         Write-Log "Found status code: $current_status" -Level debug
     } catch {
         Write-Log "Key not set, not installed : $_" -Level debug
@@ -565,8 +571,6 @@ function Get-WebFile{
         [Parameter(Mandatory=$true)]
         [String] $OutFile
     )
-    [System.Net.ServicePointManager]::SecurityProtocol = `
-        [System.Net.SecurityProtocolType]'Tls12'
     $parent_dir = Split-Path $OutFile
     if ( !( Test-Path $parent_dir )) {
         New-Item $parent_dir -Type Directory | Out-Null
@@ -673,6 +677,7 @@ function Expand-ZipFile {
     Write-Log "Unzipping '$ZipFile' to '$Destination'" -Level debug
     if ($PSVersionTable.PSVersion.Major -ge 5) {
         # PowerShell 5 introduced Expand-Archive
+        Write-Log "Using Expand-Archive to unzip"
         try{
             Expand-Archive -Path $ZipFile -DestinationPath $Destination -Force
         } catch {
@@ -683,6 +688,7 @@ function Expand-ZipFile {
     } else {
         # This method will work with older versions of powershell, but it is
         # slow
+        Write-Log "Using Shell.Application to unzip"
         $objShell = New-Object -Com Shell.Application
         $objZip = $objShell.NameSpace($ZipFile)
         try{
@@ -727,7 +733,7 @@ function Add-SystemPathValue{
 
     Write-Log "Getting current system path" -Level debug
     $current_path = (Get-ItemProperty -Path $key -Name Path).Path
-    $new_path_list = [System.Collections.ArrayList]::new()
+    $new_path_list = New-Object System.Collections.Generic.List[String]
 
     Write-Log "Verifying the target path is not already present" -Level debug
     $regex_path = $Path.Replace("\", "\\")
@@ -779,7 +785,7 @@ function Remove-SystemPathValue {
 
     Write-Log "Getting current system path" -Level debug
     $current_path = (Get-ItemProperty -Path $key -Name Path).Path
-    $new_path_list = [System.Collections.ArrayList]::new()
+    $new_path_list = New-Object System.Collections.Generic.List[String]
 
     Write-Log "Searching for $Path" -Level debug
     $regex_path = $Path.Replace("\", "\\")
@@ -1273,7 +1279,7 @@ function Add-MinionConfig {
 
     # Add file_roots to point to ProgramData
     $config_options["file_roots"] = $salt_root_dir
-    $new_content = [System.Collections.ArrayList]::new()
+    $new_content = New-Object System.Collections.Generic.List[String]
     foreach ($row in $config_options.GetEnumerator()) {
         $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
     }
@@ -1481,7 +1487,7 @@ function Find-StandardSaltInstallation {
     #     Bool: True if standard installation found, otherwise False
 
     # Standard locations
-    $locations = [System.Collections.ArrayList]::new()
+    $locations = New-Object System.Collections.Generic.List[String]
     $locations.Add("C:\salt") | Out-Null
 
     $locations.Add("$env:ProgramFiles\Salt Project\Salt") | Out-Null
@@ -1489,7 +1495,7 @@ function Find-StandardSaltInstallation {
     # Check registry for new style locations
     try{
         $reg_path = "HKLM:\SOFTWARE\Salt Project\salt"
-        $dir_path = Get-ItemPropertyValue -Path $reg_path -Name "install_dir"
+        $dir_path = (Get-ItemProperty -Path $reg_path).install_dir
         $locations.Add($dir_path) | Out-Null
     } catch { }
 
@@ -1569,6 +1575,9 @@ function Get-SaltPackageInfo {
     }
 
     if ($salt_file_name -and $salt_version -and $salt_sha512) {
+        Write-Log "Found installer: $salt_file_name" -Level debug
+        Write-Log "Found version: $salt_version" -Level debug
+        Write-Log "Found sha512: $salt_sha512" -Level debug
         return @{
             url = @($base_url, $salt_version, $salt_file_name) -join "/";
             hash = $salt_sha512;
@@ -1576,6 +1585,89 @@ function Get-SaltPackageInfo {
         }
     } else {
         return @{}
+    }
+}
+
+
+function Get-FileHash {
+    # Get-FileHash is a built-in cmdlet in powershell 5+ but we need to support
+    # powershell 3. This will overwrite the powershell 5 commandlet only for
+    # this script. But it will provide the missing cmdlet for powershell 3
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet(
+                "SHA1",
+                "SHA256",
+                "SHA384",
+                "SHA512",
+                # https://serverfault.com/questions/820300/
+                # why-isnt-mactripledes-algorithm-output-in-powershell-stable
+                "MACTripleDES", # don't use
+                "MD5",
+                "RIPEMD160",
+                IgnoreCase=$true)]
+        [String] $Algorithm = "SHA256"
+    )
+
+    if ( !(Test-Path $Path) ) {
+        Write-Log "Invalid path for hashing: $Path" -Level debug
+        return @{}
+    }
+
+    if ( (Get-Item -Path $Path) -isnot [System.IO.FileInfo]) {
+        Write-Log "Not a file for hashing: $Path" -Level debug
+        return @{}
+    }
+
+    $Path = Resolve-Path -Path $Path
+
+    Switch ($Algorithm) {
+        SHA1 {
+            # We're doing this in 2 lines to comply with the 80 char limit
+            $hasher = [System.Security.Cryptography.SHA1CryptoServiceProvider]
+            $hasher = $hasher::Create()
+        }
+        SHA256 {
+            $hasher = [System.Security.Cryptography.SHA256]::Create()
+        }
+        SHA384 {
+            $hasher = [System.Security.Cryptography.SHA384]::Create()
+        }
+        SHA512 {
+            $hasher = [System.Security.Cryptography.SHA512]::Create()
+        }
+        MACTripleDES {
+            $hasher = [System.Security.Cryptography.MACTripleDES]::Create()
+        }
+        MD5 {
+            $hasher = [System.Security.Cryptography.MD5]::Create()
+        }
+        RIPEMD160 {
+            $hasher = [System.Security.Cryptography.RIPEMD160]::Create()
+        }
+    }
+
+    Write-Log "Hashing using $Algorithm algorithm" -Level debug
+    try {
+        $data = [System.IO.File]::OpenRead($Path)
+        $hash = $hasher.ComputeHash($data)
+        $hash = [System.BitConverter]::ToString($hash) -replace "-",""
+        return @{
+            Path = $Path;
+            Algorithm = $Algorithm.ToUpper();
+            Hash = $hash
+        }
+    } catch {
+        Write-Log "Error hashing: $Path" -Level debug
+        return @{}
+    } finally {
+        if ($data -ne $null) {
+            $data.Close()
+        }
     }
 }
 
@@ -1847,7 +1939,7 @@ function Reset-SaltMinion {
     Remove-FileOrFolder "$salt_config_file\minion_id"
 
     # Comment out id: in the minion config
-    $new_content = [System.Collections.ArrayList]::new()
+    $new_content = New-Object System.Collections.Generic.List[String]
     if (Test-Path -Path "$salt_config_file") {
         Write-Log "Searching minion config file for id" -Level debug
         foreach ($line in Get-Content $salt_config_file) {
