@@ -250,8 +250,7 @@ esac
      echo "  -l, --loglevel  set log level for logging,"
      echo "                     silent error warning debug info"
      echo "                     default loglevel is warning"
-     echo "  -m, --minionversion salt-minion version to install,"
-     echo "                                                 default[latest]"
+     echo "  -m, --minionversion install salt-minion version, default[latest]"
      echo "  -r, --remove    deactivate and remove the salt-minion"
      echo "  -s, --status    return status for this script"
      echo "  -v, --version   version of this script"
@@ -1329,14 +1328,13 @@ _install_fn () {
         cd "${CURRDIR}" || return $?
 
         # start the salt-minion using systemd
+        local name_service="salt-minion.service"
         systemctl daemon-reload || {
             _error_log "$0:${FUNCNAME[0]} reloading the systemd daemon "\
                 "failed , retcode '$?'";
         }
         _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl "\
             "daemon-reload"
-        local name_service=''
-        name_service=$(echo "salt-minion.service" | cut -d '.' -f 1)
         systemctl restart "${name_service}" || {
             _error_log "$0:${FUNCNAME[0]} starting the salt-minion using "\
                 "systemctl failed , retcode '$?'";
