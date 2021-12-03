@@ -151,7 +151,6 @@ DEPS_CHK=0
 USAGE_HELP=0
 UNINSTALL_FLAG=0
 VERBOSE_FLAG=0
-LOG_LEVEL_FLAG=0
 VERSION_FLAG=0
 
 CLEAR_ID_KEYS_FLAG=0
@@ -275,7 +274,7 @@ esac
 #
 
 _cleanup() {
-    exit ${STATUS_CODES_ARY[scriptCntlC]}
+    exit ${STATUS_CODES_ARY[scriptTerminated]}
 }
 
 trap _cleanup INT
@@ -603,7 +602,7 @@ _randomize_minion_id() {
         #provided input
         ran_minion="${ip_string}_${RANDOM:0:5}"
     fi
-        _debug_log "$0:${FUNCNAME[0]} generated randomized minion "\
+    _debug_log "$0:${FUNCNAME[0]} generated randomized minion "\
             "identifier '${ran_minion}'"
     echo "${ran_minion}"
 }
@@ -820,21 +819,9 @@ _curl_download() {
 #   Exits with 0 or error code
 #
 
-#
-# _fetch_salt_minion
-#
-#   Retrieve the salt-minion from Salt repository
-#
-# Side Effects:
-#   CURRENT_STATUS updated
-#
-# Results:
-#   Exits with 0 or error code
-#
-
 _fetch_salt_minion() {
     # fetch the current salt-minion into specified location
-    # could check if alreasdy there but by always getting it
+    # could check if already there but by always getting it
     # ensure we are not using stale versions
     local _retn=0
     local calc_sha512sum=1
@@ -964,8 +951,8 @@ _check_multiple_script_running() {
 #   for example: install salt-minion from rpm or deb package
 #
 # Results:
-#   0 - No standard install found and Salt version found output
-#   !0 - Standard install found and empty string output
+#   0 - No standard install found and empty string output
+#   !0 - Standard install found and Salt version found output
 #
 
 _check_std_minion_install() {
@@ -1396,7 +1383,7 @@ _generate_minion_id () {
     _debug_log "$0:${FUNCNAME[0]} generating a salt-minion identifier"
 
     # always comment out what was there
-    sed -i 's/^id/# id/g' "${salt_minion_conf_file}"
+    sed -i 's/^id:/# id:/g' "${salt_minion_conf_file}"
 
     while IFS= read -r line
     do
@@ -1681,7 +1668,7 @@ _clean_up_log_files() {
         mapfile -t found_f_ary <<< "${found_f}"
 
         if [[ ${count_f} -gt ${LOG_FILE_NUMBER} ]]; then
-            # alloe for org-0
+            # allow for org-0
             for ((i=count_f-1; i>=LOG_FILE_NUMBER; i--)); do
                 _debug_log "$0:${FUNCNAME[0]} removing log file "\
                     "'${found_f_ary[i]}', for count '${i}', "\
