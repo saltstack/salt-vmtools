@@ -92,14 +92,14 @@ function test_Add-MinionConfig {
     # We have to try to mock getting guestVars
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     # We have to try to mock getting ini values
-    function Read-IniContent { @{ salt_minion = @{ master = "tc_master"; root_dir="tc_root_dir" } } }
+    function Read-IniContent { @{ salt_minion = @{ master = "tc_master"; master_port="1234" } } }
     # Set CLI Options
     $ConfigOptions = @("root_dir=cli_root_dir")
     Add-MinionConfig
     $content = Get-Content $salt_config_file
     if (!($content -like "*id: gv_minion*")) { return 1 }
-    if (!($content -like "*file_roots: $salt_root_dir*")) { return 1 }
+    if (!($content -like "*root_dir: $salt_root_dir*")) { return 1 }
     if (!($content -like "*master: tc_master*")) { return 1 }
-    if (!($content -like "*root_dir: cli_root_dir*")) { return 1 }
+    if (!($content -like "*master_port: 1234*")) { return 1 }
     return 0
 }

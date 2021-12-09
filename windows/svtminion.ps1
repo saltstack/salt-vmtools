@@ -1277,8 +1277,8 @@ function Add-MinionConfig {
         Write-Log "No minion config found. Defaults will be used" -Level debug
     }
 
-    # Add file_roots to point to ProgramData
-    $config_options["file_roots"] = $salt_root_dir
+    # Add root_dir to point to ProgramData
+    $config_options["root_dir"] = $salt_root_dir
     $new_content = New-Object System.Collections.Generic.List[String]
     foreach ($row in $config_options.GetEnumerator()) {
         $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
