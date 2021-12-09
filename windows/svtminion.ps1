@@ -912,6 +912,12 @@ function Get-GuestVars {
         [String] $GuestVarsPath
     )
 
+    If ( !(Test-Path $vmtoolsd_bin) ) {
+        $msg = "vmtoolsd.exe not found. GuestVars data will not be available"
+        Write-Log $msg -Level warning
+        return ""
+    }
+
     $arguments = "--cmd `"info-get $GuestVarsPath`""
 
     $ProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -1450,10 +1456,9 @@ function Confirm-Dependencies {
     $deps_present = $true
     Write-Log "Checking dependencies" -Level info
 
-    # VMware Tools files
     # Files required by this script
     $salt_dep_files = @{}
-    $salt_dep_files["vmtoolsd.exe"] = $vmtools_base_dir
+    # $salt_dep_files["dep_name.exe"] = "path\to\dep_name.exe"
 
     foreach ($file in $salt_dep_files.Keys) {
         Write-Log "Looking for $file in $($salt_dep_files[$file])" -Level debug
