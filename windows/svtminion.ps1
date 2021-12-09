@@ -286,6 +286,7 @@ $salt_config_dir = "$salt_root_dir\conf"
 $salt_config_name = "minion"
 $salt_config_file = "$salt_config_dir\$salt_config_name"
 $salt_pki_dir = "$salt_config_dir\pki\$salt_config_name"
+$salt_log_dir = "$salt_root_dir\var\log\salt"
 
 # Files/Dirs to remove
 $file_dirs_to_remove = New-Object System.Collections.Generic.List[String]
@@ -1283,9 +1284,15 @@ function Add-MinionConfig {
         Write-Log "No minion config found. Defaults will be used" -Level debug
     }
 
+    # These settings are for pre 3004 versions of Salt
     # Add root_dir to point to ProgramData
     $config_options["root_dir"] = $salt_root_dir
+    # Add log_file to point to ProgramData
+    $config_options["log_file"] = "$salt_log_dir\minion"
+
     $new_content = New-Object System.Collections.Generic.List[String]
+    $comment = "# Minion configuration file - created by vmtools salt script"
+    $new_content.Add($comment)
     foreach ($row in $config_options.GetEnumerator()) {
         $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
     }
