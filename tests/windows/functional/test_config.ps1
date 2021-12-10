@@ -97,8 +97,10 @@ function test_Add-MinionConfig {
     $ConfigOptions = @("root_dir=cli_root_dir")
     Add-MinionConfig
     $content = Get-Content $salt_config_file
+    if (!($content -like "*created by vmtools salt script*")) { return 1 }
     if (!($content -like "*id: gv_minion*")) { return 1 }
     if (!($content -like "*root_dir: $salt_root_dir*")) { return 1 }
+    if (!($content -like "*log_file: $salt_log_dir\minion*")) { return 1 }
     if (!($content -like "*master: tc_master*")) { return 1 }
     if (!($content -like "*master_port: 1234*")) { return 1 }
     return 0

@@ -286,6 +286,7 @@ $salt_config_dir = "$salt_root_dir\conf"
 $salt_config_name = "minion"
 $salt_config_file = "$salt_config_dir\$salt_config_name"
 $salt_pki_dir = "$salt_config_dir\pki\$salt_config_name"
+$salt_log_dir = "$salt_root_dir\var\log\salt"
 
 # Files/Dirs to remove
 $file_dirs_to_remove = New-Object System.Collections.Generic.List[String]
@@ -296,29 +297,34 @@ $file_dirs_to_remove.Add($base_salt_install_location) | Out-Null
 $file_dirs_to_remove.Add("C:\salt") | Out-Null
 
 ## VMware registry locations
+$salt_base_reg = "HKLM:\SOFTWARE\Salt Project\salt"
 $vmtools_base_reg = "HKLM:\SOFTWARE\VMware, Inc.\VMware Tools"
 $vmtools_salt_minion_status_name = "SaltMinionStatus"
 
 try{
     $reg_key = Get-ItemProperty $vmtools_base_reg
 } catch {
-    $msg = "Unable to find valid VMware Tools installation : $_"
-    Write-Host $msg -ForeGroundColor Red
-    exit $STATUS_CODES["scriptFailed"]
+    if (Test-Path $vmtools_base_reg) {
+        $msg = "VMware Tools not installed: $_"
+        Write-Host $msg
+        exit $STATUS_CODES["scriptFailed"]
+    }
 }
 if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
-    $msg = "Unable to find valid VMware Tools installation"
-    Write-Host $msg -ForeGroundColor Red
-    exit $STATUS_CODES["scriptFailed"]
+    if (Test-Path $vmtools_base_reg) {
+        # Only error out on systems with VMware Tools installed
+        $msg = "Unable to find VMware Tools installation"
+        Write-Host $msg
+        exit $STATUS_CODES["scriptFailed"]
+    }
+} else {
+    ## VMware file and directory locations
+    $vmtools_reg = Get-ItemProperty -Path $vmtools_base_reg -Name "InstallPath"
+    $vmtools_base_dir = $vmtools_reg.InstallPath
+    $vmtools_conf_dir = "$env:ProgramData\VMware\VMware Tools"
+    $vmtools_conf_file = "$vmtools_conf_dir\tools.conf"
+    $vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
 }
-
-## VMware file and directory locations
-$vmtools_base
-$vmtools_reg = Get-ItemProperty -Path $vmtools_base_reg -Name "InstallPath"
-$vmtools_base_dir = $vmtools_reg.InstallPath
-$vmtools_conf_dir = "$env:ProgramData\VMware\VMware Tools"
-$vmtools_conf_file = "$vmtools_conf_dir\tools.conf"
-$vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
 
 ## VMware guestVars file and directory locations
 $guestvars_base = "guestinfo./vmware.components"
@@ -510,14 +516,23 @@ function Set-Status {
         [String] $NewStatus
     )
 
+    if ( Test-Path $vmtools_base_reg ) {
+        $reg_path = $vmtools_base_reg
+    } else {
+        $reg_path = $salt_base_reg
+        if ( !(Test-Path $salt_base_reg) ) {
+            Write-Log "Creating reg key: $salt_base_reg" -Level debug
+            New-Item -Path "$salt_base_reg" -Force
+        }
+    }
     Write-Log "Setting status: $NewStatus" -Level info
     $status_code = $STATUS_CODES[$NewStatus]
     # If it's notInstalled, just remove the propery name
     if ($status_code -eq $STATUS_CODES["notInstalled"]) {
         try {
-            Remove-ItemProperty -Path $vmtools_base_reg `
+            Remove-ItemProperty -Path "$reg_path"`
                                 -Name $vmtools_salt_minion_status_name
-            $key = "$vmtools_base_reg\$vmtools_salt_minion_status_name"
+            $key = "$reg_path\$vmtools_salt_minion_status_name"
             Write-Log "Removed reg key: $key" -Level debug
             Write-Log "Set status to $NewStatus" -Level debug
         } catch [System.Management.Automation.PSArgumentException] {
@@ -529,14 +544,18 @@ function Set-Status {
         }
     } else {
         try {
-            New-ItemProperty -Path $vmtools_base_reg `
+            New-ItemProperty -Path "$reg_path"`
                              -Name $vmtools_salt_minion_status_name `
                              -Value $status_code `
                              -Force | Out-Null
             Write-Log "Set status to $NewStatus" -Level debug
         } catch {
-            Write-Log "Error writing status: $_" -Level error
-            exit $STATUS_CODES["scriptFailed"]
+            if (Test-Path $vmtools_base_reg) {
+                Write-Log "Error writing status: $_" -Level error
+                exit $STATUS_CODES["scriptFailed"]
+            } else {
+                Write-Log "Error writing status: $_" -Level warning
+            }
         }
     }
 }
@@ -912,7 +931,7 @@ function Get-GuestVars {
         [String] $GuestVarsPath
     )
 
-    If ( !(Test-Path $vmtoolsd_bin) ) {
+    If ( !$vmtoolsd_bin -or !(Test-Path $vmtoolsd_bin) ) {
         $msg = "vmtoolsd.exe not found. GuestVars data will not be available"
         Write-Log $msg -Level warning
         return ""
@@ -1066,6 +1085,10 @@ function Get-ConfigToolsConf {
     # - Get-MinionConfig
     #
     # Return hashtable
+    if ( !$vmtools_conf_file -or !(Test-Path $vmtools_conf_file) ) {
+        Write-Log "tools.conf not found" -Level debug
+        return @{}
+    }
     $config_options = Read-IniContent -FilePath $vmtools_conf_file
     Write-Log "Checking for tools.conf config options" -Level debug
     if ($config_options.ContainsKey($guestvars_section)) {
@@ -1283,9 +1306,15 @@ function Add-MinionConfig {
         Write-Log "No minion config found. Defaults will be used" -Level debug
     }
 
+    # These settings are for pre 3004 versions of Salt
     # Add root_dir to point to ProgramData
     $config_options["root_dir"] = $salt_root_dir
+    # Add log_file to point to ProgramData
+    $config_options["log_file"] = "$salt_log_dir\minion"
+
     $new_content = New-Object System.Collections.Generic.List[String]
+    $comment = "# Minion configuration file - created by vmtools salt script"
+    $new_content.Add($comment)
     foreach ($row in $config_options.GetEnumerator()) {
         $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
     }
@@ -1395,7 +1424,8 @@ function Stop-MinionService {
     $tries = 1
     $max_tries = 5
     while ($service.Status -ne "Stopped") {
-        if ($service.Status -eq "Running") {
+        if (($service.Status -eq "Running") -or `
+                ($service.Status -eq "Paused")) {
             # Start the minion service
             Write-Log "Stop the $ServiceName service" -Level info
             try {
@@ -1499,8 +1529,7 @@ function Find-StandardSaltInstallation {
 
     # Check registry for new style locations
     try{
-        $reg_path = "HKLM:\SOFTWARE\Salt Project\salt"
-        $dir_path = (Get-ItemProperty -Path $reg_path).install_dir
+        $dir_path = (Get-ItemProperty -Path $salt_base_reg).install_dir
         $locations.Add($dir_path) | Out-Null
     } catch { }
 
@@ -1796,6 +1825,9 @@ function Install-SaltMinion {
     )
     Write-Log "Unzipping salt (this may take a few minutes)" -Level info
     Expand-ZipFile -ZipFile $Path -Destination $base_salt_install_location
+
+    Write-Log "Removing zipfile: $Path" -Level debug
+    Remove-Item -Path $Path
 
     # 2. Copy the scripts into Program Files
     Write-Log "Copying scripts" -Level info
