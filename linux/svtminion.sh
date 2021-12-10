@@ -1236,16 +1236,21 @@ _deps_chk_fn() {
 # (Debian 9, Ubuntu 18.04) use /lib/systemd/system
 #
 _find_system_lib_path () {
+
+    local path_found=""
+    _info_log "$0:${FUNCNAME[0]} finding systemd library path to use"
     if [[ -d "/usr/lib/systemd/system" ]]; then
-        echo "/usr/lib/systemd/system"
+        path_found="/usr/lib/systemd/system"
     elif [[ -d "/lib/systemd/system" ]]; then
-        echo "/lib/systemd/system"
+        path_found="/lib/systemd/system"
     elif [[ -d "/usr/local/lib/systemd/system" ]]; then
-        echo "/usr/local/lib/systemd/system"
+        path_found="/usr/local/lib/systemd/system"
     else
         _error_log "$0:${FUNCNAME[0]} unable to determine systemd"\
         "library path to use"
     fi
+    _debug_log "$0:${FUNCNAME[0]} found library path to use ${path_found}"
+    echo "${path_found}"
 }
 
 
@@ -1343,7 +1348,7 @@ _install_fn () {
 
         # install salt-minion systemd service script
         # first find with systemd library path to use
-        local systemd_lib_path=_find_system_lib_path
+        local systemd_lib_path=$(_find_system_lib_path)
         local name_service="salt-minion.service"
         _debug_log "$0:${FUNCNAME[0]} copying systemd service script "\
             "${name_service} to directory ${systemd_lib_path}"
