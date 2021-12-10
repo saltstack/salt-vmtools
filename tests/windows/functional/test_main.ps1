@@ -66,6 +66,30 @@ function test_Main_Install_status_removing {
     return 1
 }
 
+function test_Main_Install_status_installFailed {
+    $Action = "Install"
+    $reg_value = $STATUS_CODES["installFailed"]
+    Set-ItemProperty -Path $vmtools_base_reg `
+                     -Name $vmtools_salt_minion_status_name `
+                     -Value $reg_value
+    function Install {}
+    $result = Main
+    if ($result -eq $STATUS_CODES["scriptSuccess"]) { return 0 }
+    return 1
+}
+
+function test_Main_Install_status_removeFailed {
+    $Action = "Install"
+    $reg_value = $STATUS_CODES["removeFailed"]
+    Set-ItemProperty -Path $vmtools_base_reg `
+                     -Name $vmtools_salt_minion_status_name `
+                     -Value $reg_value
+    function Install {}
+    $result = Main
+    if ($result -eq $STATUS_CODES["scriptSuccess"]) { return 0 }
+    return 1
+}
+
 function test_Main_Install_success {
     $Action = "Install"
     function Get-Status { return $STATUS_CODES["notInstalled"] }

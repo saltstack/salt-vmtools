@@ -2134,6 +2134,16 @@ function Main {
                     Write-Host "Removal in progress"
                     return $STATUS_CODES["scriptFailed"]
                 }
+                $STATUS_CODES["removeFailed"] {
+                    # We want to clean up anything left behind by a failed
+                    # remove
+                    Remove
+                }
+                $STATUS_CODES["installFailed"] {
+                    # We want to clean up anything left behind by a failed
+                    # install
+                    Remove
+                }
             }
             Install
             Write-Host "Salt minion installed successfully"
