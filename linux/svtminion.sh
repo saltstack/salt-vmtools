@@ -1348,7 +1348,8 @@ _install_fn () {
 
         # install salt-minion systemd service script
         # first find with systemd library path to use
-        local systemd_lib_path=$(_find_system_lib_path)
+        local systemd_lib_path=""
+        systemd_lib_path=$(_find_system_lib_path)
         local name_service="salt-minion.service"
         _debug_log "$0:${FUNCNAME[0]} copying systemd service script "\
             "${name_service} to directory ${systemd_lib_path}"
