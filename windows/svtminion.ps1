@@ -214,6 +214,13 @@ if ($Version) {
     exit 0
 }
 
+# Only run on 64-bit architecture
+$arch = (Get-CimInstance Win32_operatingsystem).OSArchitecture
+if ($arch -ne "64-bit") {
+    Write-Host "This script only supports 64-bit architecture"
+    exit 0
+}
+
 ################################# STATUS CODES #################################
 $STATUS_CODES = @{
     "scriptSuccess" = 0;
