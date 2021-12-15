@@ -256,8 +256,8 @@ $LOG_LEVELS = @{
 $log_level_value = $LOG_LEVELS[$LogLevel.ToLower()]
 
 ################################# SETTINGS #####################################
-$Script:ErrorActionPreference = "Stop"
-$Script:ProgressPreference = "SilentlyContinue"
+$global:ErrorActionPreference = "Stop"
+$global:ProgressPreference = "SilentlyContinue"
 $Script:log_cleared = $false
 $download_retry_count = 5
 $script_date = Get-Date -Format "yyyyMMddHHmmss"
@@ -299,6 +299,7 @@ $file_dirs_to_remove.Add("C:\salt") | Out-Null
 ## VMware registry locations
 $salt_base_reg = "HKLM:\SOFTWARE\Salt Project\salt"
 $vmtools_base_reg = "HKLM:\SOFTWARE\VMware, Inc.\VMware Tools"
+
 $vmtools_salt_minion_status_name = "SaltMinionStatus"
 
 try{
@@ -324,6 +325,17 @@ if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
     $vmtools_conf_dir = "$env:ProgramData\VMware\VMware Tools"
     $vmtools_conf_file = "$vmtools_conf_dir\tools.conf"
     $vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
+}
+
+# If vmtools reg path exists, then we're on a VMtools system
+if ( Test-Path $vmtools_base_reg ) {
+    $reg_path = $vmtools_base_reg
+} else {
+    $reg_path = $salt_base_reg
+    if ( !(Test-Path $salt_base_reg) ) {
+        Write-Log "Creating reg key: $salt_base_reg" -Level debug
+        New-Item -Path "$salt_base_reg" -Force
+    }
 }
 
 ## VMware guestVars file and directory locations
@@ -454,7 +466,7 @@ function Get-Status {
     Write-Log "Getting status" -Level info
     try {
         $current_status = Get-ItemProperty `
-                            -Path $vmtools_base_reg `
+                            -Path $reg_path `
                             -Name $vmtools_salt_minion_status_name
         $current_status = $current_status.($vmtools_salt_minion_status_name)
         Write-Log "Found status code: $current_status" -Level debug
@@ -516,15 +528,6 @@ function Set-Status {
         [String] $NewStatus
     )
 
-    if ( Test-Path $vmtools_base_reg ) {
-        $reg_path = $vmtools_base_reg
-    } else {
-        $reg_path = $salt_base_reg
-        if ( !(Test-Path $salt_base_reg) ) {
-            Write-Log "Creating reg key: $salt_base_reg" -Level debug
-            New-Item -Path "$salt_base_reg" -Force
-        }
-    }
     Write-Log "Setting status: $NewStatus" -Level info
     $status_code = $STATUS_CODES[$NewStatus]
     # If it's notInstalled, just remove the propery name
