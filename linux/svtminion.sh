@@ -1246,7 +1246,7 @@ _find_system_lib_path () {
     elif [[ -d "/usr/local/lib/systemd/system" ]]; then
         path_found="/usr/local/lib/systemd/system"
     else
-        _error_log "$0:${FUNCNAME[0]} unable to determine systemd"\
+        _error_log "$0:${FUNCNAME[0]} unable to determine systemd "\
         "library path to use"
     fi
     _debug_log "$0:${FUNCNAME[0]} found library path to use ${path_found}"
