@@ -1709,7 +1709,7 @@ function Get-FileHash {
         Write-Log "Error hashing: $Path" -Level debug
         return @{}
     } finally {
-        if ($data -ne $null) {
+        if ($null -ne $data) {
             $data.Close()
         }
     }
@@ -2031,7 +2031,7 @@ function Install {
     # Get URL from repo.json
     $info = Get-SaltPackageInfo -MinionVersion $MinionVersion
 
-    if (!$info) {
+    if ($info.Count -eq 0) {
         $msg = "Failed to get Package Info for Version: $MinionVersion"
         Write-Log $msg -Level error
         Set-FailedStatus
