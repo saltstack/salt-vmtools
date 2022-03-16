@@ -83,6 +83,14 @@ param(
     # The version of Salt minion to install. Default is "latest".
     [String] $MinionVersion="latest",
 
+    [Parameter(Mandatory=$false, ParameterSetName="Install")]
+    [Alias("j")]
+    # The url or path to the repo containing the installers. This would contain
+    # a directory structure similar to that found at the default location:
+    # https://repo.saltproject.io/salt/vmware-tools-onedir/. This can handle
+    # most common protocols: http, https, ftp, file, unc, local, etc.
+    [String] $Source="https://repo.saltproject.io/salt/vmware-tools-onedir",
+
     [Parameter(Mandatory=$false, ParameterSetName="Install",
             Position=0, ValueFromRemainingArguments=$true)]
     # Any number of minion config options specified by the name of the config
@@ -279,7 +287,7 @@ $action_list = @("install", "remove", "depend", "clear", "status")
 ################################# VARIABLES ####################################
 # Repository locations and names
 $salt_name = "salt"
-$base_url = "https://repo.saltproject.io/salt/vmware-tools-onedir"
+$base_url = $Source
 
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
@@ -1600,9 +1608,14 @@ function Get-SaltPackageInfo {
         [Parameter(Mandatory=$true)]
         [String] $MinionVersion
     )
-    $response = Invoke-WebRequest -Uri "$base_url/repo.json" -UseBasicParsing
-    $psobj = $response.Content | ConvertFrom-Json
-    $hash = Convert-PSObjectToHashtable $psobj
+    try {
+        $response = Invoke-WebRequest -Uri "$base_url/repo.json" -UseBasicParsing
+        $psobj = $response.Content | ConvertFrom-Json
+        $hash = Convert-PSObjectToHashtable $psobj
+    } catch {
+        Write-Log "repo.json not found at: $base_url" -Level debug
+        $hash = @{}
+    }
 
     $salt_file_name = ""
     $salt_version = ""
@@ -1628,7 +1641,25 @@ function Get-SaltPackageInfo {
             file_name = $salt_file_name
         }
     } else {
-        return @{}
+        # Since there's no repo.json, we need to get the URL and HASH directly
+        # using `latest`
+        $salt_file_name = "salt-latest-windows-amd64.zip"
+        try {
+            $response = Invoke-WebRequest -Uri "$base_url/salt-latest_SHA512" -UseBasicParsing
+        } catch {
+            Write-Log "sha file not found: $base_url/salt-latest-SHA512" -Level debug
+            return @{}
+        }
+        ForEach ($line in $response.RawContent.Split([Environment]::NewLine)) {
+            if ($line.EndsWith(".zip")) {
+                $salt_sha512 = $line.Split()[0]
+            }
+        }
+        return @{
+            url = @($base_url, $salt_file_name) -join "/";
+            hash = $salt_sha512;
+            file_name = $salt_file_name
+        }
     }
 }
 
