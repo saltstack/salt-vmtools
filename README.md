@@ -194,14 +194,15 @@ pre-requisites:
 - awk
 - sed
 - cut
+- wget
 
 `svtminion.sh --help` shows the command line options
 
     Usage for the script svtminion.sh
 
         usage: ./svtminion.sh  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]
-                     [-l|--loglevel] [-m|--minionversion] [-r|--remove]
-                     [-s|--status] [-v|--version]
+                     [-j|--source] [-l|--loglevel] [-m|--minionversion]
+                     [-r|--remove] [-s|--status] [-v|--version]
 
           -c, --clear     clear previous minion identifer and keys,
                              and set specified identifer if present
@@ -209,6 +210,13 @@ pre-requisites:
           -h, --help      this message
           -i, --install   install and activate the salt-minion
                              parameters key=value can also be passed on the CLI
+          -j, --source   specify location to install Salt Minion from
+                             default is repo.saltproject.io location
+                         for example: url location
+                             http://my_web_server.com/my_salt_onedir
+                             https://my_web_server.com/my_salt_onedir
+                         if specific version of Salt Minion specified, -m
+                         then its appended to source else default 'latest'                             
           -l, --loglevel  set log level for logging, silent error warning debug info
                              default loglevel is warning
           -m, --minionversion salt-minion version to install, default[latest]

@@ -21,12 +21,11 @@ readonly SCRIPT_VERSION='SCRIPT_VERSION_REPLACE'
 CURL_DOWNLOAD_RETRY_COUNT=5
 
 ## Repository locations and naming
-readonly default_salt_url_version="3003.3-1"
+readonly default_salt_url_version="latest"
 readonly salt_name="salt"
-salt_url_version="${default_salt_url_version}"
-readonly base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
 readonly repo_json_file="repo.json"
-readonly base_url_json_file="${base_url}/${repo_json_file}"
+salt_url_version="${default_salt_url_version}"
+base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
 
 # Salt file and directory locations
 readonly base_salt_location="/opt/saltstack"
@@ -61,6 +60,7 @@ grep
 awk
 sed
 cut
+wget
 "
 
 readonly allowed_log_file_action_names="status
@@ -76,7 +76,7 @@ call
 "
 
 readonly salt_minion_service_wrapper=\
-"# Copyright (c) 2021 VMware, Inc. All rights reserved.
+"# Copyright (c) 2021-2022 VMware, Inc. All rights reserved.
 
 [Unit]
 Description=The Salt Minion
@@ -170,6 +170,9 @@ LOG_LEVEL_PARAMS=""
 #default logging level to errors, similar to Windows script
 LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 
+SOURCE_FLAG=0
+SOURCE_PARAMS=""
+
 # helper functions
 
 _timestamp() {
@@ -240,8 +243,8 @@ esac
      echo ""
      echo "usage: ${0}"
      echo "             [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
-     echo "             [-l|--loglevel] [-m|--minionversion] [-r|--remove]"
-     echo "             [-s|--status] [-v|--version]"
+     echo "             [-j|--source] [-l|--loglevel] [-m|--minionversion]"
+     echo "             [-r|--remove] [-s|--status] [-v|--version]"
      echo ""
      echo "  -c, --clear     clear previous minion identifer and keys,"
      echo "                     and set specified identifer if present"
@@ -249,6 +252,13 @@ esac
      echo "  -h, --help      this message"
      echo "  -i, --install   install and activate salt-minion configuration"
      echo "                     parameters key=value can also be passed on CLI"
+     echo "  -j, --source   specify location to install Salt Minion from"
+     echo "                     default is repo.saltproject.io location"
+     echo "                 for example: url location"
+     echo "                     http://my_web_server.com/my_salt_onedir"
+     echo "                     https://my_web_server.com/my_salt_onedir"
+     echo "                 if specific version of Salt Minion specified, -m"
+     echo "                 then its appended to source else default 'latest'"
      echo "  -l, --loglevel  set log level for logging,"
      echo "                     silent error warning debug info"
      echo "                     default loglevel is warning"
@@ -384,6 +394,7 @@ _set_install_minion_version_fn() {
 # Results:
 #   Updated array
 #
+
 _update_minion_conf_ary() {
     local cfg_key="$1"
     local cfg_value="$2"
@@ -726,22 +737,26 @@ _curl_download() {
 
 
 #
-# _parse_json_latest
+# _parse_json_specd_ver
 #
 #   Retrieve the salt-minion from Salt repository
 #
 # Results:
 #   Echos string containing colon separated version, name and sha512
 #   from parsed input repo json file
-#   Echos empty '' if 'latest' is not found in repo json file
+#   Echos empty '' if 'salt_url_version' is not found in repo json file
 #
- _parse_json_latest() {
+#   Note: salt_url_version defaults to 'latest' unless set to a specific
+#       salt minion version, for example: 3004.1-1
+#
+
+ _parse_json_specd_ver() {
     local file_name="$1"
     local file_value=""
     local blk_count=0
-    local latest_blk_count=0
-    local latest_flag=0
-    local found_latest_linux=0
+    local specd_ver_blk_count=0
+    local specd_ver_flag=0
+    local found_specd_ver_linux=0
 
     local var1=""
     local var2=""
@@ -765,32 +780,32 @@ _curl_download() {
             (( blk_count++ ))
         elif [[ "${line}" = "}" ]]; then
             # examine directory just read in
-            if [[  ${latest_flag} -eq 1 ]]; then
+            if [[  ${specd_ver_flag} -eq 1 ]]; then
                 if [[ "${rdict['os']}" = "linux" ]]; then
-                    # have linux values for latest
+                    # have linux values for specd_ver
                     _debug_log "$0:${FUNCNAME[0]} parsed following linux for "\
-                    "'latest' from repo json file '${file_name}', os "\
-                    "${rdict['os']}, version ${rdict['version']}, "\
-                    "name ${rdict['name']}, SHA512 "\
+                    "specified version '${salt_url_version}' from repo json "\
+                    "file '${file_name}', os ${rdict['os']}, version "\
+                    "${rdict['version']}, name ${rdict['name']}, SHA512 "\
                     "${rdict['SHA512']}"
-                    found_latest_linux=1
+                    found_specd_ver_linux=1
                     break
                 fi
             fi
 
-            if [[ ${blk_count} -eq ${latest_blk_count} ]]; then
-                latest_flag=0
+            if [[ ${blk_count} -eq ${specd_ver_blk_count} ]]; then
+                specd_ver_flag=0
                 break
             fi
             (( blk_count-- ))
         else
             line_key=$(echo "${line}" | cut -d ':' -f 1 | xargs)
             line_value=$(echo "${line}" | cut -d ':' -f 2 | xargs)
-            if [[ "${line_key}" = "latest" ]]; then
-                # note blk_count encountered 'latest' for closing brace check
-                latest_flag=1
-                latest_blk_count=${blk_count}
-                (( latest_blk_count++ ))
+            if [[ "${line_key}" = "${salt_url_version}" ]]; then
+                # note blk_count encountered 'specd_ver', closing brace check
+                specd_ver_flag=1
+                specd_ver_blk_count=${blk_count}
+                (( specd_ver_blk_count++ ))
             else
                 rdict["${line_key}"]="${line_value}"
                 _debug_log "$0:${FUNCNAME[0]} updated dictionary with "\
@@ -799,7 +814,7 @@ _curl_download() {
         fi
     done <<< "${var2}"
 
-    if [[ ${found_latest_linux} -eq 1 ]]; then
+    if [[ ${found_specd_ver_linux} -eq 1 ]]; then
         echo "${rdict['version']}:${rdict['name']}:${rdict['SHA512']}"
     else
         echo ""
@@ -830,26 +845,19 @@ _fetch_salt_minion() {
 
     local salt_pkg_name=""
     local salt_url=""
-    local salt_url_chksum_file=""
-    local salt_url_chksum=""
     local json_version_name_sha=""
 
     _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check "\
         "its validity"
 
-    salt_pkg_name="${salt_name}-${salt_url_version}-linux-amd64.tar.gz"
-    salt_url="${base_url}/${salt_url_version}/${salt_pkg_name}"
-    salt_url_chksum_file="${salt_name}-${salt_url_version}_SHA512"
-    salt_url_chksum="${base_url}/${salt_url_version}/${salt_url_chksum_file}"
-
     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
-    _curl_download "${repo_json_file}" "${base_url_json_file}"
+    _curl_download "${repo_json_file}" "${base_url}/${repo_json_file}"
     _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
-        "'${base_url_json_file}' into file '${repo_json_file}'"
+        "'${base_url}/${repo_json_file}' into file '${repo_json_file}'"
 
-    json_version_name_sha=$(_parse_json_latest "${repo_json_file}")
+    json_version_name_sha=$(_parse_json_specd_ver "${repo_json_file}")
     if [[ -n "${json_version_name_sha}" ]]; then
         # use latest from repo.json file, (version:name:sha512)
         local salt_json_version=""
@@ -879,18 +887,40 @@ _fetch_salt_minion() {
         fi
     else
         # use defaults
-        _curl_download "${salt_pkg_name}" "${salt_url}"
-        _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
+        # repo.json file is missing, look for 'latest'
+        # directory with onedir files and retrieve files from it
+        local salt_tarball=""
+        local salt_tarball_SHA512=""
+
+        salt_url="${base_url}/${salt_url_version}"
+        salt_tarball="${salt_name}*-linux-amd64.tar.gz"
+        salt_tarball_SHA512="${salt_name}*_SHA512"
+        wget -q -r -l1 -nd -np -A "${salt_tarball}" "${salt_url}"
+        _retn=$?
+        if [[ ${_retn} -ne 0 ]]; then
+            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_tarball}' "\
+                "failed to download, error '${_retn}'"
+        fi
+        wget -q -r -l1 -nd -np -A "${salt_name}*_SHA512" "${salt_url}"
+        _retn=$?
+        if [[ ${_retn} -ne 0 ]]; then
+            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+            _error_log "$0:${FUNCNAME[0]} downloaded file "\
+            "'${salt_tarball_SHA512}' failed to download, error '${_retn}'"
+        fi
+        salt_pkg_name=$(ls "${salt_tarball}")
+        salt_chksum_file=$(ls "${salt_tarball_SHA512}")
+        _debug_log "$0:${FUNCNAME[0]} successfully downloaded tarball from "\
             "'${salt_url}' into file '${salt_pkg_name}'"
-        _curl_download "${salt_url_chksum_file}" "${salt_url_chksum}"
-        _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
-            "'${salt_url_chksum}' into file '${salt_url_chksum_file}'"
+        _debug_log "$0:${FUNCNAME[0]} successfully downloaded checksum from "\
+            "'${salt_url}' into file '${salt_chksum_file}'"
         calc_sha512sum=$(grep "${salt_pkg_name}" \
-            "${salt_url_chksum_file}" | sha512sum --check --status)
+            "${salt_chksum_file}" | sha512sum --check --status)
         if [[ ${calc_sha512sum} -ne 0 ]]; then
             CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' "\
-                "failed to match checksum in file '${salt_url_chksum}'"
+            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_pkg_name}' "\
+                "failed to match checksum in file '${salt_chksum_file}'"
         fi
     fi
     _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
@@ -1396,6 +1426,56 @@ _install_fn () {
 
 
 #
+#  _source_fn
+#
+#   Set the location to retrieve the Salt Minion from
+#       default is to use the Salt Project repository
+#
+#   Set the version of Salt Minion wanted to install
+#       default 'latest'
+#
+#   Note: handle all protocols (http, https, ftp, file, unc, etc)
+#           for example:
+#               http://my_web_server.com/my_salt_onedir
+#               https://my_web_server.com/my_salt_onedir
+#               ftp://my_ftp_server.com/my_salt_onedir
+#               file://mytopdir/mymiddledir/my_salt_onedir
+#               ///mytopdir/mymiddledir/my_salt_onedir
+#
+#           If a specific version of the Salt Minion is specified
+#           then it will be appended to the specified source location
+#           otherwise a default of 'latest' is applied.
+#
+# Results:
+#   Exits with 0 or error code
+#
+
+_source_fn () {
+    local _retn=0
+    local salt_source=""
+
+    if [[ "$#" -ne 1 ]]; then
+        _error_log "$0:${FUNCNAME[0]} error expected one parameter "\
+            "specifying the source for location of onedir files"
+    fi
+
+    _info_log "$0:${FUNCNAME[0]} processing script source for location "\
+        "of onedir files"
+
+    salt_source=$(echo "$1" | cut -d ' ' -f 1)
+    _debug_log "$0:${FUNCNAME[0]} input salt source is '${salt_source}'"
+
+    if [[ -n "${salt_source}" ]]; then
+        base_url=${salt_source}
+    fi
+    _debug_log "$0:${FUNCNAME[0]} input salt source for salt-minion to "\
+            "install from is '${base_url}'"
+
+    return ${_retn}
+}
+
+
+#
 # _generate_minion_id
 #
 #   Searchs salt-minion configuration file for current id, and disables it
@@ -1777,6 +1857,11 @@ while true; do
             shift;
             INSTALL_PARAMS="$*";
             ;;
+        -j | --source )
+            SOURCE_FLAG=1;
+            shift;
+            SOURCE_PARAMS="$*";
+            ;;
         -l | --loglevel )
             LOG_LEVEL_FLAG=1;
             shift;
@@ -1838,6 +1923,13 @@ if [[ ${DEPS_CHK} -eq 1 ]]; then
     _deps_chk_fn
     retn=$?
 fi
+if [[ ${SOURCE_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
+    LOG_ACTION="source"
+    # ensure this is processed before install
+    _source_fn "${SOURCE_PARAMS}"
+    retn=$?
+fi
 if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
     # ensure this is processed before install
@@ -1876,6 +1968,7 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
             _warning_log "$0 unable to retrieve any action arguments from "\
                 "guest variables ${guestvars_salt_desiredstate}, retcode '$?'";
     }
+:w!
 
     if [[ -n "${gvar_action}" ]]; then
         case "${gvar_action}" in
