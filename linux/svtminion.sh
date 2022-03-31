@@ -257,8 +257,10 @@ esac
      echo "                 for example: url location"
      echo "                     http://my_web_server.com/my_salt_onedir"
      echo "                     https://my_web_server.com/my_salt_onedir"
+     echo "                     file://my_path/my_salt_onedir"
+     echo "                     //my_path/my_salt_onedir"
      echo "                 if specific version of Salt Minion specified, -m"
-     echo "                 then its appended to source else default 'latest'"
+     echo "                 then its appended to source, default[latest]"
      echo "  -l, --loglevel  set log level for logging,"
      echo "                     silent error warning debug info"
      echo "                     default loglevel is warning"
@@ -895,20 +897,66 @@ _fetch_salt_minion() {
         salt_url="${base_url}/${salt_url_version}"
         salt_tarball="${salt_name}*-linux-amd64.tar.gz"
         salt_tarball_SHA512="${salt_name}*_SHA512"
-        wget -q -r -l1 -nd -np -A "${salt_tarball}" "${salt_url}"
-        _retn=$?
-        if [[ ${_retn} -ne 0 ]]; then
-            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_tarball}' "\
-                "failed to download, error '${_retn}'"
+
+        if echo "${salt_url}" | grep -q '^file:\/' ; then
+            # need to allow for file:/ or file:// or file:///
+            # assume no hostname, remove 'file:'
+            # and allow for Linux handling multiple slashes
+            local local_abspath=""
+            local_abspath=$(echo "$salt_url}" | sed 's/^file://g')
+            cp -a "${local_abspath}/${salt_tarball}" .
+            _retn=$?
+            if [[ ${_retn} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} failed to find file" \
+                "'${salt_tarball}' in specified location ${salt_url}, "\
+                "error '${_retn}'"
+            fi
+            cp -a "${local_abspath}/${salt_tarball_SHA512}" .
+            _retn=$?
+            if [[ ${_retn} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} failed to find file" \
+                "'${salt_tarball_SHA512}' in specified location ${salt_url}, "\
+                "error '${_retn}'"
+            fi
+
+        elif echo "${salt_url}" | grep -q '^\/\/' ; then
+            cp -a "${salt_url}/${salt_tarball}" .
+            _retn=$?
+            if [[ ${_retn} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} failed to find file" \
+                "'${salt_tarball}' in specified location ${salt_url}, "\
+                "error '${_retn}'"
+            fi
+            cp -a "${salt_url}/${salt_tarball_SHA512}" .
+            _retn=$?
+            if [[ ${_retn} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} failed to find file" \
+                "'${salt_tarball_SHA512}' in specified location ${salt_url}, "\
+                "error '${_retn}'"
+            fi
+        else
+            # assume http://, https:// or similar
+            wget -q -r -l1 -nd -np -A "${salt_tarball}" "${salt_url}"
+            _retn=$?
+            if [[ ${_retn} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} downloaded file "\
+                "'${salt_tarball}' failed to download, error '${_retn}'"
+            fi
+            wget -q -r -l1 -nd -np -A "${salt_name}*_SHA512" "${salt_url}"
+            _retn=$?
+            if [[ ${_retn} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} downloaded file "\
+                "'${salt_tarball_SHA512}' failed to download, error '${_retn}'"
+            fi
         fi
-        wget -q -r -l1 -nd -np -A "${salt_name}*_SHA512" "${salt_url}"
-        _retn=$?
-        if [[ ${_retn} -ne 0 ]]; then
-            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-            _error_log "$0:${FUNCNAME[0]} downloaded file "\
-            "'${salt_tarball_SHA512}' failed to download, error '${_retn}'"
-        fi
+
+
         salt_pkg_name=$(ls "${salt_tarball}")
         salt_chksum_file=$(ls "${salt_tarball_SHA512}")
         _debug_log "$0:${FUNCNAME[0]} successfully downloaded tarball from "\

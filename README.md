@@ -215,8 +215,10 @@ pre-requisites:
                          for example: url location
                              http://my_web_server.com/my_salt_onedir
                              https://my_web_server.com/my_salt_onedir
+                             file://my_path/my_salt_onedir
+                            //my_path/my_salt_onedir
                          if specific version of Salt Minion specified, -m
-                         then its appended to source else default 'latest'                             
+                         then its appended to source, default[latest]
           -l, --loglevel  set log level for logging, silent error warning debug info
                              default loglevel is warning
           -m, --minionversion salt-minion version to install, default[latest]
