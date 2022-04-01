@@ -229,6 +229,8 @@ pre-requisites:
           salt-minion vmtools integration script
               example: ./svtminion.sh --status
 
+Note: on Linux, the script does not support use of hostname as in file://<hostname>/path1/path2
+
 
 Windows Environment:
 --------------------
