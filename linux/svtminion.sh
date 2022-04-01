@@ -855,73 +855,66 @@ _fetch_salt_minion() {
     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
     mkdir -p ${base_salt_location}
     cd ${base_salt_location} || return $?
-    _curl_download "${repo_json_file}" "${base_url}/${repo_json_file}"
-    _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
-        "'${base_url}/${repo_json_file}' into file '${repo_json_file}'"
 
-    json_version_name_sha=$(_parse_json_specd_ver "${repo_json_file}")
-    if [[ -n "${json_version_name_sha}" ]]; then
-        # use latest from repo.json file, (version:name:sha512)
-        local salt_json_version=""
-        local salt_json_name=""
-        local salt_json_sha512=""
-        local salt_pkg_sha512=""
+    # Check if local or remote source, rely on curl for file:// support
+    if echo "${base_url}" | grep -q '^/' ; then
+        # assume local absolute path
+       # and allow for Linux handling multiple slashes
+        local local_abspath=""
+        local_abspath=$(echo "$base_url}" | sed 's/^file://g')
 
-        salt_json_version=$(\
-            echo "${json_version_name_sha}" | awk -F":" '{print $1}')
-        salt_json_name=$(\
-            echo "${json_version_name_sha}" | awk -F":" '{print $2}')
-        salt_json_sha512=$(\
-            echo "${json_version_name_sha}" | awk -F":" '{print $3}')
-        _debug_log "$0:${FUNCNAME[0]} using repo.json values version "\
-            "'${salt_json_version}', name '${salt_json_name}, sha512 "\
-            "'${salt_json_sha512}'"
-        salt_pkg_name="${salt_json_name}"
-        salt_url="${base_url}/${salt_json_version}/${salt_pkg_name}"
-        _curl_download "${salt_pkg_name}" "${salt_url}"
-        _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
-            "'${salt_url}' into file '${salt_pkg_name}'"
-        salt_pkg_sha512=$(sha512sum "${salt_pkg_name}" |awk -F" " '{print $1}')
-        if [[ "${salt_pkg_sha512}" -ne "${salt_json_sha512}" ]]; then
-            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' "\
-                "failed to match checksum in file '${repo_json_file}'"
-        fi
-    else
-        # use defaults
-        # repo.json file is missing, look for 'latest'
-        # directory with onedir files and retrieve files from it
-        local salt_tarball=""
-        local salt_tarball_SHA512=""
+        if [[ -f "${local_abspath}/${repo_json_file}"  ]]; then
+            _debug_log "$0:${FUNCNAME[0]} successfully found file "\
+            "'${repo_json_file}' in '${base_url}/${repo_json_file}'"
 
-        salt_url="${base_url}/${salt_url_version}"
-        salt_tarball="${salt_name}*-linux-amd64.tar.gz"
-        salt_tarball_SHA512="${salt_name}*_SHA512"
+            cp -a "${local_abspath}/${repo_json_file}" .
+            json_version_name_sha=$(_parse_json_specd_ver "${repo_json_file}")
+            if [[ -n "${json_version_name_sha}" ]]; then
+                # use latest from repo.json file, (version:name:sha512)
+                local salt_json_version=""
+                local salt_json_name=""
+                local salt_json_sha512=""
+                local salt_pkg_sha512=""
 
-        if echo "${salt_url}" | grep -q '^file:\/' ; then
-            # need to allow for file:/ or file:// or file:///
-            # assume no hostname, remove 'file:'
-            # and allow for Linux handling multiple slashes
-            local local_abspath=""
-            local_abspath=$(echo "$salt_url}" | sed 's/^file://g')
-            cp -a "${local_abspath}/${salt_tarball}" .
-            _retn=$?
-            if [[ ${_retn} -ne 0 ]]; then
-                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-                _error_log "$0:${FUNCNAME[0]} failed to find file" \
-                "'${salt_tarball}' in specified location ${salt_url}, "\
-                "error '${_retn}'"
+                salt_json_version=$(\
+                    echo "${json_version_name_sha}" | awk -F":" '{print $1}')
+                salt_json_name=$(\
+                    echo "${json_version_name_sha}" | awk -F":" '{print $2}')
+                salt_json_sha512=$(\
+                    echo "${json_version_name_sha}" | awk -F":" '{print $3}')
+                _debug_log "$0:${FUNCNAME[0]} using repo.json values version "\
+                    "'${salt_json_version}', name '${salt_json_name}, sha512 "\
+                    "'${salt_json_sha512}'"
+                salt_pkg_name="${salt_json_name}"
+                salt_url="${base_url}/${salt_json_version}/${salt_pkg_name}"
+                cp -a "${base_url}/${salt_json_version}/${salt_pkg_name}" .
+                _retn=$?
+                if [[ ${_retn} -ne 0 ]]; then
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                    _error_log "$0:${FUNCNAME[0]} failed to find file" \
+                    "'${salt_pkg_name}' in specified location ${salt_url}, "\
+                    "error '${_retn}'"
+                fi
+                _debug_log "$0:${FUNCNAME[0]} successfully copiedi from "\
+                    "'${salt_url}' to file '${salt_pkg_name}'"
+                salt_pkg_sha512=$(sha512sum "${salt_pkg_name}" |awk -F" " '{print $1}')
+                if [[ "${salt_pkg_sha512}" -ne "${salt_json_sha512}" ]]; then
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                    _error_log "$0:${FUNCNAME[0]} copied file '${salt_url}' "\
+                        "failed to match checksum in file '${repo_json_file}'"
+                fi
             fi
-            cp -a "${local_abspath}/${salt_tarball_SHA512}" .
-            _retn=$?
-            if [[ ${_retn} -ne 0 ]]; then
-                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-                _error_log "$0:${FUNCNAME[0]} failed to find file" \
-                "'${salt_tarball_SHA512}' in specified location ${salt_url}, "\
-                "error '${_retn}'"
-            fi
+        else
+            # use defaults
+            # repo.json file is missing, look for 'latest'
+            # directory with onedir files and retrieve files from it
+            local salt_tarball=""
+            local salt_tarball_SHA512=""
 
-        elif echo "${salt_url}" | grep -q '^\/\/' ; then
+            salt_url="${base_url}/${salt_url_version}"
+            salt_tarball="${salt_name}*-linux-amd64.tar.gz"
+            salt_tarball_SHA512="${salt_name}*_SHA512"
+
             cp -a "${salt_url}/${salt_tarball}" .
             _retn=$?
             if [[ ${_retn} -ne 0 ]]; then
@@ -938,41 +931,125 @@ _fetch_salt_minion() {
                 "'${salt_tarball_SHA512}' in specified location ${salt_url}, "\
                 "error '${_retn}'"
             fi
-        else
-            # assume http://, https:// or similar
-            wget -q -r -l1 -nd -np -A "${salt_tarball}" "${salt_url}"
-            _retn=$?
-            if [[ ${_retn} -ne 0 ]]; then
+
+            salt_pkg_name=$(ls "${salt_tarball}")
+            salt_chksum_file=$(ls "${salt_tarball_SHA512}")
+            _debug_log "$0:${FUNCNAME[0]} successfully copied tarball from "\
+                "'${salt_url}' to file '${salt_pkg_name}'"
+            _debug_log "$0:${FUNCNAME[0]} successfully coped checksum from "\
+                "'${salt_url}' to file '${salt_chksum_file}'"
+            calc_sha512sum=$(grep "${salt_pkg_name}" \
+                "${salt_chksum_file}" | sha512sum --check --status)
+            if [[ ${calc_sha512sum} -ne 0 ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-                _error_log "$0:${FUNCNAME[0]} downloaded file "\
-                "'${salt_tarball}' failed to download, error '${_retn}'"
-            fi
-            wget -q -r -l1 -nd -np -A "${salt_name}*_SHA512" "${salt_url}"
-            _retn=$?
-            if [[ ${_retn} -ne 0 ]]; then
-                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-                _error_log "$0:${FUNCNAME[0]} downloaded file "\
-                "'${salt_tarball_SHA512}' failed to download, error '${_retn}'"
+                _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_pkg_name}' "\
+                    "failed to match checksum in file '${salt_chksum_file}'"
             fi
         fi
+    else
+        # assume use curl for local or remote URI
+        _curl_download "${repo_json_file}" "${base_url}/${repo_json_file}"
+        _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
+            "'${base_url}/${repo_json_file}' into file '${repo_json_file}'"
 
+        json_version_name_sha=$(_parse_json_specd_ver "${repo_json_file}")
+        if [[ -n "${json_version_name_sha}" ]]; then
+            # use latest from repo.json file, (version:name:sha512)
+            local salt_json_version=""
+            local salt_json_name=""
+            local salt_json_sha512=""
+            local salt_pkg_sha512=""
 
-        salt_pkg_name=$(ls "${salt_tarball}")
-        salt_chksum_file=$(ls "${salt_tarball_SHA512}")
-        _debug_log "$0:${FUNCNAME[0]} successfully downloaded tarball from "\
-            "'${salt_url}' into file '${salt_pkg_name}'"
-        _debug_log "$0:${FUNCNAME[0]} successfully downloaded checksum from "\
-            "'${salt_url}' into file '${salt_chksum_file}'"
-        calc_sha512sum=$(grep "${salt_pkg_name}" \
-            "${salt_chksum_file}" | sha512sum --check --status)
-        if [[ ${calc_sha512sum} -ne 0 ]]; then
-            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-            _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_pkg_name}' "\
-                "failed to match checksum in file '${salt_chksum_file}'"
+            salt_json_version=$(\
+                echo "${json_version_name_sha}" | awk -F":" '{print $1}')
+            salt_json_name=$(\
+                echo "${json_version_name_sha}" | awk -F":" '{print $2}')
+            salt_json_sha512=$(\
+                echo "${json_version_name_sha}" | awk -F":" '{print $3}')
+            _debug_log "$0:${FUNCNAME[0]} using repo.json values version "\
+                "'${salt_json_version}', name '${salt_json_name}, sha512 "\
+                "'${salt_json_sha512}'"
+            salt_pkg_name="${salt_json_name}"
+            salt_url="${base_url}/${salt_json_version}/${salt_pkg_name}"
+            _curl_download "${salt_pkg_name}" "${salt_url}"
+            _debug_log "$0:${FUNCNAME[0]} successfully downloaded from "\
+                "'${salt_url}' into file '${salt_pkg_name}'"
+            salt_pkg_sha512=$(sha512sum "${salt_pkg_name}" |awk -F" " '{print $1}')
+            if [[ "${salt_pkg_sha512}" -ne "${salt_json_sha512}" ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}' "\
+                    "failed to match checksum in file '${repo_json_file}'"
+            fi
+        else
+            # use defaults
+            # repo.json file is missing, look for 'latest'
+            # directory with onedir files and retrieve files from it
+            local salt_tarball=""
+            local salt_tarball_SHA512=""
+
+            salt_url="${base_url}/${salt_url_version}"
+            salt_tarball="${salt_name}*-linux-amd64.tar.gz"
+            salt_tarball_SHA512="${salt_name}*_SHA512"
+
+            if echo "${salt_url}" | grep -q '^file:\/' ; then
+                # need to allow for file:/ or file:// or file:///
+                # curl and wildcarding don't mix, assume file implies local
+                # assume no hostname, remove 'file:'
+                # and let Linux handle multiple slashes
+                local local_abspath=""
+                local_abspath=$(echo "$salt_url}" | sed 's/^file://g')
+                cp -a "${local_abspath}/${salt_tarball}" .
+                _retn=$?
+                if [[ ${_retn} -ne 0 ]]; then
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                    _error_log "$0:${FUNCNAME[0]} failed to find file" \
+                    "'${salt_tarball}' in specified location ${salt_url}, "\
+                    "error '${_retn}'"
+                fi
+                cp -a "${local_abspath}/${salt_tarball_SHA512}" .
+                _retn=$?
+                if [[ ${_retn} -ne 0 ]]; then
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                    _error_log "$0:${FUNCNAME[0]} failed to find file" \
+                    "'${salt_tarball_SHA512}' in specified location ${salt_url}, "\
+                    "error '${_retn}'"
+                fi
+
+            else
+                # assume http://, https:// or similar
+                wget -q -r -l1 -nd -np -A "${salt_tarball}" "${salt_url}"
+                _retn=$?
+                if [[ ${_retn} -ne 0 ]]; then
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                    _error_log "$0:${FUNCNAME[0]} downloaded file "\
+                    "'${salt_tarball}' failed to download, error '${_retn}'"
+                fi
+                wget -q -r -l1 -nd -np -A "${salt_name}*_SHA512" "${salt_url}"
+                _retn=$?
+                if [[ ${_retn} -ne 0 ]]; then
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                    _error_log "$0:${FUNCNAME[0]} downloaded file "\
+                    "'${salt_tarball_SHA512}' failed to download, error '${_retn}'"
+                fi
+            fi
+
+            salt_pkg_name=$(ls "${salt_tarball}")
+            salt_chksum_file=$(ls "${salt_tarball_SHA512}")
+            _debug_log "$0:${FUNCNAME[0]} successfully downloaded tarball from "\
+                "'${salt_url}' into file '${salt_pkg_name}'"
+            _debug_log "$0:${FUNCNAME[0]} successfully downloaded checksum from "\
+                "'${salt_url}' into file '${salt_chksum_file}'"
+            calc_sha512sum=$(grep "${salt_pkg_name}" \
+                "${salt_chksum_file}" | sha512sum --check --status)
+            if [[ ${calc_sha512sum} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_pkg_name}' "\
+                    "failed to match checksum in file '${salt_chksum_file}'"
+            fi
         fi
     fi
-    _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
 
+    _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
     tar xzf "${salt_pkg_name}" 1>/dev/null
     _retn=$?
     if [[ ${_retn} -ne 0 ]]; then
