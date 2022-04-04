@@ -1471,7 +1471,7 @@ _install_fn () {
 
     # get configuration for salt-minion
     _fetch_vmtools_salt_minion_conf "$@" || {
-        _error_log "$0:${FUNCNAME[0]} failed , read configuration for"\
+        _error_log "$0:${FUNCNAME[0]} failed, read configuration for"\
             "salt-minion, retcode '$?'";
     }
 
