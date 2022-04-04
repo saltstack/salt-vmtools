@@ -242,6 +242,46 @@ test-salt-vmtools-linux:
     - ls -l /var/log/vmware-svtminion.sh-status-* | wc -l
     - if [[ 5 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 5 status log files"; exit 1; fi
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test source installs with repo.json
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source file:/${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m "3003.3-1"
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test source installs without repo.json
+    - cd ${oldpwd}/tests/testarea
+    - mv repo.json repo.json_hold
+    - cd ${oldpwd}
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m 3004-1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - cd ${oldpwd}/tests/testarea
+    - mv repo.json_hold repo.json
+    - cd ${oldpwd}
     - rpm --import https://repo.saltproject.io/py3/redhat/7/x86_64/latest/SALTSTACK-GPG-KEY.pub
     - curl -fsSL https://repo.saltproject.io/py3/redhat/7/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
     - yum makecache
@@ -370,6 +410,52 @@ test-tags-salt-vmtools-linux:
     - ls -l /var/log/vmware-svtminion.sh-status-* | wc -l
     - if [[ 5 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 5 status log files"; exit 1; fi
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test source installs with repo.json
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source file:/${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m "3003.3-1"
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test source installs without repo.json
+    - cd ${oldpwd}/tests/testarea
+    - mv repo.json repo.json_hold
+    - cd ${oldpwd}
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m 3004-1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - cd ${oldpwd}/tests/testarea
+    - mv repo.json_hold repo.json
+    - cd ${oldpwd}
+    - rpm --import https://repo.saltproject.io/py3/redhat/7/x86_64/latest/SALTSTACK-GPG-KEY.pub
+    - curl -fsSL https://repo.saltproject.io/py3/redhat/7/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
+    - yum makecache
+    - yum -y install salt-minion
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
     - rpm --import https://repo.saltproject.io/py3/redhat/7/x86_64/latest/SALTSTACK-GPG-KEY.pub
     - curl -fsSL https://repo.saltproject.io/py3/redhat/7/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
     - yum makecache
