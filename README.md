@@ -247,7 +247,8 @@ or `Get-Help svtminion.ps1`:
         VMware Tools script for managing the Salt minion on a Windows guest
 
     SYNTAX
-        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [-Source <String>]
+        [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Status] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
@@ -309,6 +310,12 @@ or `Get-Help svtminion.ps1`:
 
         -MinionVersion <String>
             The version of Salt minion to install. Default is "latest".
+
+        -Source <String>
+            The url or path to the repo containing the installers. This would contain
+            a directory structure similar to that found at the default location:
+            https://repo.saltproject.io/salt/vmware-tools-onedir/. This can handle
+            most common protocols: http, https, ftp, unc, local
 
         -ConfigOptions <String[]>
             Any number of minion config options specified by the name of the config
@@ -385,6 +392,7 @@ or `Get-Help svtminion.ps1`:
         -------------------------- EXAMPLE 1 --------------------------
         PS>svtminion.ps1 -Install
         PS>svtminion.ps1 -Install -MinionVersion 3004-1 master=192.168.10.10 id=dev_box
+        PS>svtminion.ps1 -Install -Source https://my.domain.com/vmtools/salt
 
         -------------------------- EXAMPLE 2 --------------------------
         PS>svtminion.ps1 -Clear
