@@ -1615,9 +1615,14 @@ function Get-SaltPackageInfo {
         [Parameter(Mandatory=$true)]
         [String] $MinionVersion
     )
+    $enc = [System.Text.Encoding]::UTF8
     try {
         $response = Invoke-WebRequest -Uri "$base_url/repo.json" -UseBasicParsing
-        $psobj = $response.Content | ConvertFrom-Json
+        if ($response.Content.GetType().Name -eq "Byte[]") {
+            $psobj = $enc.GetString($response.Content) | ConvertFrom-Json
+        } else {
+            $psobj = $response.Content | ConvertFrom-Json
+        }
         $hash = Convert-PSObjectToHashtable $psobj
     } catch {
         Write-Log "repo.json not found at: $base_url" -Level debug
@@ -1686,6 +1691,9 @@ function Get-SaltPackageInfo {
             if ($salt_file_name.Length -gt 0) {
                 $salt_file_name = $salt_file_name[0].Name
             }
+        } else {
+            Write-Log "Unknown source url type: $dir_url" -Level debug
+            return @{}
         }
         # Verify that we found a file name
         if ($salt_file_name.Length -eq 0) {
