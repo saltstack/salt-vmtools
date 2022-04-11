@@ -44,6 +44,7 @@ NOTE: This script must be run with Administrator privileges
 .EXAMPLE
 PS>svtminion.ps1 -Install
 PS>svtminion.ps1 -Install -MinionVersion 3004-1 master=192.168.10.10 id=dev_box
+PS>svtminion.ps1 -Install -Source https://my.domain.com/vmtools/salt
 
 .EXAMPLE
 PS>svtminion.ps1 -Clear
@@ -82,6 +83,14 @@ param(
     [Alias("m")]
     # The version of Salt minion to install. Default is "latest".
     [String] $MinionVersion="latest",
+
+    [Parameter(Mandatory=$false, ParameterSetName="Install")]
+    [Alias("j")]
+    # The url or path to the repo containing the installers. This would contain
+    # a directory structure similar to that found at the default location:
+    # https://repo.saltproject.io/salt/vmware-tools-onedir/. This can handle
+    # most common protocols: http, https, ftp, unc, local
+    [String] $Source="https://repo.saltproject.io/salt/vmware-tools-onedir",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install",
             Position=0, ValueFromRemainingArguments=$true)]
@@ -279,7 +288,7 @@ $action_list = @("install", "remove", "depend", "clear", "status")
 ################################# VARIABLES ####################################
 # Repository locations and names
 $salt_name = "salt"
-$base_url = "https://repo.saltproject.io/salt/vmware-tools-onedir"
+$base_url = $Source
 
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
@@ -949,18 +958,24 @@ function Get-GuestVars {
 
     $arguments = "--cmd `"info-get $GuestVarsPath`""
 
-    $ProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $ProcessInfo.FileName = $vmtoolsd_bin
-    $ProcessInfo.Arguments = $arguments
-    $ProcessInfo.RedirectStandardError = $true
-    $ProcessInfo.RedirectStandardOutput = $true
-    $ProcessInfo.UseShellExecute = $false
-    $Process = New-Object System.Diagnostics.Process
-    $Process.StartInfo = $ProcessInfo
-    $Process.Start() | Out-Null
-    $Process.WaitForExit()
-    $stdout = $Process.StandardOutput.ReadToEnd()
-    $exitcode = $Process.ExitCode
+    try {
+        $ProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $ProcessInfo.FileName = $vmtoolsd_bin
+        $ProcessInfo.Arguments = $arguments
+        $ProcessInfo.RedirectStandardError = $true
+        $ProcessInfo.RedirectStandardOutput = $true
+        $ProcessInfo.UseShellExecute = $false
+        $Process = New-Object System.Diagnostics.Process
+        $Process.StartInfo = $ProcessInfo
+        $Process.Start() | Out-Null
+        $Process.WaitForExit()
+        $stdout = $Process.StandardOutput.ReadToEnd()
+        $exitcode = $Process.ExitCode
+    } catch {
+        $msg = "vmtoolsd.exe encountered an error. GuestVars data will not be available"
+        Write-Log $msg -Level warning
+        return ""
+    }
 
     if ($exitcode -eq 0) {
         return $stdout.Trim()
@@ -1600,9 +1615,19 @@ function Get-SaltPackageInfo {
         [Parameter(Mandatory=$true)]
         [String] $MinionVersion
     )
-    $response = Invoke-WebRequest -Uri "$base_url/repo.json" -UseBasicParsing
-    $psobj = $response.Content | ConvertFrom-Json
-    $hash = Convert-PSObjectToHashtable $psobj
+    $enc = [System.Text.Encoding]::UTF8
+    try {
+        $response = Invoke-WebRequest -Uri "$base_url/repo.json" -UseBasicParsing
+        if ($response.Content.GetType().Name -eq "Byte[]") {
+            $psobj = $enc.GetString($response.Content) | ConvertFrom-Json
+        } else {
+            $psobj = $response.Content | ConvertFrom-Json
+        }
+        $hash = Convert-PSObjectToHashtable $psobj
+    } catch {
+        Write-Log "repo.json not found at: $base_url" -Level debug
+        $hash = @{}
+    }
 
     $salt_file_name = ""
     $salt_version = ""
@@ -1628,7 +1653,84 @@ function Get-SaltPackageInfo {
             file_name = $salt_file_name
         }
     } else {
-        return @{}
+        # Since there's no repo.json, we need to look in the directory for the
+        # URL and HASH. The version can also be `latest` but expects a symlink
+        # named `latest` that points to the directory containing the latest
+        # version of salt
+        $salt_file_name = $null
+        $salt_version = $null
+        # Invoke-WebRequest will not work on a local file directory so we need
+        # to detect the URL scheme. Use Invoke-WebRequest to get the directory
+        # contents if URL scheme is http/https/ftp. Not tested with FTP
+        if ($base_url -match "^(http\:|https\:|ftp\:).*") {
+            $dir_url = "$base_url/$search_version"
+            Write-Log "Looking for version in web directory: $dir_url" -Level debug
+            try {
+                $dir_contents = Invoke-WebRequest -Uri $dir_url -UseBasicParsing
+            } catch {
+                Write-Log "Directory not found: $dir_url" -Level debug
+                return @{}
+            }
+            # Look for the zip file in the directory
+            foreach ($link in $dir_contents.Links) {
+                if ($link.href.EndsWith(".zip")) {
+                    $salt_file_name = $link.href
+                }
+            }
+        }
+        # Get the directory contents if URL is Drive Letter or UNC
+        elseif ($base_url -match "^(\w\:|\\\\).*") {
+            $dir_url = "$base_url\$search_version"
+            Write-Log "Looking for version in local directory: $dir_url" -Level debug
+            try {
+                $salt_file_name = Get-ChildItem -Path $dir_url -Filter "*.zip"
+            } catch {
+                Write-Log "Directory not found: $dir_url" -Level debug
+                return @{}
+            }
+            if ($salt_file_name.Length -gt 0) {
+                $salt_file_name = $salt_file_name[0].Name
+            }
+        } else {
+            Write-Log "Unknown source url type: $dir_url" -Level debug
+            return @{}
+        }
+        # Verify that we found a file name
+        if ($salt_file_name.Length -eq 0) {
+            Write-Log "Zip file not found in directory: $dir_url" -Level debug
+            return @{}
+        }
+        # Since we have a zip file, get the version and sha file from it
+        $salt_version = ($salt_file_name -split "-windows-")[0].Split("-", 2)[1]
+        $sha_file_name = "salt-$($salt_version)_SHA512"
+        # Get the contents of the sha file
+        try {
+            # We can use Invoke-WebRequest as long as we're looking at a file
+            $response = Invoke-WebRequest -Uri "$dir_url/$sha_file_name" -UseBasicParsing
+        } catch {
+            Write-Log "Could not retrieve sha file: $dir_url/$sha_file_name" -Level debug
+            return @{}
+        }
+        $salt_sha512 = $null
+        # Get the sha out of the sha file
+        ForEach ($line in $response.RawContent.Split([Environment]::NewLine)) {
+            if ($line.EndsWith(".zip")) {
+                $salt_sha512 = $line.Split()[0]
+            }
+        }
+        # Verify that a sha was retrieved
+        if ($null -eq $salt_sha512) {
+            Write-Log "Sha not found in file: $dir_url/$sha_file_name" -Level debug
+            return @{}
+        }
+        Write-Log "Found installer: $salt_file_name" -Level debug
+        Write-Log "Found version: $salt_version" -Level debug
+        Write-Log "Found sha512: $salt_sha512" -Level debug
+        return @{
+            url = @($dir_url, $salt_file_name) -join "/";
+            hash = $salt_sha512;
+            file_name = $salt_file_name
+        }
     }
 }
 
