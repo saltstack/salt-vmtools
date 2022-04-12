@@ -927,7 +927,7 @@ _fetch_salt_minion() {
                 "'${salt_url}/${salt_json_version}' to file '${salt_pkg_name}'"
 
             salt_pkg512=$(sha512sum "${salt_pkg_name}" |awk -F" " '{print $1}')
-            if [[ "${salt_pkg512}" -ne "${salt_json_sha512}" ]]; then
+            if [[ "${salt_pkg512}" != "${salt_json_sha512}" ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
                 _error_log "$0:${FUNCNAME[0]} copied file "\
                 "'${salt_url}/${salt_json_version}' failed to match"\
@@ -1005,7 +1005,7 @@ _fetch_salt_minion() {
                 "'${salt_url}' into file '${salt_pkg_name}'"
 
             salt_pkg512=$(sha512sum "${salt_pkg_name}" |awk -F" " '{print $1}')
-            if [[ "${salt_pkg512}" -ne "${salt_json_sha512}" ]]; then
+            if [[ "${salt_pkg512}" != "${salt_json_sha512}" ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
                 _error_log "$0:${FUNCNAME[0]} downloaded file '${salt_url}'"\
                     "failed to match checksum in file '${repo_json_file}'"
@@ -2100,7 +2100,6 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
             _warning_log "$0 unable to retrieve any action arguments from"\
                 "guest variables ${guestvars_salt_desiredstate}, retcode '$?'";
     }
-:w!
 
     if [[ -n "${gvar_action}" ]]; then
         case "${gvar_action}" in
