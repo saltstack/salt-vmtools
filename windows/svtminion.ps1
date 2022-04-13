@@ -972,7 +972,8 @@ function Get-GuestVars {
         $stdout = $Process.StandardOutput.ReadToEnd()
         $exitcode = $Process.ExitCode
     } catch {
-        $msg = "vmtoolsd.exe encountered an error. GuestVars data will not be available"
+        $msg = "vmtoolsd.exe encountered an error. " +
+               "GuestVars data will not be available"
         Write-Log $msg -Level warning
         return ""
     }
@@ -1617,7 +1618,8 @@ function Get-SaltPackageInfo {
     )
     $enc = [System.Text.Encoding]::UTF8
     try {
-        $response = Invoke-WebRequest -Uri "$base_url/repo.json" -UseBasicParsing
+        $response = Invoke-WebRequest -Uri "$base_url/repo.json" `
+                                      -UseBasicParsing
         if ($response.Content.GetType().Name -eq "Byte[]") {
             $psobj = $enc.GetString($response.Content) | ConvertFrom-Json
         } else {
@@ -1664,7 +1666,8 @@ function Get-SaltPackageInfo {
         # contents if URL scheme is http/https/ftp. Not tested with FTP
         if ($base_url -match "^(http\:|https\:|ftp\:).*") {
             $dir_url = "$base_url/$search_version"
-            Write-Log "Looking for version in web directory: $dir_url" -Level debug
+            Write-Log "Looking for version in web directory: $dir_url" `
+                      -Level debug
             try {
                 $dir_contents = Invoke-WebRequest -Uri $dir_url -UseBasicParsing
             } catch {
@@ -1681,7 +1684,8 @@ function Get-SaltPackageInfo {
         # Get the directory contents if URL is Drive Letter or UNC
         elseif ($base_url -match "^(\w\:|\\\\).*") {
             $dir_url = "$base_url\$search_version"
-            Write-Log "Looking for version in local directory: $dir_url" -Level debug
+            Write-Log "Looking for version in local directory: $dir_url" `
+                      -Level debug
             try {
                 $salt_file_name = Get-ChildItem -Path $dir_url -Filter "*.zip"
             } catch {
@@ -1706,9 +1710,11 @@ function Get-SaltPackageInfo {
         # Get the contents of the sha file
         try {
             # We can use Invoke-WebRequest as long as we're looking at a file
-            $response = Invoke-WebRequest -Uri "$dir_url/$sha_file_name" -UseBasicParsing
+            $response = Invoke-WebRequest -Uri "$dir_url/$sha_file_name" `
+                                          -UseBasicParsing
         } catch {
-            Write-Log "Could not retrieve sha file: $dir_url/$sha_file_name" -Level debug
+            Write-Log "Could not retrieve sha file: $dir_url/$sha_file_name" `
+                      -Level debug
             return @{}
         }
         $salt_sha512 = $null
@@ -1720,7 +1726,8 @@ function Get-SaltPackageInfo {
         }
         # Verify that a sha was retrieved
         if ($null -eq $salt_sha512) {
-            Write-Log "Sha not found in file: $dir_url/$sha_file_name" -Level debug
+            Write-Log "Sha not found in file: $dir_url/$sha_file_name" `
+                      -Level debug
             return @{}
         }
         Write-Log "Found installer: $salt_file_name" -Level debug
