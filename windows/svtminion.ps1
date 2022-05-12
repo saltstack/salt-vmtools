@@ -174,6 +174,10 @@ param(
     # - warning
     # - info
     # - debug
+    # Logs are placed in C:\Windows\temp and are named according to the action
+    # the script is performing and a timestamp for when the script was run.
+    # This is a sample name:
+    # `vmware-svtminion-<action>-<timestamp>.log`
     $LogLevel = "warning",
 
     [Parameter(Mandatory=$false, ParameterSetName="Help")]
