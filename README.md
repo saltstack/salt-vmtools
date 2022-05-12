@@ -136,7 +136,7 @@ This script creates a log file at the following location:
 | OS  | Location |
 | --- | -------- |
 | Linux | `/var/log` |
-| Windows | `C:\ProgramData\VMware\logs` |
+| Windows | `C:\Windows\temp` |
 
 The content of the log file depends on the `LogLevel` passed on the command
 line. The default value is `warning`. Valid options are:
@@ -175,7 +175,7 @@ file with the following name:
 
     cmd>powershell -file .\svtminion.ps1 -LogLevel debug
 
-    C:\ProgramData\VMware\logs\vmware-svtminion-default-YYYYMMDDhhmmss.log
+    C:\Windows\temp\vmware-svtminion-default-YYYYMMDDhhmmss.log
 
 Only the 10 most recent log files for each action are maintained. Excess log
 files are removed. Log files are not removed when the salt-minion service is uninstalled.
@@ -247,8 +247,7 @@ or `Get-Help svtminion.ps1`:
         VMware Tools script for managing the Salt minion on a Windows guest
 
     SYNTAX
-        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [-Source <String>]
-        [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [-Source <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Status] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
@@ -376,6 +375,10 @@ or `Get-Help svtminion.ps1`:
             - warning
             - info
             - debug
+            Logs are placed in C:\Windows\temp and are named according to the action
+            the script is performing and a timestamp for when the script was run.
+            This is a sample name:
+            `vmware-svtminion-<action>-<timestamp>.log`
 
         -Help [<SwitchParameter>]
             Displays help for this script.
