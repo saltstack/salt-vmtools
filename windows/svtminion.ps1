@@ -228,8 +228,7 @@ if ($Version) {
 }
 
 # Only run on 64-bit architecture
-$arch = (Get-CimInstance Win32_operatingsystem).OSArchitecture
-if ($arch -ne "64-bit") {
+if ( [System.IntPtr]::Size -eq 4 ) {
     Write-Host "This script only supports 64-bit architecture"
     exit 0
 }
