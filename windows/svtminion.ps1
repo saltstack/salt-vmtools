@@ -1,4 +1,5 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright 2019-2022 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 <#
 .SYNOPSIS
