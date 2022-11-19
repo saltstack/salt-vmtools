@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright 2021-2022 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 ## Salt VMware Tools Integration script
 ##  integration with Component Manager and GuestStore Helper
