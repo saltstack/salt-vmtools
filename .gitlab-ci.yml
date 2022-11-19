@@ -298,9 +298,11 @@ test-salt-vmtools-linux:
 test-salt-vmtools-windows:
   stage: test_svt
   tags:
-    - shared-windows
-    - windows
-    - windows-1809
+    - ss-custom-ec2-windows
+  image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
+  variables:
+    SPOT_INSTANCE: "false"
+    WINDOWS_GUEST: "true"
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
@@ -472,9 +474,11 @@ test-tags-salt-vmtools-linux:
 test-tags-salt-vmtools-windows:
   stage: test_svt
   tags:
-    - shared-windows
-    - windows
-    - windows-1809
+    - ss-custom-ec2-windows
+  image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
+  variables:
+    SPOT_INSTANCE: "false"
+    WINDOWS_GUEST: "true"
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
     expire_in: 120 days
