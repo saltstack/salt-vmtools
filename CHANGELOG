@@ -1,0 +1,11 @@
+# Release 1.4
+
+## What's Changed
+
+- Windows   Detect arch using pointer size instead of WMIC
+
+# Release 1.3
+
+## What's Changed
+
+- Added ability to install from private repository, locally or via the net
