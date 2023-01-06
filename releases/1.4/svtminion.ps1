@@ -222,7 +222,7 @@ if ($help) {
 }
 
 # This value is populated via CICD during build
-$script_version = "SCRIPT_VERSION_REPLACE"
+$script_version = "1.4"
 if ($Version) {
     Write-Host $script_version
     exit 0
