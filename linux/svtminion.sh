@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2021-2022 VMware, Inc.
+# Copyright 2021-2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
 ## Salt VMware Tools Integration script
