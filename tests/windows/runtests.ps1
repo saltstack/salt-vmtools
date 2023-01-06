@@ -136,7 +136,6 @@ function Run-TestFile {
                     }
                     Write-Header -Filler "-"
                 }
-
             }
         }
     } finally {

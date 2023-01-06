@@ -310,6 +310,8 @@ test-salt-vmtools-windows:
   needs:
     - job: build-salt-vmtools-windows
   script:
+    # Move the artifact to the original location to be tested
+    - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
     # Running functional tests (must be run with powershell -file)
     - powershell -file .\tests\windows\runtests.ps1
     # Running integration tests (must be run with powershell -file)
@@ -486,6 +488,8 @@ test-tags-salt-vmtools-windows:
   needs:
     - job: build-tags-salt-vmtools-windows
   script:
+    # Move the artifact to the original location to be tested
+    - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
     # Running functional tests (must be run with powershell -file)
     - powershell -file .\tests\windows\runtests.ps1
     # Running integration tests (must be run with powershell -file)
