@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 $target_dir = "$script_log_dir\spongebob"
 $target_file = "$script_log_dir\squarepants.txt"
 

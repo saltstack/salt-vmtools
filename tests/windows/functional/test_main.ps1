@@ -1,3 +1,5 @@
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
+
 function test_Main_no_action {
     $result = Main
     if ($result -eq $STATUS_CODES["scriptFailed"]) { return 0 }

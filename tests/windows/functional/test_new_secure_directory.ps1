@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 $target_file = "$env:Temp\mr.krabbs"
 $target_dir = "$env:Temp\spongebob"

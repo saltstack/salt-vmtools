@@ -1,3 +1,5 @@
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
+
 $online_hash_data = @{
     latest = @{
         "salt-3004-1-linux-amd64.tar.gz" = @{

@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 $hash_dir= "$env:Temp\HashDir"
 $hash_file = "$env:Temp\HashFile.txt"

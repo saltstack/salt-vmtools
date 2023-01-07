@@ -1,3 +1,5 @@
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
+
 $psobj = [PSCustomObject]@{
     spongebob = "sqarepants"
     patrick = "star"

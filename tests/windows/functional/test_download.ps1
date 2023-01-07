@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 $info = Get-SaltPackageInfo -MinionVersion $MinionVersion
 $zip_file = "$base_salt_install_location\$($info.file_name)"

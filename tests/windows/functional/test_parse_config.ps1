@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 function test__parse_config_normal {
     $result = _parse_config -KeyValues "master=test id=test_min"

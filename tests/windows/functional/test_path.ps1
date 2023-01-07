@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
 

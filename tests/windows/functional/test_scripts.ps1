@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 function tearDownScript {
     if (Test-Path -Path "$env:Temp\salt-call.bat") {

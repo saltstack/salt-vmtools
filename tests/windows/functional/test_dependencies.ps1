@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 # This test now does nothing now that the script no longer depends on
 # vmtoolsd.exe. I am leaving it in case we actually do add some dependencies in

@@ -1,4 +1,4 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
 
 function setUp {
     Remove-Item -Path "C:\salt\bin\python.exe" -Force -ErrorAction SilentlyContinue

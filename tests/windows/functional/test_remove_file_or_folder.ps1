@@ -1,4 +1,5 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2023 VMware, Inc. All rights reserved.
+
 $target_dir = "$env:Temp\TargetDir"
 $target_file = "$env:Temp\TargetFile.txt"
 $path_dir = "$env:Temp\RemoveDir"
