@@ -1,4 +1,6 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
+
 $target_dir = "$env:Temp\TargetDir"
 $target_file = "$env:Temp\TargetFile.txt"
 $path_dir = "$env:Temp\RemoveDir"

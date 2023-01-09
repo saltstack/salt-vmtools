@@ -1,3 +1,6 @@
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
+
 $online_hash_data = @{
     latest = @{
         "salt-3004-1-linux-amd64.tar.gz" = @{

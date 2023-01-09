@@ -1,4 +1,5 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 # This test now does nothing now that the script no longer depends on
 # vmtoolsd.exe. I am leaving it in case we actually do add some dependencies in

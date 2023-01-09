@@ -1,4 +1,5 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 function setUpScript {
     # We need to create a tools.conf file with some settings

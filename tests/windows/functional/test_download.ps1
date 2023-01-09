@@ -1,4 +1,5 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 $info = Get-SaltPackageInfo -MinionVersion $MinionVersion
 $zip_file = "$base_salt_install_location\$($info.file_name)"

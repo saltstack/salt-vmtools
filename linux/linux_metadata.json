@@ -1,5 +1,5 @@
 {
-   "version": "SALT_SCRIPT_VERION",
+   "version": "SALT_SCRIPT_VERSION",
    "type": "component",
    "description": "Salt vmtools install / removal script",
    "compversion": "SALT_SCRIPT_COMP_VERSION",

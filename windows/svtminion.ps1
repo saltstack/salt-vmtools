@@ -366,6 +366,14 @@ $guestvars_salt_args = "$guestvars_salt.args"
 $guestvars_salt_desired_state = "$guestvars_salt.desiredstate"
 
 
+################################ TEST FUNCTIONS ################################
+
+
+function Get-Version {
+    return $script_version
+}
+
+
 ############################### HELPER FUNCTIONS ###############################
 
 

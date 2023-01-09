@@ -1,4 +1,5 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 function test_Get-RandomizedId_random_id {
     $random_id = Get-RandomizedMinionId
