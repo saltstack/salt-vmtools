@@ -1,4 +1,5 @@
-# Copyright (c) 2023 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 $target_dir = "$script_log_dir\spongebob"
 $target_file = "$script_log_dir\squarepants.txt"
 

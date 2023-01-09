@@ -1,4 +1,5 @@
-# Copyright (c) 2023 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 function setUp {
     Remove-Item -Path "C:\salt\bin\python.exe" -Force -ErrorAction SilentlyContinue

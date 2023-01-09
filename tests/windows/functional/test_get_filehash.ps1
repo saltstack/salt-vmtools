@@ -1,4 +1,5 @@
-# Copyright (c) 2023 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 $hash_dir= "$env:Temp\HashDir"
 $hash_file = "$env:Temp\HashFile.txt"

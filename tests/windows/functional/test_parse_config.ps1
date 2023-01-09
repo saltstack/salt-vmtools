@@ -1,4 +1,5 @@
-# Copyright (c) 2023 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 function test__parse_config_normal {
     $result = _parse_config -KeyValues "master=test id=test_min"

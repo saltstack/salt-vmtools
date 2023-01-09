@@ -1,4 +1,5 @@
-# Copyright (c) 2023 VMware, Inc. All rights reserved.
+# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 $target_file = "$env:Temp\mr.krabbs"
 $target_dir = "$env:Temp\spongebob"
