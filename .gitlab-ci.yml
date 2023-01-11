@@ -118,7 +118,9 @@ build-tags-salt-vmtools-linux:
     - svtminion_sha256=$(sha256sum svtminion.sh | cut -d ' ' -f 1)
     - sed -i -e 's&SVTMINION_SHA256&'${svtminion_sha256}'&' metadata.json
     - cat metadata.json
-    - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CI_COMMIT_TAG}'&' svtminion.sh
+    ## this needs rework since not affecting release sub-dir in repository, but on VM
+    ## added test to linux to check release is updated
+    ## - sed -i -e 's&SCRIPT_VERSION_REPLACE&'${CI_COMMIT_TAG}'&' svtminion.sh
     - cp -f metadata.json ${oldpwd}/metadata.json
     - cp -f svtminion.sh ${oldpwd}/svtminion.sh
 
@@ -365,6 +367,10 @@ test-tags-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
     - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --status && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; exit 1; }
+    ## check the actual release version has been updated
+    - export CICD_SALT_SCRIPT_RELEASE_VERSION=$(echo "${CI_COMMIT_TAG}" | sed s/v// | cut -d '-' -f 1)
+    - vertest=$("${oldpwd}/releases/${CICD_SALT_SCRIPT_RELEASE_VERSION}/svtminion.sh" --version)
+    - echo "${vertest}" | grep "${CICD_SALT_SCRIPT_RELEASE_VERSION}" > /dev/null || { echo "test failed, version '${CICD_SALT_SCRIPT_RELEASE_VERSION}' doesn't match '${vertest}', needs proper release number"; exit 1; }
     - ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - ./svtminion.sh --clear
