@@ -314,6 +314,12 @@ test-salt-vmtools-windows:
   script:
     # Move the artifact to the original location to be tested
     - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
+    # Make sure we can run the script
+    - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
+    # Make sure we can display help
+    - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
+    # Make sure we get a status
+    - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
     # Running functional tests (must be run with powershell -file)
     - powershell -file .\tests\windows\runtests.ps1
     # Running integration tests (must be run with powershell -file)
@@ -496,6 +502,12 @@ test-tags-salt-vmtools-windows:
   script:
     # Move the artifact to the original location to be tested
     - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
+    # Make sure we can run the script
+    - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
+    # Make sure we can display help
+    - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
+    # Make sure we get a status
+    - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
     # Running functional tests (must be run with powershell -file)
     - powershell -file .\tests\windows\runtests.ps1
     # Running integration tests (must be run with powershell -file)

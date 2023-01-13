@@ -353,7 +353,6 @@ if ( Test-Path $vmtools_base_reg ) {
 } else {
     $reg_path = $salt_base_reg
     if ( !(Test-Path $salt_base_reg) ) {
-        Write-Log "Creating reg key: $salt_base_reg" -Level debug
         New-Item -Path "$salt_base_reg" -Force
     }
 }
