@@ -77,7 +77,8 @@ call
 "
 
 readonly salt_minion_service_wrapper=\
-"# Copyright (c) 2021-2022 VMware, Inc. All rights reserved.
+"# Copyright 2021-2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2
 
 [Unit]
 Description=The Salt Minion
