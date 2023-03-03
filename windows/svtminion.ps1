@@ -1,4 +1,4 @@
-# Copyright 2019-2023 VMware, Inc.
+# Copyright 2021-2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
 <#
@@ -61,7 +61,7 @@ PS>svtminion.ps1 -Remove -LogLevel debug
 
 #>
 
-    [CmdletBinding(DefaultParameterSetName = "Install")]
+[CmdletBinding(DefaultParameterSetName = "Install")]
 param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -297,7 +297,8 @@ $base_url = $Source
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
 $salt_dir = "$base_salt_install_location\$salt_name"
-$salt_bin = "$salt_dir\salt\salt.exe"
+$salt_bin = "$salt_dir\salt\salt.exe"  # Tiamat Builds
+$salt_minion_bin = "$salt_dir\salt-minion.exe"  # Relenv Builds
 $ssm_bin = "$salt_dir\ssm.exe"
 
 $base_salt_config_location = "$env:ProgramData\Salt Project"
@@ -1663,7 +1664,8 @@ function Get-SaltPackageInfo {
         return @{
             url = @($base_url, $salt_version, $salt_file_name) -join "/";
             hash = $salt_sha512;
-            file_name = $salt_file_name
+            file_name = $salt_file_name;
+            version = $salt_version
         }
     } else {
         # Since there's no repo.json, we need to look in the directory for the
@@ -1747,7 +1749,8 @@ function Get-SaltPackageInfo {
         return @{
             url = @($dir_url, $salt_file_name) -join "/";
             hash = $salt_sha512;
-            file_name = $salt_file_name
+            file_name = $salt_file_name;
+            version = $salt_version
         }
     }
 }
@@ -1884,7 +1887,7 @@ function New-SaltCallScript {
         [String] $Path
     )
     $content = @(
-    ":: Copyright (c) 2021 VMware, Inc. All rights reserved.",
+    ":: Copyright (c) 2021-2023 VMware, Inc. All rights reserved.",
     "",
     ":: Script for starting the Salt-Minion",
     ":: Accepts all parameters that Salt-Minion Accepts",
@@ -1915,7 +1918,7 @@ function New-SaltMinionScript {
         [String] $Path
     )
     $content = @(
-    ":: Copyright (c) 2021 VMware, Inc. All rights reserved.",
+    ":: Copyright (c) 2021-2023 VMware, Inc. All rights reserved.",
     "",
     ":: Script for starting the Salt-Minion"
     ":: Accepts all parameters that Salt-Minion Accepts",
@@ -1937,30 +1940,21 @@ function New-SaltMinionScript {
 }
 
 
-function Install-SaltMinion {
-    # Installs the tiamat build of the salt minion. Performs the following:
-    # - Expands the zipfile into C:\Program Files\Salt Project
+function Install-SaltMinion-Tiamat {
+    # Installs the Tiamat build of the salt minion. Performs the following:
     # - Copies the helper scripts into C:\ProgramFiles\Salt Project\Salt
     # - Registers the salt-minion service
-    # - Adds the new location to the system path
     #
     # Error:
     #     Sets the failed status and exits with a scriptFailed exit code
 
-    # 1. Unzip into Program Files
+    # 1. Copy the helper scripts into Program Files
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [String] $Path
+        [String] $Version
     )
-    Write-Log "Unzipping salt (this may take a few minutes)" -Level info
-    Expand-ZipFile -ZipFile $Path -Destination $base_salt_install_location
-
-    Write-Log "Removing zipfile: $Path" -Level debug
-    Remove-Item -Path $Path
-
-    # 2. Copy the scripts into Program Files
-    Write-Log "Copying scripts" -Level info
+    Write-Log "Copying scripts ($Version)" -Level info
     try {
         Write-Log "Creating $salt_dir\salt-call.bat" -Level debug
         New-SaltCallScript -Path "$salt_dir\salt-call.bat"
@@ -1970,6 +1964,7 @@ function Install-SaltMinion {
         Set-FailedStatus
         exit $STATUS_CODES["scriptFailed"]
     }
+
     try {
         Write-Log "Creating $salt_dir\salt-minion.bat" -Level debug
         New-SaltMinionScript -Path "$salt_dir\salt-minion.bat"
@@ -1980,17 +1975,83 @@ function Install-SaltMinion {
         exit $STATUS_CODES["scriptFailed"]
     }
 
-    # 3. Register the service
-    Write-Log "Installing salt-minion service" -Level info
+    # 2. Register the salt-minion service
+    Write-Log "Registering the salt-minion service ($Version)" -Level info
     & $ssm_bin install salt-minion "$salt_bin" `
-                "minion -c """"$salt_config_dir""""" *> $null
-    & $ssm_bin set salt-minion Description Salt Minion `
-                from VMware Tools *> $null
+                "minion -c """"$salt_config_dir"""" -l quiet" *> $null
+    $description = "Salt Minion from VMware Tools ($Version)"
+    & $ssm_bin set salt-minion Description $description
+}
+
+
+function Install-SaltMinion-Relenv {
+    # Installs the Relenv build of the salt minion. Performs the following:
+    # - Registers the salt-minion service
+
+    # 1. Register the salt-minion service
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Version
+    )
+    Write-Log "Registering the salt-minion service ($Version)" -Level info
+    #
+    & $ssm_bin install salt-minion "$salt_minion_bin" `
+                "-c """"$salt_config_dir"""" -l quiet" *> $null
+    $description = "Salt Minion from VMware Tools ($Version)"
+    & $ssm_bin set salt-minion Description $description
+}
+
+
+function Install-SaltMinion
+{
+    # Installs the salt minion. Performs the following:
+    # - Expands the zipfile into C:\Program Files\Salt Project
+    # - Detects Relenv vs Tiamat build and calls the appropriate install
+    #   function
+    #
+    # Error:
+    #     Sets the failed status and exits with a scriptFailed exit code
+
+    # 1. Unzip into Program Files
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $Path,
+
+        [Parameter(Mandatory=$true)]
+        [String] $Version
+    )
+    Write-Log "Unzipping salt (this may take a few minutes)" -Level info
+    Expand-ZipFile -ZipFile $Path -Destination $base_salt_install_location
+
+    Write-Log "Removing zipfile: $Path" -Level debug
+    Remove-Item -Path $Path
+
+    # 2. Determine if this is a Tiamat package or a Relenv package
+    #    - salt-minion.exe in the root = Relenv = post-3005
+    #    - salt\salt.exe in the root = Tiamat = pre-3006
+    if ( Test-Path -Path "$salt_minion_bin") {
+        Write-Log "Found post-3005 Package"
+        Install-SaltMinion-Relenv -Version $Version
+    }
+    elseif ( Test-Path -Path "$salt_bin" ) {
+        Write-Log "Found pre-3006 Package"
+        Install-SaltMinion-Tiamat -Version $Version
+    } else {
+        Write-Log "Unknown Package Type" -Level error
+        Set-FailedStatus
+        exit $STATUS_CODES["scriptFailed"]
+    }
+
+    # Common service setttings
+    Write-Log "Configuring the salt-minion service" -Level info
     & $ssm_bin set salt-minion Start SERVICE_AUTO_START *> $null
     & $ssm_bin set salt-minion AppStopMethodConsole 24000 *> $null
     & $ssm_bin set salt-minion AppStopMethodWindow 2000 *> $null
     & $ssm_bin set salt-minion AppRestartDelay 60000 *> $null
 
+    # 3. Verify that the service is installed
     try {
         Get-Service -Name salt-minion
         Write-Log "salt-minion service installed successfully" -Level debug
@@ -2164,7 +2225,7 @@ function Install {
     Get-SaltFromWeb -Url $info.url -Destination $zip_file -Hash $info.hash
 
     # Install the Salt Package
-    Install-SaltMinion -Path $zip_file
+    Install-SaltMinion -Path $zip_file -Version $info.version
 
     # Generate and update the minion config
     Add-MinionConfig
