@@ -290,6 +290,7 @@ test-salt-vmtools-linux:
     - yum makecache
     - yum -y install salt-minion
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, classic salt-minion should be installed and external install detected, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
 
   rules:
@@ -457,6 +458,10 @@ test-tags-salt-vmtools-linux:
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m 3004-1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh -m 3006.0rc1 --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea/3006
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }

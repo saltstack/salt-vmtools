@@ -31,8 +31,6 @@ base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
 # Salt file and directory locations
 readonly base_salt_location="/opt/saltstack"
 readonly salt_dir="${base_salt_location}/${salt_name}"
-readonly test_exists_file="${salt_dir}/run/run"
-
 readonly salt_conf_dir="/etc/salt"
 readonly salt_minion_conf_name="minion"
 readonly salt_minion_conf_file="${salt_conf_dir}/${salt_minion_conf_name}"
@@ -93,12 +91,19 @@ NotifyAccess=all
 LimitNOFILE=8192
 MemoryLimit=250M
 Nice=19
-ExecStart=/opt/saltstack/salt/run/run minion
+ExecStart=/usr/bin/salt-minion
 
 [Install]
 WantedBy=multi-user.target
 "
 
+# Onedir detection locations
+readonly onedir_post_3005_location="${salt_dir}/salt-minion"
+readonly onedir_pre_3006_location="${salt_dir}/run/run"
+
+declare -a list_of_onedir_locations_check
+list_of_onedir_locations_check[0]="${onedir_pre_3006_location}"
+list_of_onedir_locations_check[1]="${onedir_post_3005_location}"
 
 ## VMware file and directory locations
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
@@ -128,6 +133,7 @@ declare -a m_cfg_values
 #  100 + 3 => installFailed
 #  100 + 4 => removing
 #  100 + 5 => removeFailed
+#  100 + 6 => externalInstall
 #  126 => scriptFailed
 #  130 => scriptTerminated
 declare -A STATUS_CODES_ARY
@@ -137,6 +143,7 @@ STATUS_CODES_ARY[notInstalled]=102
 STATUS_CODES_ARY[installFailed]=103
 STATUS_CODES_ARY[removing]=104
 STATUS_CODES_ARY[removeFailed]=105
+STATUS_CODES_ARY[externalInstall]=106
 STATUS_CODES_ARY[scriptFailed]=126
 STATUS_CODES_ARY[scriptTerminated]=130
 
@@ -174,6 +181,8 @@ LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 
 SOURCE_FLAG=0
 SOURCE_PARAMS=""
+
+
 
 # helper functions
 
@@ -279,7 +288,7 @@ esac
 # work functions
 
 #
-# _cleanup
+# _cleanup_int
 #
 #   Cleanups any running process and areas on control-C
 #
@@ -288,11 +297,25 @@ esac
 #   Exits with hard-coded value 130
 #
 
-_cleanup() {
+_cleanup_int() {
+    rm -rf "$WORK_DIR"
+    _debug_log "$0:${FUNCNAME[0]} Deleted temp working directory $WORK_DIR"
+
     exit ${STATUS_CODES_ARY[scriptTerminated]}
 }
 
-trap _cleanup INT
+#
+# _cleanup_exit
+#
+#   Cleanups any running process and areas on exit
+#
+_cleanup_exit() {
+    rm -rf "$WORK_DIR"
+    _debug_log "$0:${FUNCNAME[0]} Deleted temp working directory $WORK_DIR"
+}
+
+trap _cleanup_int INT
+trap _cleanup_exit EXIT
 
 
 # cheap trim relying on echo to convert tabs to spaces and
@@ -864,14 +887,18 @@ _fetch_salt_minion() {
     local salt_json_sha512=""
     local salt_pkg512=""
 
+    local install_onedir_chk=0
+    local sys_arch=""
+
     _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check"\
         "its validity"
 
     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
     mkdir -p ${base_salt_location}
-    cd ${base_salt_location} || return $?
+    ## cd ${base_salt_location} || return $?
+    cd "${WORK_DIR}" || return $?
 
-    # curl on Liux doesn't support file:// support
+    # curl on Linux doesn't support file:// support
     if echo "${base_url}" | grep -q '^/' ; then
         local_base_url="${base_url}"
         local_file_flag=1
@@ -940,38 +967,42 @@ _fetch_salt_minion() {
             # repo.json file is missing, look for 'latest'
             # directory with onedir files and retrieve files from it
             salt_url="${local_base_url}/${salt_url_version}"
-            salt_tarball="${salt_name}*-linux-amd64.tar.gz"
-            salt_tarball_SHA512="${salt_name}*_SHA512"
 
-            ## shellcheck cp -a ${salt_url}/${salt_tarball} .
-            cp -a "${salt_url}/${salt_name}"*-linux-amd64.tar.gz .
+            _debug_log "$0:${FUNCNAME[0]} current directory $(pwd)"
+
+            cp -a "${salt_url}/${salt_name}"*-linux-*.tar.?z .
             _retn=$?
             if [[ ${_retn} -ne 0 ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
                 _error_log "$0:${FUNCNAME[0]} failed to find file" \
-                "'${salt_tarball}' in specified location ${salt_url},"\
+                "for Linux in specified location ${salt_url},"\
                 "error '${_retn}'"
             fi
 
-            ## shellcheck cp -a ${salt_url}/${salt_tarball_SHA512} .
+            cp -a "${salt_url}/${salt_name}"*-linux-*.tar.?z.sha512 . 2>/dev/null
             cp -a "${salt_url}/${salt_name}"*_SHA512 .
             _retn=$?
             if [[ ${_retn} -ne 0 ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
                 _error_log "$0:${FUNCNAME[0]} failed to find file" \
-                "'${salt_tarball_SHA512}' in specified location ${salt_url},"\
+                "SHA 512 in specified location ${salt_url},"\
                 "error '${_retn}'"
             fi
 
             ## shellcheck
-            ## salt_pkg_name=$(ls ${salt_tarball})
-            ## salt_chksum_file=$(ls ${salt_tarball_SHA512})
-            salt_pkg_name=$(ls "${salt_url}/${salt_name}"*-linux-amd64.tar.gz)
-            salt_chksum_file=$(ls "${salt_url}/${salt_name}"*_SHA512)
+            salt_chksum_file=$(ls "${salt_name}"*_SHA512)
+            salt_pkg_name=$(ls "${salt_name}"*-linux-amd64.tar.gz 2>/dev/null)
+            if  [[ -z "${salt_pkg_name}" ]]; then
+                # failed to find pre-3006 linux tarball,
+                # attempt to find post-3005 with appro. arch
+                sys_arch=$(uname -m)
+                salt_chksum_file=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz.sha512)
+                salt_pkg_name=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz)
+            fi
             _debug_log "$0:${FUNCNAME[0]} successfully copied tarball from"\
-                "'${salt_url}' to file '${salt_pkg_name}'"
+                "'${salt_url}' file '${salt_pkg_name}'"
             _debug_log "$0:${FUNCNAME[0]} successfully coped checksum from"\
-                "'${salt_url}' to file '${salt_chksum_file}'"
+                "'${salt_url}' file '${salt_chksum_file}'"
             calc_sha512sum=$(grep "${salt_pkg_name}" \
                 "${salt_chksum_file}" | sha512sum --check --status)
             if [[ ${calc_sha512sum} -ne 0 ]]; then
@@ -1017,7 +1048,7 @@ _fetch_salt_minion() {
             # repo.json file is missing, look for 'latest'
             # directory with onedir files and retrieve files from it
             salt_url="${base_url}/${salt_url_version}"
-            salt_tarball="${salt_name}*-linux-amd64.tar.gz"
+            salt_tarball="${salt_name}*-linux-*.tar.?z"
             salt_tarball_SHA512="${salt_name}*_SHA512"
 
             # assume http://, https:// or similar
@@ -1037,10 +1068,15 @@ _fetch_salt_minion() {
             fi
 
             ## shellcheck
-            ## salt_pkg_name=$(ls ${salt_tarball})
-            ## salt_chksum_file=$(ls ${salt_tarball_SHA512})
-            salt_pkg_name=$(ls "${salt_url}/${salt_name}"*-linux-amd64.tar.gz)
-            salt_chksum_file=$(ls "${salt_url}/${salt_name}"*_SHA512)
+            salt_chksum_file=$(ls "${salt_name}"*_SHA512)
+            salt_pkg_name=$(ls "${salt_name}"*-linux-amd64.tar.gz)
+            if  [[ -z "${salt_pkg_name}" ]]; then
+                # failed to find pre-3006 linux tarball,
+                # attempt to find post-3005 with appro. arch
+                sys_arch=$(uname -m)
+                salt_chksum_file=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz.sha512)
+                salt_pkg_name=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz)
+            fi
             _debug_log "$0:${FUNCNAME[0]} successfully downloaded tarball"\
                 "from '${salt_url}' into file '${salt_pkg_name}'"
             _debug_log "$0:${FUNCNAME[0]} successfully downloaded checksum"\
@@ -1058,18 +1094,19 @@ _fetch_salt_minion() {
     fi
 
     _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
-    tar xzf "${salt_pkg_name}" 1>/dev/null
+    tar xf "${salt_pkg_name}" -C "${base_salt_location}"  1>/dev/null
     _retn=$?
     if [[ ${_retn} -ne 0 ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-        _error_log "$0:${FUNCNAME[0]} tar xzf expansion of downloaded"\
+        _error_log "$0:${FUNCNAME[0]} tar xf expansion of downloaded"\
             "file '${salt_pkg_name}' failed, return code '${_retn}'"
     fi
-    if [[ ! -f ${test_exists_file} ]]; then
+    install_onedir_chk=$(_check_onedir_minion_install)
+    if [[ ${install_onedir_chk} -eq 0 ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
         _error_log "$0:${FUNCNAME[0]} expansion of downloaded file"\
-            "'${salt_url}' failed to provide critical file"\
-            "'${test_exists_file}'"
+            "'${salt_url}' failed to provide any onedir installed "\
+            "critical files for salt-minion"
     fi
     CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
     cd "${CURRDIR}" || return $?
@@ -1109,9 +1146,9 @@ _check_multiple_script_running() {
 
 
 #
-# _check_std_minion_install
+# _check_classic_minion_install
 #
-# Check if standard salt-minion is installed for the OS
+# Check if classic salt-minion is installed for the OS
 #   for example: install salt-minion from rpm or deb package
 #
 # Results:
@@ -1119,7 +1156,7 @@ _check_multiple_script_running() {
 #   !0 - Standard install found and Salt version found output
 #
 
-_check_std_minion_install() {
+_check_classic_minion_install() {
 
     # checks for /usr/bin, then /usr/local/bin
     # this catches 80% to 90%  of the reqular cases
@@ -1136,7 +1173,11 @@ _check_std_minion_install() {
 
     for idx in ${list_of_files_check}
     do
-        if [[ -f "${idx}" ]]; then
+        if [[ -h "${idx}" ]]; then
+            _debug_log "$0:${FUNCNAME[0]} found file '${idx}' "\
+                "symbolic link, post-3005 installation"
+            break
+        elif [[ -f "${idx}" ]]; then
             #check size of file, if larger than 200, not script wrapper file
             local file_sz=0
             file_sz=$(( $(wc -c < "${idx}") ))
@@ -1156,6 +1197,46 @@ _check_std_minion_install() {
     done
     echo ""
     return ${_retn}
+}
+
+
+#
+# _check_onedir_minion_install
+#
+# Check if onedir pre_3006 or post_3005 salt-minion is installed on the OS
+#   for example: install salt-minion from rpm or deb package
+#
+# Results:
+#   Echos the following values:
+#   0 - No onedir install found and empty string output
+#   1 - pre_3006 onedir install found
+#   2 - post_3005 onedir install found
+#
+
+_check_onedir_minion_install() {
+
+    # checks for following executables:
+    # post_3005 - /opt/saltstack/salt/salt-minion
+    # pre_3006  - /opt/saltstack/salt/run/run
+
+    local _retn=0
+    local pre_3006=1
+    local post_3005=2
+
+    _info_log "$0:${FUNCNAME[0]} check if standard onedir-minion installed"
+
+    if [[ -f "${list_of_onedir_locations_check[0]}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]} found pre 3006 version of Salt, "\
+                    "at location ${list_of_onedir_locations_check[0]}"
+        _retn=${pre_3006}
+    elif [[ -f "${list_of_onedir_locations_check[1]}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]} found post 3005 version of Salt, "\
+                    "at location ${list_of_onedir_locations_check[1]}"
+        _retn=${post_3005}
+    else
+        _debug_log "$0:${FUNCNAME[0]} failed to find a ondir installation"
+    fi
+    echo ${_retn}
 }
 
 
@@ -1232,17 +1313,17 @@ _ensure_id_or_fqdn () {
 
 
 #
-# _create_helper_scripts
+# _create_pre_3006_helper_scripts
 #
 #   Create helper scripts for salt-call and salt-minion
 #
-#       Example: _create_helper_scripts
+#       Example: _create_pre_3006_helper_scripts
 #
 # Results:
 #   Exits with 0 or error code
 #
 
-_create_helper_scripts() {
+_create_pre_3006_helper_scripts() {
 
     for idx in ${salt_wrapper_file_list}
     do
@@ -1294,6 +1375,7 @@ _create_helper_scripts() {
 #       3 => installFailed
 #       4 => removing
 #       5 => removeFailed
+#       6 => externalInstall
 #       126 => scriptFailed
 #
 # Side Effects:
@@ -1307,6 +1389,7 @@ _status_fn() {
     # return status
     local _retn_status=${STATUS_CODES_ARY[notInstalled]}
     local script_count=0
+    local install_onedir_chk=0
 
     _info_log "$0:${FUNCNAME[0]} checking status for script"
     script_count=$(_check_multiple_script_running)
@@ -1315,32 +1398,43 @@ _status_fn() {
             "multiple versions of the script are running"
     fi
 
-    svpid=$(_find_salt_pid)
-    if [[ ! -f "${test_exists_file}" && -z ${svpid} ]]; then
-        # check not installed and no process id
-        CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
-        _retn_status=${STATUS_CODES_ARY[notInstalled]}
-    elif [[ -f "${test_exists_file}" ]]; then
-        # check installed
-        CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
-        _retn_status=${STATUS_CODES_ARY[installed]}
-        # normal case but double-check
+    found_salt_ver=$(_check_classic_minion_install)
+    if [[ -n "${found_salt_ver}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]}" \
+            "existing Standard Salt Installation detected,"\
+            "Salt version: '${found_salt_ver}'"
+            CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
+            _retn_status=${STATUS_CODES_ARY[externalInstall]}
+    else
+        _debug_log "$0:${FUNCNAME[0]} no standardized install found"
+
         svpid=$(_find_salt_pid)
-        if [[ -z ${svpid} ]]; then
-            # Note: someone could have stopped the salt-minion,
-            # so installed but not running,
-            # status codes don't allow for that case
-            CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-            _retn_status=${STATUS_CODES_ARY[installFailed]}
-        fi
-    elif [[ -z ${svpid} ]]; then
-        # check no process id and main directory still left, then removeFailed
-        if [[ -f "${test_exists_file}" ]]; then
-            CURRENT_STATUS=${STATUS_CODES_ARY[removeFailed]}
-            _retn_status=${STATUS_CODES_ARY[removeFailed]}
+        install_onedir_chk=$(_check_onedir_minion_install)
+        if [[ ${install_onedir_chk} -eq 0 && -z ${svpid} ]]; then
+            # check not installed and no process id
+            CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
+            _retn_status=${STATUS_CODES_ARY[notInstalled]}
+        elif [[ ${install_onedir_chk} -ne 0 ]]; then
+            # check installed
+            CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
+            _retn_status=${STATUS_CODES_ARY[installed]}
+            # normal case but double-check
+            svpid=$(_find_salt_pid)
+            if [[ -z ${svpid} ]]; then
+                # Note: someone could have stopped the salt-minion,
+                # so installed but not running,
+                # status codes don't allow for that case
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _retn_status=${STATUS_CODES_ARY[installFailed]}
+            fi
+        elif [[ -z ${svpid} ]]; then
+            # check no process id and main directory still left, =>removeFailed
+            if [[ ${install_onedir_chk} -ne 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[removeFailed]}
+                _retn_status=${STATUS_CODES_ARY[removeFailed]}
+            fi
         fi
     fi
-
 
     return ${_retn_status}
 }
@@ -1433,6 +1527,7 @@ _install_fn () {
     local script_count=0
     local existing_chk=""
     local found_salt_ver=""
+    local install_onedir_chk=0
 
     _info_log "$0:${FUNCNAME[0]} processing script install"
 
@@ -1442,7 +1537,7 @@ _install_fn () {
             "multiple versions of the script are running"
     fi
 
-    found_salt_ver=$(_check_std_minion_install)
+    found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
         _error_log "$0:${FUNCNAME[0]} failed to install, " \
             "existing Standard Salt Installation detected,"\
@@ -1477,21 +1572,39 @@ _install_fn () {
             "salt-minion, retcode '$?'";
     }
 
-    if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
+    if [[ ${_retn} -eq 0 && -f "${onedir_pre_3006_location}" ]]; then
         # create helper scripts for /usr/bin to ensure they are present
         # before attempting to use them in _ensure_id_or_fqdn
+        # this is for earlier than 3006 versions of Salt onedir
         _debug_log "$0:${FUNCNAME[0]} creating helper files salt-call"\
             "and salt-minion in directory /usr/bin"
-        _create_helper_scripts || {
+        _create_pre_3006_helper_scripts || {
             _error_log "$0:${FUNCNAME[0]} failed to create helper files"\
                 "salt-call or salt-minion in directory /usr/bin, retcode '$?'";
         }
+    elif [[ ${_retn} -eq 0 && -f "${onedir_post_3005_location}" ]]; then
+        # create symbolic links for /usr/bin to ensure they are present
+        _debug_log "$0:${FUNCNAME[0]} creating symbolic links for salt-call"\
+            "and salt-minion in directory /usr/bin"
+        ln -s -f "${salt_dir}/salt-minion" "/usr/bin/salt-minion" || {
+            _error_log "$0:${FUNCNAME[0]} failed to create symbolic link "\
+                "for salt-minion in directory /usr/bin, retcode '$?'";
+        }
+        ln -s -f "${salt_dir}/salt-call" "/usr/bin/salt-call" || {
+            _error_log "$0:${FUNCNAME[0]} failed to create symbolic link "\
+                "for salt-call in directory /usr/bin, retcode '$?'";
+        }
+    else
+        _error_log "$0:${FUNCNAME[0]} problems creating helper files"\
+            "or symbolic links for salt-call or salt-minion in "\
+            "directory /usr/bin, should not have reached this code point";
     fi
 
     # ensure minion id or fqdn for salt-minion
-   _ensure_id_or_fqdn
+    _ensure_id_or_fqdn
+    install_onedir_chk=$(_check_onedir_minion_install)
 
-    if [[ ${_retn} -eq 0 && -f "${test_exists_file}" ]]; then
+    if [[ ${_retn} -eq 0 && ${install_onedir_chk} -ne 0 ]]; then
         if [[ -n  "${existing_chk}" ]]; then
             # be nice and stop any current salt functionalty found
             for idx in ${existing_chk}
@@ -1522,16 +1635,7 @@ _install_fn () {
                 "file ${name_service} to directory"\
                 "${systemd_lib_path}, retcode '$?'";
         }
-        cd /etc/systemd/system || return $?
-        rm -f "${name_service}"
-        ln -s "${systemd_lib_path}/${name_service}" \
-            "${name_service}" || {
-                _error_log "$0:${FUNCNAME[0]} failed to symbolic link"\
-                    "systemd service file ${name_service} in"\
-                    "directory /etc/systemd/system, retcode '$?'";
-        }
-        _debug_log "$0:${FUNCNAME[0]} symbolically linked systemd service"\
-            "file ${name_service} in directory /etc/systemd/system"
+
         cd "${CURRDIR}" || return $?
 
         # start the salt-minion using systemd
@@ -1717,6 +1821,7 @@ _clear_id_key_fn () {
     local minion_id=""
     local minion_ip_id=""
     local script_count=0
+    local install_onedir_chk=0
 
     _info_log "$0:${FUNCNAME[0]} processing clearing of salt-minion"\
         "identifier and its keys"
@@ -1727,7 +1832,8 @@ _clear_id_key_fn () {
             "multiple versions of the script are running"
     fi
 
-    if [[ ! -f "${test_exists_file}" ]]; then
+    install_onedir_chk=$(_check_onedir_minion_install)
+    if [[ ${install_onedir_chk} -eq 0 ]]; then
         _debug_log "$0:${FUNCNAME[0]} salt-minion is not installed,"\
             "nothing to do"
         return ${_retn}
@@ -1822,6 +1928,8 @@ _uninstall_fn () {
     # remove Salt minion
     local _retn=0
     local script_count=0
+    local found_salt_ver=""
+    local install_onedir_chk=0
 
     _info_log "$0:${FUNCNAME[0]} processing script remove"
 
@@ -1831,7 +1939,7 @@ _uninstall_fn () {
             "multiple versions of the script are running"
     fi
 
-    found_salt_ver=$(_check_std_minion_install)
+    found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
         _error_log "$0:${FUNCNAME[0]} failed to remove,"\
             "existing Standard Salt Installation detected,"\
@@ -1840,7 +1948,8 @@ _uninstall_fn () {
         _debug_log "$0:${FUNCNAME[0]} no standardized install found"
     fi
 
-    if [[ ! -f "${test_exists_file}" ]]; then
+    install_onedir_chk=$(_check_onedir_minion_install)
+    if [[ ${install_onedir_chk} -eq 0 ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
 
         # assumme rest is gone
@@ -1948,6 +2057,17 @@ _clean_up_log_files() {
 # static definitions
 
 CURRDIR=$(pwd)
+
+# setup work-area
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# the temp working directory used, within $DIR
+WORK_DIR=$(mktemp -d -p "$DIR")
+
+# check if temp working dir was created
+if [[ ! "${WORK_DIR}" || ! -d "${WORK_DIR}" ]]; then
+  echo "Could not create temp dir"
+  exit 1
+fi
 
 # default status is notInstalled
 CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
@@ -2057,7 +2177,6 @@ if [[ ${DEPS_CHK} -eq 1 ]]; then
     retn=$?
 fi
 if [[ ${SOURCE_FLAG} -eq 1 ]]; then
-    echo "DGM SOURCE source params ${SOURCE_PARAMS}"
     CLI_ACTION=1
     LOG_ACTION="install"
     # ensure this is processed before install
