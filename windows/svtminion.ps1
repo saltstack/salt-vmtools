@@ -39,6 +39,7 @@ Salt minion installation. Status exit codes are as follows:
 103 - installFailed
 104 - removing
 105 - removeFailed
+106 - externalInstall
 
 NOTE: This script must be run with Administrator privileges
 
@@ -141,6 +142,7 @@ param(
     # 103 - installFailed
     # 104 - removing
     # 105 - removeFailed
+    # 106 - externalInstall
     #
     # Exits with scriptFailed exit code (126) under the following conditions:
     # - Unknown status found
@@ -243,6 +245,7 @@ $STATUS_CODES = @{
     "installFailed" = 103;
     "removing" = 104;
     "removeFailed" = 105;
+    "externalInstall" = 106;
     "scriptFailed" = 126;
     "scriptTerminated" = 130;
     100 = "installed";
@@ -251,6 +254,7 @@ $STATUS_CODES = @{
     103 = "installFailed"
     104 = "removing";
     105 = "removeFailed";
+    106 = "externalInstall";
 }
 
 ################################ REQUIREMENTS ##################################
@@ -503,7 +507,7 @@ function Get-Status {
         $current_status = $STATUS_CODES["notInstalled"]
     }
 
-    # If status is 1 or 4 (installing or removing) but there isn't another
+    # If status is 101 or 104 (installing or removing) but there isn't another
     # script running, then the status is installFailed or removeFailed
     $list_ing = @($STATUS_CODES["installing"], $STATUS_CODES["removing"])
     if (($list_ing -contains $current_status) -and !($script_running_status)) {
@@ -542,6 +546,7 @@ function Set-Status {
     #             - installFailed
     #             - removing
     #             - removeFailed
+    #             - externalInstall
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
@@ -551,7 +556,8 @@ function Set-Status {
                 "notInstalled",
                 "installFailed",
                 "removing",
-                "removeFailed"
+                "removeFailed",
+                "externalInstall"
         )]
         [String] $NewStatus
     )
@@ -1548,7 +1554,17 @@ function Get-SaltVersion {
         [Parameter(Mandatory=$true)]
         [String] $Path
     )
-    $ver = . $path\bin\python.exe -E -s $path\bin\Scripts\salt-call --version
+
+    if ( Test-Path -Path "$Path\salt-call.exe" ) {
+        # 3006 and later packages
+        Write-Log "Running: $Path\salt-call.exe" -Level debug
+        $ver = . $Path\salt-call.exe --version
+    } elseif ( Test-Path -Path "$Path\bin\python.exe" ) {
+        # Pre 3006 Packages
+        $python_bin = "$Path\bin\python.exe"
+        Write-Log "Running: $python_bin" -Level debug
+        $ver = . $python_bin -E -s $Path\bin\Scripts\salt-call --version
+    }
     return $ver.Trim("salt-call ")
 }
 
@@ -1575,7 +1591,13 @@ function Find-StandardSaltInstallation {
     Write-Log "Looking for Standard Installation" -Level info
     $exists = $false
     foreach ($path in $locations) {
-        if (Test-Path -Path "$path\bin\python.exe" ) {
+        if (
+            # Pre 3006 Packages
+            (Test-Path -Path "$path\bin\python.exe") `
+            -or `
+            # 3006 and later packages
+            (Test-Path -Path "$path\salt-call.exe")
+        ) {
             $version = Get-SaltVersion -Path $path
             Write-Log "Standard Installation detected" -Level error
             Write-Log "Version: $version" -Level error
@@ -2302,7 +2324,7 @@ function Main {
                 $msg = "Found an existing salt installation on the system."
                 Write-Log $msg -Level error
                 Write-Host $msg -ForegroundColor Red
-                return $STATUS_CODES["scriptFailed"]
+                return $STATUS_CODES["externalInstall"]
             }
             # If status is installed, installing, or removing, bail out
             $current_status = Get-Status

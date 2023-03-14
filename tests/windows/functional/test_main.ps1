@@ -33,7 +33,7 @@ function test_Main_Install_existing_salt {
     $Action = "Install"
     function Find-StandardSaltInstallation { return $true }
     $result = Main
-    if ($result -eq $STATUS_CODES["scriptFailed"]) { return 0 }
+    if ($result -eq $STATUS_CODES["externalInstall"]) { return 0 }
     return 1
 }
 
