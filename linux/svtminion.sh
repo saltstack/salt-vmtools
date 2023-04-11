@@ -26,7 +26,12 @@ readonly default_salt_url_version="latest"
 readonly salt_name="salt"
 readonly repo_json_file="repo.json"
 salt_url_version="${default_salt_url_version}"
-base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
+pre_3006_base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
+# Release
+## post_3005_base_url="https://repo.saltproject.io/salt/py3/onedir"
+# salt_rc - for now until release
+post_3005_base_url="https://repo.saltproject.io/salt_rc/salt/py3/onedir"
+base_url=""
 
 # Salt file and directory locations
 readonly base_salt_location="/opt/saltstack"
@@ -38,16 +43,19 @@ readonly salt_master_sign_dir="${salt_conf_dir}/pki/${salt_minion_conf_name}"
 
 readonly log_dir="/var/log"
 
+readonly list_files_systemd_to_remove="/lib/systemd/system/salt-minion.service
+/usr/lib/systemd/system/salt-minion.service
+/usr/local/lib/systemd/system/salt-minion.service
+/etc/systemd/system/salt-minion.service
+"
+
 readonly list_file_dirs_to_remove="${base_salt_location}
 /etc/salt
 /var/run/salt
 /var/cache/salt
 /var/log/salt
 /usr/bin/salt-*
-/lib/systemd/system/salt-minion.service
-/usr/lib/systemd/system/salt-minion.service
-/usr/local/lib/systemd/system/salt-minion.service
-/etc/systemd/system/salt-minion.service
+${list_files_systemd_to_remove}
 "
 ## /var/log/vmware-${SCRIPTNAME}-*
 
@@ -182,6 +190,9 @@ LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 SOURCE_FLAG=0
 SOURCE_PARAMS=""
 
+# Flag for pre_3006 and post_3005, 0 => pre_3006, 1 => post_3005
+POST_3005_FLAG=0
+POST_3005_MAJOR_VER_FLAG=0
 
 
 # helper functions
@@ -312,6 +323,7 @@ _cleanup_int() {
 _cleanup_exit() {
     rm -rf "$WORK_DIR"
     _debug_log "$0:${FUNCNAME[0]} Deleted temp working directory $WORK_DIR"
+    ## exit ${CURRENT_STATUS}
 }
 
 trap _cleanup_int INT
@@ -409,6 +421,54 @@ _set_install_minion_version_fn() {
     fi
 
     return 0
+}
+
+#
+# _set_post_3005_flags_from_version
+#
+#   Sets the POST_3005_FLAG and POST_3005_MAJOR_VER_FLAG
+#       from the version currently present in salt_url_version
+#
+#   Will also set base_url if not already defined by --source option
+#
+# Results:
+#   Returns with exit code
+#
+_set_post_3005_flags_from_version() {
+    _info_log "$0:${FUNCNAME[0]} setting POST_3005_FLAG and "\
+        "POST_3005_MAJOR_VER_FLAG from salt version '${salt_url_version}'"
+
+    if [[ "latest" = "${salt_url_version}" ]]; then
+        POST_3005_FLAG=1
+        POST_3005_MAJOR_VER_FLAG=1
+        base_url="${post_3005_base_url}"
+        # done, already have url for latest & major versions
+        _debug_log "$0:${FUNCNAME[0]} post-3005 install, using latest "\
+            "base_url '${base_url}'"
+    else
+        ver_chk=$(echo "${salt_url_version}" | cut -d '.' -f 1)
+        if [[ ${ver_chk} -ge 3006 ]]; then
+            POST_3005_FLAG=1
+            ver_chk_major=$(echo "${salt_url_version}" | cut -d '.' -f 1)
+            ver_chk_minor=$(echo "${salt_url_version}" | cut -d '.' -f 2)
+            _debug_log "$0:${FUNCNAME[0]} post-3005 install, checking "\
+                "for major version only '${ver_chk_major}', minor "\
+                "'${ver_chk_minor}'"
+            if [[ "${ver_chk_major}" = "${ver_chk_minor}" ]]; then
+                POST_3005_MAJOR_VER_FLAG=1
+                base_url="${post_3005_base_url}"
+            else
+                base_url="${post_3005_base_url}/minor"
+            fi
+            _debug_log "$0:${FUNCNAME[0]} post-3005 install, for "\
+                "'${salt_url_version}' using base_url '${base_url}'"
+        else
+            # install pre-3006, use older url
+            base_url="${pre_3006_base_url}"
+            _debug_log "$0:${FUNCNAME[0]} pre-3006 install, for "\
+                "'${salt_url_version}' using base_url '${base_url}'"
+        fi
+    fi
 }
 
 
@@ -787,9 +847,14 @@ _curl_download() {
 
     local var1=""
     local var2=""
+    local machine_arch_chk="${MACHINE_ARCH}"
     declare -A rdict
 
     _info_log "$0:${FUNCNAME[0]} parsing of repo json file '${file_name}'"
+
+    if [[ ${POST_3005_FLAG} -eq 0 ]]; then
+        machine_arch_chk="amd64"    # pre_3006 used amd64
+    fi
 
     file_value=$(<"${file_name}")
 
@@ -808,7 +873,8 @@ _curl_download() {
         elif [[ "${line}" = "}" ]]; then
             # examine directory just read in
             if [[  ${specd_ver_flag} -eq 1 ]]; then
-                if [[ "${rdict['os']}" = "linux" ]]; then
+                if [[ "${rdict['os']}" = "linux" \
+                    && "${rdict['arch']}" = "${machine_arch_chk}" ]]; then
                     # have linux values for specd_ver
                     _debug_log "$0:${FUNCNAME[0]} parsed following linux for"\
                     "specified version '${salt_url_version}' from repo json"\
@@ -822,21 +888,55 @@ _curl_download() {
 
             if [[ ${blk_count} -eq ${specd_ver_blk_count} ]]; then
                 specd_ver_flag=0
-                break
+                ## break
             fi
             (( blk_count-- ))
         else
-            line_key=$(echo "${line}" | cut -d ':' -f 1 | xargs)
-            line_value=$(echo "${line}" | cut -d ':' -f 2 | xargs)
-            if [[ "${line_key}" = "${salt_url_version}" ]]; then
-                # note blk_count encountered 'specd_ver', closing brace check
-                specd_ver_flag=1
-                specd_ver_blk_count=${blk_count}
-                (( specd_ver_blk_count++ ))
+            if [[ ${POST_3005_FLAG} -eq 1 \
+                && ${POST_3005_MAJOR_VER_FLAG} -eq 1 ]]; then
+                # doing major version check
+                line_major_key=$(echo "${line}" | cut -d ':' -f 1 | cut -d '-' -f 2 | cut -d '.' -f 1 |xargs)
+                line_key=$(echo "${line}" | cut -d ':' -f 1 | xargs)
+                line_value=$(echo "${line}" | cut -d ':' -f 2 | xargs)
+                _debug_log "$0:${FUNCNAME[0]} check line_major_key "\
+                    "'${line_major_key}' again salt_url_version "\
+                    "'${salt_url_version}', line_key '${line_key}', "\
+                    "line_value '${line_value}'"
+                if [[ "${line_major_key}" = "${salt_url_version}" ]]; then
+                    # blk_count encountered 'specd_ver', closing brace check
+                    specd_ver_flag=1
+                    specd_ver_blk_count=${blk_count}
+                    (( specd_ver_blk_count++ ))
+                    _debug_log "$0:${FUNCNAME[0]} found specd version, "\
+                        "version '${salt_url_version}' and line_major_key "\
+                        "'${line_major_key}', line_key '${line_key}' "\
+                        "specd_ver_blk_count '${specd_ver_blk_count}'"
+                else
+                    rdict["${line_key}"]="${line_value}"
+                    _debug_log "$0:${FUNCNAME[0]} updated dictionary for "\
+                        "major version with line_key '${line_key}' and "\
+                        "line_value '${line_value}'"
+                fi
             else
-                rdict["${line_key}"]="${line_value}"
-                _debug_log "$0:${FUNCNAME[0]} updated dictionary with"\
-                "line_key '${line_key}' and line_value '${line_value}'"
+                line_key=$(echo "${line}" | cut -d ':' -f 1 | xargs)
+                line_value=$(echo "${line}" | cut -d ':' -f 2 | xargs)
+                _debug_log "$0:${FUNCNAME[0]} check line_key '${line_key}' "\
+                    "again salt_url_version '${salt_url_version}', "\
+                    "line_value '${line_value}'"
+                if [[ "${line_key}" = "${salt_url_version}" ]]; then
+                    # blk_count encountered 'specd_ver', closing brace check
+                    specd_ver_flag=1
+                    specd_ver_blk_count=${blk_count}
+                    (( specd_ver_blk_count++ ))
+                    _debug_log "$0:${FUNCNAME[0]} found specd version, "\
+                        "version '${salt_url_version}' and line_key "\
+                        "'${line_key}' and specd_ver_blk_count "\
+                        "'${specd_ver_blk_count}'"
+                else
+                    rdict["${line_key}"]="${line_value}"
+                    _debug_log "$0:${FUNCNAME[0]} updated dictionary with" \
+                    "line_key '${line_key}' and line_value '${line_value}'"
+                fi
             fi
         fi
     done <<< "${var2}"
@@ -856,6 +956,19 @@ _curl_download() {
 # _fetch_salt_minion
 #
 #   Retrieve the salt-minion from Salt repository
+#
+# Note:
+#   pre_3006    The repo.json file only existed in one place (salt/onedir)
+#               and contained everything in the directory and sub-directories
+#               where the repo.json file resides.
+#   post_3005   There are two repo.json files:
+#                   top level (salt/py3/onedir):
+#                       repo.json contains 'latest' and 'major versions' only.
+#                   minor level (salt/py3/onedir/minor):
+#                       repo.json contains 'latest' and 'minor versions' only.
+#
+# With the 3006 release a breaking change in directory structure was introduced
+# to bring comformity with directory structure used for packages.
 #
 # Side Effects:
 #   CURRENT_STATUS updated
@@ -878,6 +991,7 @@ _fetch_salt_minion() {
 
     local local_base_url=""
     local local_file_flag=0
+    local local_count_repo_json=0
 
     local salt_tarball=""
     local salt_tarball_SHA512=""
@@ -890,6 +1004,10 @@ _fetch_salt_minion() {
     local install_onedir_chk=0
     local sys_arch=""
 
+    local ver_chk=""
+    local ver_chk_major=""
+    local ver_chk_minor=""
+
     _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check"\
         "its validity"
 
@@ -898,29 +1016,66 @@ _fetch_salt_minion() {
     ## cd ${base_salt_location} || return $?
     cd "${WORK_DIR}" || return $?
 
-    # curl on Linux doesn't support file:// support
-    if echo "${base_url}" | grep -q '^/' ; then
-        local_base_url="${base_url}"
-        local_file_flag=1
-        _debug_log "$0:${FUNCNAME[0]} using source '${local_base_url}'"\
-        "from '${base_url}'"
-    elif echo "${base_url}" | grep -q '^file://' ; then
-        local_base_url="${base_url//file:/}"
-        local_file_flag=1
-        _debug_log "$0:${FUNCNAME[0]} using source '${local_base_url}'"\
-        "from '${base_url}'"
+    # check for pre-3006 or post-3005 and adjust base_url
+    # unless already defined by --source option
+    if [[ -z "${base_url}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]} no source option used, determine "\
+            "version attempting to install, version '${salt_url_version}"
+        _set_post_3005_flags_from_version
     else
-        _debug_log "$0:${FUNCNAME[0]} using source '${base_url}'"
+        _debug_log "$0:${FUNCNAME[0]} source url provided, need to scan for "\
+            "pre 3006 / post 3005, and local file using base_url '${base_url}'"
+
+        # curl on Linux doesn't support file:// support
+        if echo "${base_url}" | grep -q '^/' ; then
+            local_base_url="${base_url}"
+            local_file_flag=1
+            _debug_log "$0:${FUNCNAME[0]} using source '${local_base_url}'"\
+            "from '${base_url}'"
+        elif echo "${base_url}" | grep -q '^file://' ; then
+            local_base_url="${base_url//file:/}"
+            local_file_flag=1
+            _debug_log "$0:${FUNCNAME[0]} using source '${local_base_url}'"\
+            "from '${base_url}'"
+        else
+            _debug_log "$0:${FUNCNAME[0]} using non-local source '${base_url}'"
+
+            ver_chk=$(echo "${base_url}" | grep  'salt/py3/onedir')
+            if [[ -n "${ver_chk}" ]]; then
+                POST_3005_FLAG=1
+                _set_post_3005_flags_from_version
+            fi
+        fi
     fi
 
-    if [[ ${local_file_flag} -ne 0 ]]; then
+    if [[ ${local_file_flag} -eq 1 ]]; then
         # local absolute path
         # and allow for Linux handling multiple slashes
-        salt_url="${local_base_url}/${salt_url_version}"
+
+        # need to determine if pre 3005 or post 3006
+        local_count_repo_json=$(find "${local_base_url}" -name repo.json|wc -l)
+        if [[ ${local_count_repo_json} -eq 2 ]]; then
+            POST_3005_FLAG=1
+            _set_post_3005_flags_from_version
+        else
+            _debug_log "$0:${FUNCNAME[0]} pre-3006 local install, for "\
+                "'${salt_url_version}' using specified source "\
+                "'${local_base_url}'"
+        fi
+
+        if [[ ${POST_3005_FLAG} -eq 1 ]]; then
+            if [[ ${POST_3005_MAJOR_VER_FLAG} -eq 1 ]]; then
+                salt_url="${local_base_url}"
+            else
+                salt_url="${local_base_url}/minor"
+            fi
+        else
+            salt_url="${local_base_url}/${salt_url_version}"
+        fi
 
         if [[ -f "${salt_url}/${repo_json_file}"  ]]; then
             _debug_log "$0:${FUNCNAME[0]} successfully found file"\
-            "'${repo_json_file}' in '${base_url}/${repo_json_file}'"
+            "'${repo_json_file}' in '${salt_url}/${repo_json_file}'"
 
             cp -a "${salt_url}/${repo_json_file}" .
             _retn=$?
@@ -944,7 +1099,12 @@ _fetch_salt_minion() {
                 "'${salt_json_sha512}'"
 
             salt_pkg_name="${salt_json_name}"
-            cp -a "${salt_url}/${salt_json_version}/${salt_pkg_name}" .
+            if [[ ${POST_3005_FLAG} -eq 1 \
+                && ${POST_3005_MAJOR_VER_FLAG} -eq 1 ]]; then
+                cp -a "${salt_url}/minor/${salt_json_version}/${salt_pkg_name}" .
+            else
+                cp -a "${salt_url}/${salt_json_version}/${salt_pkg_name}" .
+            fi
             _retn=$?
             if [[ ${_retn} -ne 0 ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
@@ -995,7 +1155,7 @@ _fetch_salt_minion() {
             if  [[ -z "${salt_pkg_name}" ]]; then
                 # failed to find pre-3006 linux tarball,
                 # attempt to find post-3005 with appro. arch
-                sys_arch=$(uname -m)
+                sys_arch="${MACHINE_ARCH}"
                 salt_chksum_file=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz.sha512)
                 salt_pkg_name=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz)
             fi
@@ -1032,7 +1192,12 @@ _fetch_salt_minion() {
                 "'${salt_json_sha512}'"
 
             salt_pkg_name="${salt_json_name}"
-            salt_url="${base_url}/${salt_json_version}/${salt_pkg_name}"
+            if [[ ${POST_3005_FLAG} -eq 1 \
+                && ${POST_3005_MAJOR_VER_FLAG} -eq 1 ]]; then
+                salt_url="${base_url}/minor/${salt_json_version}/${salt_pkg_name}"
+            else
+                salt_url="${base_url}/${salt_json_version}/${salt_pkg_name}"
+            fi
             _curl_download "${salt_pkg_name}" "${salt_url}"
             _debug_log "$0:${FUNCNAME[0]} successfully downloaded from"\
                 "'${salt_url}' into file '${salt_pkg_name}'"
@@ -1073,7 +1238,7 @@ _fetch_salt_minion() {
             if  [[ -z "${salt_pkg_name}" ]]; then
                 # failed to find pre-3006 linux tarball,
                 # attempt to find post-3005 with appro. arch
-                sys_arch=$(uname -m)
+                sys_arch="${MACHINE_ARCH}"
                 salt_chksum_file=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz.sha512)
                 salt_pkg_name=$(ls "${salt_name}"*-linux-"${sys_arch}".tar.xz)
             fi
@@ -1252,8 +1417,12 @@ _check_onedir_minion_install() {
 _find_salt_pid() {
     # find the pid for salt-minion if active
     local salt_pid=0
-    salt_pid=$(pgrep -f "${salt_name}\/run\/run minion" | head -n 1 |
-        awk -F " " '{print $1}')
+    if [[ ${POST_3005_FLAG} -eq 1 ]]; then
+        salt_pid=$(pgrep -f "\/usr\/bin\/salt-minion" | head -n 1)
+    else
+        salt_pid=$(pgrep -f "${salt_name}\/run\/run minion" | head -n 1 |
+            awk -F " " '{print $1}')
+    fi
     _debug_log "$0:${FUNCNAME[0]} checking for salt-minion process id,"\
         "found '${salt_pid}'"
     echo "${salt_pid}"
@@ -1390,6 +1559,7 @@ _status_fn() {
     local _retn_status=${STATUS_CODES_ARY[notInstalled]}
     local script_count=0
     local install_onedir_chk=0
+    local found_salt_ver=""
 
     _info_log "$0:${FUNCNAME[0]} checking status for script"
     script_count=$(_check_multiple_script_running)
@@ -1408,8 +1578,12 @@ _status_fn() {
     else
         _debug_log "$0:${FUNCNAME[0]} no standardized install found"
 
-        svpid=$(_find_salt_pid)
         install_onedir_chk=$(_check_onedir_minion_install)
+        if [[ ${install_onedir_chk} -eq 2 ]]; then
+            POST_3005_FLAG=1    # ensure note 3006 and above
+        fi
+
+        svpid=$(_find_salt_pid)
         if [[ ${install_onedir_chk} -eq 0 && -z ${svpid} ]]; then
             # check not installed and no process id
             CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
@@ -1539,9 +1713,11 @@ _install_fn () {
 
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to install, " \
+        _warning_log "$0:${FUNCNAME[0]} failed to install, " \
             "existing Standard Salt Installation detected,"\
             "Salt version: '${found_salt_ver}'"
+        CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
+        exit ${STATUS_CODES_ARY[externalInstall]}
     else
         _debug_log "$0:${FUNCNAME[0]} no standardized install found"
     fi
@@ -1560,7 +1736,7 @@ _install_fn () {
         done
     fi
 
-    # fetch salt-minion form repository
+    # fetch salt-minion from repository
     _fetch_salt_minion || {
         _error_log "$0:${FUNCNAME[0]} failed to fetch salt-minion"\
             "from repository , retcode '$?'";
@@ -1941,9 +2117,11 @@ _uninstall_fn () {
 
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to remove,"\
+        _warning_log "$0:${FUNCNAME[0]} failed to install, " \
             "existing Standard Salt Installation detected,"\
             "Salt version: '${found_salt_ver}'"
+        CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
+        exit ${STATUS_CODES_ARY[externalInstall]}
     else
         _debug_log "$0:${FUNCNAME[0]} no standardized install found"
     fi
@@ -1959,23 +2137,43 @@ _uninstall_fn () {
         _retn=0
     else
         CURRENT_STATUS=${STATUS_CODES_ARY[removing]}
-        svpid=$(_find_salt_pid)
-        if [[ -n ${svpid} ]]; then
-            # stop the active salt-minion using systemd
-            # and give it a little time to stop
-            systemctl stop salt-minion || {
-                _error_log "$0:${FUNCNAME[0]} failed to stop salt-minion"\
-                    "using systemctl, retcode '$?'";
+        # remove salt-minion from systemd
+        # and give it a little time to stop
+        systemctl stop salt-minion || {
+            _error_log "$0:${FUNCNAME[0]} failed to stop salt-minion"\
+                "using systemctl, retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl"\
+            "stop salt-minion"
+        systemctl disable salt-minion || {
+            _error_log "$0:${FUNCNAME[0]} disabling the salt-minion"\
+                "using systemctl failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl"\
+            "disable salt-minion"
+
+        _debug_log "$0:${FUNCNAME[0]} removing systemd directories and files"\
+            "in '${list_files_systemd_to_remove}'"
+        for idx in ${list_files_systemd_to_remove}
+        do
+            rm -fR "${idx}" || {
+                _error_log "$0:${FUNCNAME[0]} failed to remove file or"\
+                    "directory '${idx}' , retcode '$?'";
             }
-            _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl"\
-                "stop salt-minion"
-            systemctl disable salt-minion || {
-                _error_log "$0:${FUNCNAME[0]} disabling the salt-minion"\
-                    "using systemctl failed , retcode '$?'";
-            }
-            _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl"\
-                "disable salt-minion"
-        fi
+        done
+
+        systemctl daemon-reload || {
+            _error_log "$0:${FUNCNAME[0]} reloading the systemd daemon"\
+                "failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl"\
+            "daemon-reload"
+        systemctl reset-failed || {
+            _error_log "$0:${FUNCNAME[0]} reloading the systemd daemon"\
+                "failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl"\
+            "reset-failed"
 
         if [[ ${_retn} -eq 0 ]]; then
             svpid=$(_find_salt_pid)
@@ -2057,6 +2255,9 @@ _clean_up_log_files() {
 # static definitions
 
 CURRDIR=$(pwd)
+
+# get machine architecture once
+MACHINE_ARCH=$(uname -m)
 
 # setup work-area
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
