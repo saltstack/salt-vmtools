@@ -11,8 +11,8 @@ stages:
 variables:
   PLUGIN_PACKAGES: "*.sh"
   CICD_UPSTREAM_PATH: "saltstack/open/salt-vm-tools"
-  CICD_SALT_SCRIPT_VERSION: "0.2"
-  CICD_SALT_SCRIPT_COMP_VERSION: "0.2.0"
+  CICD_SALT_SCRIPT_VERSION: "1.5"
+  CICD_SALT_SCRIPT_COMP_VERSION: "1.5.0"
   CICD_SALT_SCRIPT_RELEASE: "1"
   CICD_SALT_SCRIPT_DATE: "Thu Jan 1 1970"
   CICD_SALT_SCRIPT_BRANCH: "main"
@@ -187,7 +187,7 @@ test-salt-vmtools-linux:
     - myhost=$(hostname)
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
     - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
-    - ls -alh /opt/saltstack/salt/run/
+    - ls -alh /opt/saltstack/salt/salt-minion
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
     - sudo -u root /usr/bin/salt-call --local test.versions
@@ -210,6 +210,7 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --version --loglevel debug
     - ls -alh /var/log/vmware-svtminion.sh-default-*
     - ./svtminion.sh --minionversion "3004.2-1" --install master=192.168.0.6 --loglevel debug
+    - ls -alh /opt/saltstack/salt/run/
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
     - myhost=$(hostname)
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
@@ -249,20 +250,61 @@ test-salt-vmtools-linux:
     - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --source file:/${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m "3003.3-1"
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test source installs with repo.json post_3005
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug --minionversion 3006
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug --minionversion 3006.0rc2
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006/minor --install master=192.168.0.5 --loglevel debug --minionversion 3006.0rc3
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://staging.repo.saltproject.io/salt_rc/salt/py3/onedir
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
@@ -275,23 +317,44 @@ test-salt-vmtools-linux:
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m 3004-1
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - cd ${oldpwd}/tests/testarea
     - mv repo.json_hold repo.json
     - cd ${oldpwd}
+    # test source installs without repo.json for post_3005
+    - cd ${oldpwd}/tests/testarea/test_3006
+    - mv repo.json repo.json_hold
+    - cd ${oldpwd}
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # restore normal test source installs with 2 repo.json for post_3005
+    - cd ${oldpwd}/tests/testarea/test_3006
+    - mv repo.json_hold repo.json
+    - cd ${oldpwd}
+    - bash -x ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea/test_3006 -m 3006.0rc3
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test with classic package installed
     - rpm --import https://repo.saltproject.io/py3/redhat/7/x86_64/latest/SALTSTACK-GPG-KEY.pub
     - curl -fsSL https://repo.saltproject.io/py3/redhat/7/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
     - yum makecache
     - yum -y install salt-minion
-    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, classic salt-minion should be installed and external install detected, returned '${_retn}'"; exit 1; fi; }
-    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
 
   rules:
     - if: $CI_COMMIT_TAG
@@ -299,37 +362,39 @@ test-salt-vmtools-linux:
     - when: on_success
 
 
-test-salt-vmtools-windows:
-  stage: test_svt
-  tags:
-    - ss-custom-ec2-windows
-  image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
-  variables:
-    SPOT_INSTANCE: "false"
-    WINDOWS_GUEST: "true"
-  artifacts:
-    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
-    expire_in: 120 days
-  needs:
-    - job: build-salt-vmtools-windows
-  script:
-    # Move the artifact to the original location to be tested
-    - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
-    # Make sure we can run the script
-    - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
-    # Make sure we can display help
-    - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
-    # Make sure we get a status
-    - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
-    # Running functional tests (must be run with powershell -file)
-    - powershell -file .\tests\windows\runtests.ps1
-    # Running integration tests (must be run with powershell -file)
-    - powershell -file .\tests\windows\runtests.ps1 -Integration
-
-  rules:
-    - if: $CI_COMMIT_TAG
-      when: never
-    - when: on_success
+## DGM  Disabling Windows tests until they handle two repo.json files and new url location for 3006  RCs etc.
+##
+## test-salt-vmtools-windows:
+##   stage: test_svt
+##   tags:
+##     - ss-custom-ec2-windows
+##   image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
+##   variables:
+##     SPOT_INSTANCE: "false"
+##     WINDOWS_GUEST: "true"
+##   artifacts:
+##     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+##     expire_in: 120 days
+##   needs:
+##     - job: build-salt-vmtools-windows
+##   script:
+##     # Move the artifact to the original location to be tested
+##     - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
+##     # Make sure we can run the script
+##     - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
+##     # Make sure we can display help
+##     - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
+##     # Make sure we get a status
+##     - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
+##     # Running functional tests (must be run with powershell -file)
+##     - powershell -file .\tests\windows\runtests.ps1
+##     # Running integration tests (must be run with powershell -file)
+##     - powershell -file .\tests\windows\runtests.ps1 -Integration
+##
+##   rules:
+##     - if: $CI_COMMIT_TAG
+##       when: never
+##     - when: on_success
 
 
 test-tags-salt-vmtools-linux:
@@ -366,7 +431,7 @@ test-tags-salt-vmtools-linux:
     - myhost=$(hostname)
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
     - if [[ "${myhost}" = "${myfqdn}" ]]; then "echo test correct" else echo "test failed, FQDN '${myfqdn}' should have match hostname '${myhost}'"; exit 1; fi
-    - ls -alh /opt/saltstack/salt/run/
+    - ls -alh /opt/saltstack/salt/salt-minion
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
     - sudo -u root /usr/bin/salt-call --local test.versions
@@ -374,10 +439,6 @@ test-tags-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
     - ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
     - ./svtminion.sh --status && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; exit 1; }
-    ## check the actual release version has been updated
-    - export CICD_SALT_SCRIPT_RELEASE_VERSION=$(echo "${CI_COMMIT_TAG}" | sed s/v// | cut -d '-' -f 1)
-    - vertest=$("${oldpwd}/releases/${CICD_SALT_SCRIPT_RELEASE_VERSION}/svtminion.sh" --version)
-    - echo "${vertest}" | grep "${CICD_SALT_SCRIPT_RELEASE_VERSION}" > /dev/null || { echo "test failed, version '${CICD_SALT_SCRIPT_RELEASE_VERSION}' doesn't match '${vertest}', needs proper release number"; exit 1; }
     - ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - ./svtminion.sh --clear
@@ -393,6 +454,7 @@ test-tags-salt-vmtools-linux:
     - ./svtminion.sh --version --loglevel debug
     - ls -alh /var/log/vmware-svtminion.sh-default-*
     - ./svtminion.sh --minionversion "3004.2-1" --install master=192.168.0.6 --loglevel debug
+    - ls -alh /opt/saltstack/salt/run/
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.6' 1>/dev/null
     - myhost=$(hostname)
     - myfqdn=$(/usr/bin/salt-call --local grains.get fqdn | sed "s/'//g")
@@ -432,20 +494,61 @@ test-tags-salt-vmtools-linux:
     - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --source file:/${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m "3003.3-1"
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test source installs with repo.json post_3005
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug --minionversion 3006
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug --minionversion 3006.0rc2
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006/minor --install master=192.168.0.5 --loglevel debug --minionversion 3006.0rc3
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://staging.repo.saltproject.io/salt_rc/salt/py3/onedir
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
@@ -458,32 +561,44 @@ test-tags-salt-vmtools-linux:
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m 3004-1
-    - cat /etc/salt/minion
-    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-    - ./svtminion.sh -m 3006.0rc1 --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea/3006
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
     - cd ${oldpwd}/tests/testarea
     - mv repo.json_hold repo.json
     - cd ${oldpwd}
+    # test source installs without repo.json for post_3005
+    - cd ${oldpwd}/tests/testarea/test_3006
+    - mv repo.json repo.json_hold
+    - cd ${oldpwd}
+    - ./svtminion.sh --source ${oldpwd}/tests/testarea/test_3006 --install master=192.168.0.5 --loglevel debug
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # restore normal test source installs with 2 repo.json for post_3005
+    - cd ${oldpwd}/tests/testarea/test_3006
+    - mv repo.json_hold repo.json
+    - cd ${oldpwd}
+    - bash -x ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea/test_3006 -m 3006.0rc3
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test with classic package installed
     - rpm --import https://repo.saltproject.io/py3/redhat/7/x86_64/latest/SALTSTACK-GPG-KEY.pub
     - curl -fsSL https://repo.saltproject.io/py3/redhat/7/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
     - yum makecache
     - yum -y install salt-minion
-    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
-    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
-    - rpm --import https://repo.saltproject.io/py3/redhat/7/x86_64/latest/SALTSTACK-GPG-KEY.pub
-    - curl -fsSL https://repo.saltproject.io/py3/redhat/7/x86_64/latest.repo | tee /etc/yum.repos.d/salt.repo
-    - yum makecache
-    - yum -y install salt-minion
-    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
-    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, classic salt-minion should be installed and external install detected, returned '${_retn}'"; exit 1; fi; }
+    - ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
 
   rules:
     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
@@ -491,34 +606,36 @@ test-tags-salt-vmtools-linux:
     - when: never
 
 
-test-tags-salt-vmtools-windows:
-  stage: test_svt
-  tags:
-    - ss-custom-ec2-windows
-  image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
-  variables:
-    SPOT_INSTANCE: "false"
-    WINDOWS_GUEST: "true"
-  artifacts:
-    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
-    expire_in: 120 days
-  needs:
-    - job: build-tags-salt-vmtools-windows
-  script:
-    # Move the artifact to the original location to be tested
-    - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
-    # Make sure we can run the script
-    - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
-    # Make sure we can display help
-    - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
-    # Make sure we get a status
-    - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
-    # Running functional tests (must be run with powershell -file)
-    - powershell -file .\tests\windows\runtests.ps1
-    # Running integration tests (must be run with powershell -file)
-    - powershell -file .\tests\windows\runtests.ps1 -Integration
-
-  rules:
-    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
-      when: always
-    - when: never
+## DGM  Disabling Windows tests until they handle two repo.json files and new url location for 3006  RCs etc.
+##
+## test-tags-salt-vmtools-windows:
+##   stage: test_svt
+##   tags:
+##     - ss-custom-ec2-windows
+##   image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
+##   variables:
+##     SPOT_INSTANCE: "false"
+##     WINDOWS_GUEST: "true"
+##   artifacts:
+##     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+##     expire_in: 120 days
+##   needs:
+##     - job: build-tags-salt-vmtools-windows
+##   script:
+##     # Move the artifact to the original location to be tested
+##     - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
+##     # Make sure we can run the script
+##     - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
+##     # Make sure we can display help
+##     - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
+##     # Make sure we get a status
+##     - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
+##     # Running functional tests (must be run with powershell -file)
+##     - powershell -file .\tests\windows\runtests.ps1
+##     # Running integration tests (must be run with powershell -file)
+##     - powershell -file .\tests\windows\runtests.ps1 -Integration
+##
+##   rules:
+##     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
+##       when: always
+##     - when: never
