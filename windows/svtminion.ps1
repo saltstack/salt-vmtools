@@ -88,11 +88,19 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("j")]
-    # The url or path to the repo containing the installers. This would contain
-    # a directory structure similar to that found at the default location:
-    # https://repo.saltproject.io/salt/vmware-tools-onedir/. This can handle
-    # most common protocols: http, https, ftp, unc, local
-    [String] $Source="https://repo.saltproject.io/salt/vmware-tools-onedir",
+    # The url or path to the repo containing the installers and, preferably, the
+    # repo.json file. This would contain a directory structure similar to that
+    # found at the default location:
+    #
+    # https://repo.saltproject.io/salt/py3/onedir
+    #
+    # The root of this directory preferably contains a file named `repo.json`
+    # which contains the information about the installer versions available.
+    # If this file not availabe, this script will scan the directory for the
+    # requested version.
+    #
+    # This can handle most common protocols: http, https, ftp, unc, local
+    [String] $Source="https://repo.saltproject.io/salt/py3/onedir",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install",
             Position=0, ValueFromRemainingArguments=$true)]
@@ -297,6 +305,8 @@ $action_list = @("install", "remove", "depend", "clear", "status")
 # Repository locations and names
 $salt_name = "salt"
 $base_url = $Source
+$default_source = "https://repo.saltproject.io/salt/py3/onedir"
+$pre_3006_source = "https://repo.saltproject.io/salt/vmware-tools-onedir"
 
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
@@ -409,7 +419,7 @@ function Clear-OldLogs {
 
 
 function Write-Log {
-    # Functions for writing logs to the screen and to the log file
+    # Function for writing logs to the screen and to the log file
     #
     # Args:
     #     Message (string): The log message
@@ -1564,6 +1574,10 @@ function Get-SaltVersion {
         $python_bin = "$Path\bin\python.exe"
         Write-Log "Running: $python_bin" -Level debug
         $ver = . $python_bin -E -s $Path\bin\Scripts\salt-call --version
+    } elseif ( Test-Path -Path "$Path\bin\salt.exe" ) {
+        # Tiamat Packages
+        Write-Log "Running: $Path\bin\salt.exe" -Level debug
+        $ver = . $Path\bin\salt.exe --version
     }
     return $ver.Trim("salt-call ")
 }
@@ -1575,41 +1589,36 @@ function Find-StandardSaltInstallation {
     # Return:
     #     Bool: True if standard installation found, otherwise False
 
-    # Standard locations
-    $locations = New-Object System.Collections.Generic.List[String]
-    $locations.Add("C:\salt") | Out-Null
-
-    $locations.Add("$env:ProgramFiles\Salt Project\Salt") | Out-Null
-
-    # Check registry for new style locations
-    try{
-        $dir_path = (Get-ItemProperty -Path $salt_base_reg).install_dir
-        $locations.Add($dir_path) | Out-Null
-    } catch { }
-
-    # Check for python.exe in locations
-    Write-Log "Looking for Standard Installation" -Level info
-    $exists = $false
-    foreach ($path in $locations) {
-        if (
-            # Pre 3006 Packages
-            (Test-Path -Path "$path\bin\python.exe") `
-            -or `
-            # 3006 and later packages
-            (Test-Path -Path "$path\salt-call.exe")
-        ) {
-            $version = Get-SaltVersion -Path $path
+    # First we'll look for the install_dir registry entry
+    # If we find that, we'll use it to detect the version
+    # This works for 3004 and newer versions of Salt
+    $salt_path = $null
+    try {
+        $dir_path = (Get-Item -Path $salt_base_reg).GetValue("install_dir")
+    } catch {}
+    if ($dir_path -ne $null) {
+        $dir_path = [System.Environment]::ExpandEnvironmentVariables($dir_path)
+        Write-Host $dir_path
+        if ( Test-Path -Path $dir_path ) {
+            $version = Get-SaltVersion -Path $dir_path
             Write-Log "Standard Installation detected" -Level error
             Write-Log "Version: $version" -Level error
-            Write-Log "Path: $path" -Level error
-            $exists = $true
-            break
+            Write-Log "Path: $dir_path" -Level error
+            return $true
         }
     }
-    if (!($exists)) {
-        Write-Log "Standard Installation not detected" -Level debug
+
+    # We'll look in the old C:\salt location for python.exe
+    # This handles all older versions of Salt
+    if (Test-Path -Path "C:\salt\bin\python.exe") {
+        $version = Get-SaltVersion -Path "C:\salt"
+        Write-Log "Standard Installation detected" -Level error
+        Write-Log "Version: $version" -Level error
+        Write-Log "Path: C:\salt" -Level error
+        return $true
     }
-    return $exists
+    Write-Log "Standard Installation not detected" -Level debug
+    return $false
 }
 
 
@@ -1644,12 +1653,64 @@ function Convert-PSObjectToHashtable {
 }
 
 
+function Get-MajorVersion {
+    # Parses a version string and returns the major version
+    #
+    # Args:
+    #     Version (string): The Version to parse
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true, Position=0)]
+        [String] $Version
+    )
+    if ( !($Version.Contains(".")) -and ($Version.ToLower() -ne "latest")) {
+        return $Version
+    }
+    try {
+        $parsed_version = [System.Version]::Parse($Version)
+        return $parsed_version.Major.ToString()
+    } catch {
+        # We might hit this if there is text in the minor version
+        $regex = [regex]"^(\d+)\.([\w\-]+)$"
+        $match = $regex.Match($Version)
+        if ( $match.Success ) {
+            return $match.Groups[1].Value
+        }
+    }
+    return ""
+}
+
+
 function Get-SaltPackageInfo {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
         [String] $MinionVersion
     )
+
+    if ( $MinionVersion.ToLower() -ne "latest" ) {
+        # A specific version has been passed.
+        # Let's check if we're looking at the default location hosted by Salt
+        # If we are, we'll want to adjust for pre-3006 versions if passed
+        # If the user specified a Source, we just trust they have it set up for
+        # the version they are passing
+        $uri = [System.Uri]($base_url)
+        if ( $uri.AbsoluteUri -eq $default_source ) {
+            # Let's check for a pre 3006 version
+            $major_version = Get-MajorVersion -Version $MinionVersion
+            if ( $major_version -lt "3006" ) {
+                # This is an older version, use the older URL
+                $base_url = $pre_3006_source
+            } else {
+                # This is a new URL, and a version was passed, let's look in
+                # minor
+                if ( $MinionVersion.ToLower() -ne $major_version.ToLower() ) {
+                    $base_url = "$base_url/minor"
+                }
+            }
+        }
+    }
+
     $enc = [System.Text.Encoding]::UTF8
     try {
         $response = Invoke-WebRequest -Uri "$base_url/repo.json" `
@@ -1672,19 +1733,31 @@ function Get-SaltPackageInfo {
     if ($hash.Contains($search_version)) {
         foreach ($item in $hash.($search_version).Keys) {
             if ($item.EndsWith(".zip")) {
-                $salt_file_name = $hash.($search_version).($item).name
-                $salt_version = $hash.($search_version).($item).version
-                $salt_sha512 = $hash.($search_version).($item).SHA512
+                if ($item.Contains("amd64")) {
+                    $salt_file_name = $hash.($search_version).($item).name
+                    $salt_version = $hash.($search_version).($item).version
+                    $salt_sha512 = $hash.($search_version).($item).SHA512
+                }
             }
         }
     }
 
     if ($salt_file_name -and $salt_version -and $salt_sha512) {
+        $salt_url = @($base_url, $salt_version, $salt_file_name) -join "/"
+        $major_version = Get-MajorVersion -Version $salt_version
+        if ( $major_version -ge "3006" ) {
+            if ( !($base_url.Contains("minor")) ) {
+                $salt_url = @(
+                    $base_url, "minor", $salt_version, $salt_file_name
+                ) -join "/"
+            }
+        }
         Write-Log "Found installer: $salt_file_name" -Level debug
         Write-Log "Found version: $salt_version" -Level debug
         Write-Log "Found sha512: $salt_sha512" -Level debug
+        Write-Log "Found URL: $salt_url" -Level debug
         return @{
-            url = @($base_url, $salt_version, $salt_file_name) -join "/";
+            url = $salt_url;
             hash = $salt_sha512;
             file_name = $salt_file_name;
             version = $salt_version
@@ -1696,11 +1769,20 @@ function Get-SaltPackageInfo {
         # version of salt
         $salt_file_name = $null
         $salt_version = $null
+
+        # Fix URL
+        $major_version = Get-MajorVersion -Version $search_version
+        if ( $major_version -ge "3006" ) {
+            if ( !($base_url.Contains("minor")) ) {
+                $base_url = @($base_url, "minor") -join "/"
+            }
+        }
+
         # Invoke-WebRequest will not work on a local file directory so we need
         # to detect the URL scheme. Use Invoke-WebRequest to get the directory
         # contents if URL scheme is http/https/ftp. Not tested with FTP
         if ($base_url -match "^(http\:|https\:|ftp\:).*") {
-            $dir_url = "$base_url/$search_version"
+            $dir_url = @($base_url, $search_version) -join "/"
             Write-Log "Looking for version in web directory: $dir_url" `
                       -Level debug
             try {
@@ -1712,7 +1794,9 @@ function Get-SaltPackageInfo {
             # Look for the zip file in the directory
             foreach ($link in $dir_contents.Links) {
                 if ($link.href.EndsWith(".zip")) {
-                    $salt_file_name = $link.href
+                    if ($link.href.Contains("-amd64")) {
+                        $salt_file_name = $link.href
+                    }
                 }
             }
         }
@@ -1740,7 +1824,11 @@ function Get-SaltPackageInfo {
             return @{}
         }
         # Since we have a zip file, get the version and sha file from it
-        $salt_version = ($salt_file_name -split "-windows-")[0].Split("-", 2)[1]
+        if ( $salt_file_name.Contains("onedir") ) {
+            $salt_version = ($salt_file_name -split "-onedir-")[0].Split("-", 2)[1]
+        } else {
+            $salt_version = ($salt_file_name -split "-windows-")[0].Split("-", 2)[1]
+        }
         $sha_file_name = "salt-$($salt_version)_SHA512"
         # Get the contents of the sha file
         try {
@@ -2363,6 +2451,14 @@ function Main {
             return $STATUS_CODES["scriptSuccess"]
         }
         "remove" {
+            # Let's make sure we're not trying to remove a standard salt
+            # installation on the system
+            if (Find-StandardSaltInstallation) {
+                $msg = "Found an existing salt installation on the system."
+                Write-Log $msg -Level error
+                Write-Host $msg -ForegroundColor Red
+                return $STATUS_CODES["externalInstall"]
+            }
             # If status is installing, notInstalled, or removing, bail out
             $current_status = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
@@ -2405,6 +2501,13 @@ function Main {
             return $STATUS_CODES["scriptSuccess"]
         }
         "status" {
+            # Let's check for a standard salt installation first
+            if (Find-StandardSaltInstallation) {
+                $msg = "Found an existing salt installation on the system."
+                Write-Log $msg -Level error
+                Write-Host $msg -ForegroundColor Red
+                return $STATUS_CODES["externalInstall"]
+            }
             $exit_code = Get-Status
             if ($STATUS_CODES.keys -notcontains $exit_code) {
                 Write-Host "Unknown status code: $exit_code"

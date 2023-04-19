@@ -5,6 +5,7 @@ function setUpScript {
 
     Write-Host "Installing salt: " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
+    $MinionVersion = "3005.1-4"
     Install
     Write-Done
 

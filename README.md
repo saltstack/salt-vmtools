@@ -312,10 +312,18 @@ or `Get-Help svtminion.ps1`:
             The version of Salt minion to install. Default is "latest".
 
         -Source <String>
-            The url or path to the repo containing the installers. This would contain
-            a directory structure similar to that found at the default location:
-            https://repo.saltproject.io/salt/vmware-tools-onedir/. This can handle
-            most common protocols: http, https, ftp, unc, local
+            The url or path to the repo containing the installers and, preferably, the
+            repo.json file. This would contain a directory structure similar to that
+            found at the default location:
+
+            https://repo.saltproject.io/salt/py3/onedir
+
+            The root of this directory preferably contains a file named `repo.json`
+            which contains the information about the installer versions available.
+            If this file not availabe, this script will scan the directory for the
+            requested version.
+
+            This can handle most common protocols: http, https, ftp, unc, local
 
         -ConfigOptions <String[]>
             Any number of minion config options specified by the name of the config

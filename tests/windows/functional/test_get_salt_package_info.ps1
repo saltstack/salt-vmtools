@@ -60,7 +60,7 @@ function test_Get-SaltPackageInfo_online_default {
     }
     $test = Get-SaltPackageInfo -MinionVersion $MinionVersion
     $failed = 0
-    if ($test.url -ne "https://repo.saltproject.io/salt/vmware-tools-onedir/3004-1/salt-3004-1-windows-amd64.zip") { $failed = 1 }
+    if ($test.url -ne "https://repo.saltproject.io/salt/py3/onedir/3004-1/salt-3004-1-windows-amd64.zip") { $failed = 1 }
     if ($test.hash -ne "longstringof123andABC2") { $failed = 1 }
     if ($test.file_name -ne "salt-3004-1-windows-amd64.zip") { $failed = 1 }
     return $failed
@@ -86,12 +86,12 @@ function test_Get-SaltPackageInfo_online_default_no_repo.json{
         return @{}
     }
     # Can't test latest because this is real data
-    $MinionVersion = "3004-1"
+    $MinionVersion = "3006.0"
     $test = Get-SaltPackageInfo -MinionVersion $MinionVersion
     $failed = 0
-    if ($test.url -ne "https://repo.saltproject.io/salt/vmware-tools-onedir/3004-1/salt-3004-1-windows-amd64.zip") { $failed = 1 }
-    if ($test.hash -ne "6ac23ad6e8c261964642f98f1d7d38aed265795bbfa5a724eddd044e97246e77663d9e4a5d0d3a487bce4285c05d31a22a69e1c537674222f50bc58c4193a662") { $failed = 1 }
-    if ($test.file_name -ne "salt-3004-1-windows-amd64.zip") { $failed = 1 }
+    if ($test.url -ne "https://repo.saltproject.io/salt/py3/onedir/minor/3006.0/salt-3006.0-onedir-windows-amd64.zip") { $failed = 1 }
+    if ($test.hash -ne "cc27ad5d31cc1dc5084c7e263f0c3834d0aed61344d8ca1d27714dbe5f04971078107d8bcc5c30f9e42223cce6e5ba23e0c169bed27ea2a3a12fc796551f204d") { $failed = 1 }
+    if ($test.file_name -ne "salt-3006.0-onedir-windows-amd64.zip") { $failed = 1 }
     return $failed
 }
 

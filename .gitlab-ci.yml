@@ -362,39 +362,35 @@ test-salt-vmtools-linux:
     - when: on_success
 
 
-## DGM  Disabling Windows tests until they handle two repo.json files and new url location for 3006  RCs etc.
-##
-## test-salt-vmtools-windows:
-##   stage: test_svt
-##   tags:
-##     - ss-custom-ec2-windows
-##   image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
-##   variables:
-##     SPOT_INSTANCE: "false"
-##     WINDOWS_GUEST: "true"
-##   artifacts:
-##     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
-##     expire_in: 120 days
-##   needs:
-##     - job: build-salt-vmtools-windows
-##   script:
-##     # Move the artifact to the original location to be tested
-##     - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
-##     # Make sure we can run the script
-##     - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
-##     # Make sure we can display help
-##     - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
-##     # Make sure we get a status
-##     - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
-##     # Running functional tests (must be run with powershell -file)
-##     - powershell -file .\tests\windows\runtests.ps1
-##     # Running integration tests (must be run with powershell -file)
-##     - powershell -file .\tests\windows\runtests.ps1 -Integration
-##
-##   rules:
-##     - if: $CI_COMMIT_TAG
-##       when: never
-##     - when: on_success
+test-salt-vmtools-windows:
+  stage: test_svt
+  tags:
+    - shared-windows
+    - windows
+    - windows-1809
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    expire_in: 120 days
+  needs:
+    - job: build-salt-vmtools-windows
+  script:
+    # Move the artifact to the original location to be tested
+    - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
+    # Make sure we can run the script
+    - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
+    # Make sure we can display help
+    - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
+    # Make sure we get a status
+    - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
+    # Running functional tests (must be run with powershell -file)
+    - powershell -file .\tests\windows\runtests.ps1
+    # Running integration tests (must be run with powershell -file)
+    - powershell -file .\tests\windows\runtests.ps1 -Integration
+
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - when: on_success
 
 
 test-tags-salt-vmtools-linux:
@@ -606,36 +602,32 @@ test-tags-salt-vmtools-linux:
     - when: never
 
 
-## DGM  Disabling Windows tests until they handle two repo.json files and new url location for 3006  RCs etc.
-##
-## test-tags-salt-vmtools-windows:
-##   stage: test_svt
-##   tags:
-##     - ss-custom-ec2-windows
-##   image: saltstack/cicd/ec2-amis/tiamat/windows/2019/*
-##   variables:
-##     SPOT_INSTANCE: "false"
-##     WINDOWS_GUEST: "true"
-##   artifacts:
-##     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
-##     expire_in: 120 days
-##   needs:
-##     - job: build-tags-salt-vmtools-windows
-##   script:
-##     # Move the artifact to the original location to be tested
-##     - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
-##     # Make sure we can run the script
-##     - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
-##     # Make sure we can display help
-##     - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
-##     # Make sure we get a status
-##     - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
-##     # Running functional tests (must be run with powershell -file)
-##     - powershell -file .\tests\windows\runtests.ps1
-##     # Running integration tests (must be run with powershell -file)
-##     - powershell -file .\tests\windows\runtests.ps1 -Integration
-##
-##   rules:
-##     - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
-##       when: always
-##     - when: never
+test-tags-salt-vmtools-windows:
+  stage: test_svt
+  tags:
+    - shared-windows
+    - windows
+    - windows-1809
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    expire_in: 120 days
+  needs:
+    - job: build-tags-salt-vmtools-windows
+  script:
+    # Move the artifact to the original location to be tested
+    - Move-Item .\svtminion.ps1 .\windows\svtminion.ps1 -Force
+    # Make sure we can run the script
+    - try { .\windows\svtminion.ps1 | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 126 ) { Write-Host "Failed to execute"; exit 1 } else { $LASTEXITCODE = 0 } }
+    # Make sure we can display help
+    - try { .\windows\svtminion.ps1 -Help | Out-Null } catch {} finally { if ( $LASTEXITCODE -ne 0 ) { Write-Host "Status not 0"; exit 1 } }
+    # Make sure we get a status
+    - try { .\windows\svtminion.ps1 -Status | Out-Null } catch {} finally { if ( $LASTEXITCODE -ge 100 ) { Write-Host "Status not 102"; exit 1 } else { $LASTEXITCODE = 0 }}
+    # Running functional tests (must be run with powershell -file)
+    - powershell -file .\tests\windows\runtests.ps1
+    # Running integration tests (must be run with powershell -file)
+    - powershell -file .\tests\windows\runtests.ps1 -Integration
+
+  rules:
+    - if: "$CI_COMMIT_TAG != null && $CI_PROJECT_PATH == $CICD_UPSTREAM_PATH"
+      when: always
+    - when: never
