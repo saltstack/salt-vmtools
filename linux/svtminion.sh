@@ -28,9 +28,7 @@ readonly repo_json_file="repo.json"
 salt_url_version="${default_salt_url_version}"
 pre_3006_base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
 # Release
-## post_3005_base_url="https://repo.saltproject.io/salt/py3/onedir"
-# salt_rc - for now until release
-post_3005_base_url="https://repo.saltproject.io/salt_rc/salt/py3/onedir"
+post_3005_base_url="https://repo.saltproject.io/salt/py3/onedir"
 base_url=""
 
 # Salt file and directory locations
@@ -1287,8 +1285,9 @@ _fetch_salt_minion() {
 #   check if more than one version of the script is running
 #
 # Results:
-#   Echos the number of scripts running, allowing for forks etc
-#   from bash etc, a single instance of the script returns 3
+#   Checks the number of scripts running, allowing for forks etc
+#   from bash etc, as root a single instance of the script returns 3
+#   as sudo root a single instance of the script returns 4
 #
 
 _check_multiple_script_running() {
@@ -1305,7 +1304,11 @@ _check_multiple_script_running() {
         "bashpid '${BASHPID}', processes found '${procs_found}',"\
         "and count '${count}'"
 
-    echo "${count}"
+    if [[ ${count} -gt 4 ]]; then
+        _error_log "$0:${FUNCNAME[0]} failed to check status, " \
+            "multiple versions of the script are running"
+    fi
+
     return 0
 }
 
@@ -1557,16 +1560,12 @@ _create_pre_3006_helper_scripts() {
 _status_fn() {
     # return status
     local _retn_status=${STATUS_CODES_ARY[notInstalled]}
-    local script_count=0
     local install_onedir_chk=0
     local found_salt_ver=""
 
     _info_log "$0:${FUNCNAME[0]} checking status for script"
-    script_count=$(_check_multiple_script_running)
-    if [[ ${script_count} -gt 3 ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to check status, " \
-            "multiple versions of the script are running"
-    fi
+
+    _check_multiple_script_running
 
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
@@ -1698,18 +1697,13 @@ _find_system_lib_path () {
 _install_fn () {
     # execute install of Salt minion
     local _retn=0
-    local script_count=0
     local existing_chk=""
     local found_salt_ver=""
     local install_onedir_chk=0
 
     _info_log "$0:${FUNCNAME[0]} processing script install"
 
-    script_count=$(_check_multiple_script_running)
-    if [[ ${script_count} -gt 3 ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to install, " \
-            "multiple versions of the script are running"
-    fi
+    _check_multiple_script_running
 
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
@@ -1996,17 +1990,12 @@ _clear_id_key_fn () {
     local salt_id_flag=0
     local minion_id=""
     local minion_ip_id=""
-    local script_count=0
     local install_onedir_chk=0
 
     _info_log "$0:${FUNCNAME[0]} processing clearing of salt-minion"\
         "identifier and its keys"
 
-    script_count=$(_check_multiple_script_running)
-    if [[ ${script_count} -gt 3 ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to clear,"\
-            "multiple versions of the script are running"
-    fi
+    _check_multiple_script_running
 
     install_onedir_chk=$(_check_onedir_minion_install)
     if [[ ${install_onedir_chk} -eq 0 ]]; then
@@ -2103,17 +2092,12 @@ _remove_installed_files_dirs() {
 _uninstall_fn () {
     # remove Salt minion
     local _retn=0
-    local script_count=0
     local found_salt_ver=""
     local install_onedir_chk=0
 
     _info_log "$0:${FUNCNAME[0]} processing script remove"
 
-    script_count=$(_check_multiple_script_running)
-    if [[ ${script_count} -gt 3 ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to remove,"\
-            "multiple versions of the script are running"
-    fi
+    _check_multiple_script_running
 
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
