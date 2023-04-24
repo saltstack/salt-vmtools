@@ -256,9 +256,9 @@ or `Get-Help svtminion.ps1`:
         .\svtminion.ps1 [-Version] [<CommonParameters>]
 
     DESCRIPTION
-        This script manages the Salt minion on a Windows guest. The minion is a tiamat
-        build hosted on https://repo.saltproject.io/salt/vmware-tools-onedir. You can
-        install the minion, remove it, check script dependencies, get the Salt minion
+        This script manages the Salt minion on a Windows guest. The minion is a OneDir
+        build hosted on https://repo.saltproject.io/salt/py3/onedir/. You can install
+        the minion, remove it, check script dependencies, get the Salt minion
         installation status, and reset the Salt minion configuration.
 
         When this script is run without any parameters, the action is obtained from
@@ -320,14 +320,14 @@ or `Get-Help svtminion.ps1`:
 
             The root of this directory preferably contains a file named `repo.json`
             which contains the information about the installer versions available.
-            If this file not availabe, this script will scan the directory for the
+            If this file not available, this script will scan the directory for the
             requested version.
 
             This can handle most common protocols: http, https, ftp, unc, local
 
         -ConfigOptions <String[]>
             Any number of minion config options specified by the name of the config
-            option as found in Salt documentation. All options will be lowercased and
+            option as found in Salt documentation. All options will be lower-cased and
             written to the minion config as passed. All values are in the key=value
             format. For example: master=localhost
 

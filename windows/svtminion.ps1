@@ -6,9 +6,9 @@
 VMware Tools script for managing the Salt minion on a Windows guest
 
 .DESCRIPTION
-This script manages the Salt minion on a Windows guest. The minion is a tiamat
-build hosted on https://repo.saltproject.io/salt/vmware-tools-onedir. You can
-install the minion, remove it, check script dependencies, get the Salt minion
+This script manages the Salt minion on a Windows guest. The minion is a OneDir
+build hosted on https://repo.saltproject.io/salt/py3/onedir/. You can install
+the minion, remove it, check script dependencies, get the Salt minion
 installation status, and reset the Salt minion configuration.
 
 When this script is run without any parameters, the action is obtained from
@@ -96,7 +96,7 @@ param(
     #
     # The root of this directory preferably contains a file named `repo.json`
     # which contains the information about the installer versions available.
-    # If this file not availabe, this script will scan the directory for the
+    # If this file not available, this script will scan the directory for the
     # requested version.
     #
     # This can handle most common protocols: http, https, ftp, unc, local
@@ -105,7 +105,7 @@ param(
     [Parameter(Mandatory=$false, ParameterSetName="Install",
             Position=0, ValueFromRemainingArguments=$true)]
     # Any number of minion config options specified by the name of the config
-    # option as found in Salt documentation. All options will be lowercased and
+    # option as found in Salt documentation. All options will be lower-cased and
     # written to the minion config as passed. All values are in the key=value
     # format. For example: master=localhost
     [String[]] $ConfigOptions,
@@ -327,7 +327,7 @@ $salt_log_dir = "$salt_root_dir\var\log\salt"
 $file_dirs_to_remove = New-Object System.Collections.Generic.List[String]
 $file_dirs_to_remove.Add($base_salt_config_location) | Out-Null
 $file_dirs_to_remove.Add($base_salt_install_location) | Out-Null
-# Old salt install location left behind by older versions of Salt
+# Old Salt install location left behind by older versions of Salt
 # Pre 3004
 $file_dirs_to_remove.Add("C:\salt") | Out-Null
 
@@ -362,7 +362,7 @@ if (!($reg_key.PSObject.Properties.Name -contains "InstallPath")) {
     $vmtoolsd_bin = "$vmtools_base_dir\vmtoolsd.exe"
 }
 
-# If vmtools reg path exists, then we're on a VMtools system
+# If VMTools reg path exists, then we're on a VMTools system
 if ( Test-Path $vmtools_base_reg ) {
     $reg_path = $vmtools_base_reg
 } else {
@@ -574,7 +574,7 @@ function Set-Status {
 
     Write-Log "Setting status: $NewStatus" -Level info
     $status_code = $STATUS_CODES[$NewStatus]
-    # If it's notInstalled, just remove the propery name
+    # If it's notInstalled, just remove the property name
     if ($status_code -eq $STATUS_CODES["notInstalled"]) {
         try {
             Remove-ItemProperty -Path "$reg_path"`
@@ -1164,7 +1164,7 @@ function Get-MinionConfig {
     #   overwrites guestVars with the same name
     # - Get config from the CLI (options passed to the script), overwrites
     #   guestVars and tools.conf settings with the same name
-    # - No config found, use salt minion defaults (master: salt, id: hostname)
+    # - No config found, use Salt minion defaults (master: salt, id: hostname)
     #
     # Used by:
     # - Add-MinionConfig
@@ -1367,7 +1367,7 @@ function Add-MinionConfig {
     $config_options["log_file"] = "$salt_log_dir\minion"
 
     $new_content = New-Object System.Collections.Generic.List[String]
-    $comment = "# Minion configuration file - created by vmtools salt script"
+    $comment = "# Minion configuration file - created by VMTools Salt script"
     $new_content.Add($comment)
     foreach ($row in $config_options.GetEnumerator()) {
         $new_content.Add("$($row.Name): $($row.Value)") | Out-Null
@@ -1584,7 +1584,7 @@ function Get-SaltVersion {
 
 
 function Find-StandardSaltInstallation {
-    # Find an existing standard salt installation
+    # Find an existing standard Salt installation
     #
     # Return:
     #     Bool: True if standard installation found, otherwise False
@@ -1766,7 +1766,7 @@ function Get-SaltPackageInfo {
         # Since there's no repo.json, we need to look in the directory for the
         # URL and HASH. The version can also be `latest` but expects a symlink
         # named `latest` that points to the directory containing the latest
-        # version of salt
+        # version of Salt
         $salt_file_name = $null
         $salt_version = $null
 
@@ -1825,9 +1825,13 @@ function Get-SaltPackageInfo {
         }
         # Since we have a zip file, get the version and sha file from it
         if ( $salt_file_name.Contains("onedir") ) {
-            $salt_version = ($salt_file_name -split "-onedir-")[0].Split("-", 2)[1]
+            $salt_version = (
+                $salt_file_name -split "-onedir-"
+            )[0].Split("-", 2)[1]
         } else {
-            $salt_version = ($salt_file_name -split "-windows-")[0].Split("-", 2)[1]
+            $salt_version = (
+                $salt_file_name -split "-windows-"
+            )[0].Split("-", 2)[1]
         }
         $sha_file_name = "salt-$($salt_version)_SHA512"
         # Get the contents of the sha file
@@ -1950,7 +1954,7 @@ function Get-FileHash {
 
 
 function Get-SaltFromWeb {
-    # Download the salt tiamat zip file from the web and verify the hash
+    # Download the Salt OneDir zip file from the web and verify the hash
     #
     # Error:
     #     Sets the failed status and exits with a scriptFailed exit code
@@ -1968,11 +1972,11 @@ function Get-SaltFromWeb {
         [String] $Hash
     )
 
-    # Download the salt file
-    Write-Log "Downloading salt" -Level info
+    # Download the Salt file
+    Write-Log "Downloading Salt" -Level info
     Get-WebFile -Url $Url -OutFile $Destination
 
-    # Get the hash for the salt file
+    # Get the hash for the Salt file
     $file_hash = (Get-FileHash -Path $Destination -Algorithm SHA512).Hash
 
     Write-Log "Verifying hash" -Level info
@@ -1989,7 +1993,7 @@ function Get-SaltFromWeb {
 
 
 function New-SaltCallScript {
-    # Create the salt-call.bat script
+    # Create the salt-call.bat script for Tiamat builds
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)]
@@ -2020,7 +2024,7 @@ function New-SaltCallScript {
 
 
 function New-SaltMinionScript {
-    # Create the salt-minion.bat script
+    # Create the salt-minion.bat script for Tiamat builds
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)]
@@ -2051,7 +2055,7 @@ function New-SaltMinionScript {
 
 
 function Install-SaltMinion-Tiamat {
-    # Installs the Tiamat build of the salt minion. Performs the following:
+    # Installs the Tiamat build of the Salt minion. Performs the following:
     # - Copies the helper scripts into C:\ProgramFiles\Salt Project\Salt
     # - Registers the salt-minion service
     #
@@ -2095,7 +2099,7 @@ function Install-SaltMinion-Tiamat {
 
 
 function Install-SaltMinion-Relenv {
-    # Installs the Relenv build of the salt minion. Performs the following:
+    # Installs the Relenv build of the Salt minion. Performs the following:
     # - Registers the salt-minion service
 
     # 1. Register the salt-minion service
@@ -2115,7 +2119,7 @@ function Install-SaltMinion-Relenv {
 
 function Install-SaltMinion
 {
-    # Installs the salt minion. Performs the following:
+    # Installs the Salt minion. Performs the following:
     # - Expands the zipfile into C:\Program Files\Salt Project
     # - Detects Relenv vs Tiamat build and calls the appropriate install
     #   function
@@ -2132,7 +2136,7 @@ function Install-SaltMinion
         [Parameter(Mandatory=$true)]
         [String] $Version
     )
-    Write-Log "Unzipping salt (this may take a few minutes)" -Level info
+    Write-Log "Unzipping Salt (this may take a few minutes)" -Level info
     Expand-ZipFile -ZipFile $Path -Destination $base_salt_install_location
 
     Write-Log "Removing zipfile: $Path" -Level debug
@@ -2154,7 +2158,7 @@ function Install-SaltMinion
         exit $STATUS_CODES["scriptFailed"]
     }
 
-    # Common service setttings
+    # Common service settings
     Write-Log "Configuring the salt-minion service" -Level info
     & $ssm_bin set salt-minion Start SERVICE_AUTO_START *> $null
     & $ssm_bin set salt-minion AppStopMethodConsole 24000 *> $null
@@ -2182,13 +2186,13 @@ function Install-SaltMinion
     }
 
     # 4. Modify the system path
-    Write-Log "Adding salt to the path" -Level info
+    Write-Log "Adding Salt to the path" -Level info
     Add-SystemPathValue -Path $salt_dir
 }
 
 
 function Remove-SaltMinion {
-    # Uninstall the salt minion. Performs the following steps:
+    # Uninstall the Salt minion. Performs the following steps:
     # - Stop the salt-minion service
     # - Remove the salt-minion service
     # - Remove the directories in Program Files and ProgramData
@@ -2272,7 +2276,7 @@ function Reset-SaltMinion {
     # - Randomize the minion id in the minion config
     # - Remove the minion public and private keys
 
-    Write-Log "Resetting salt minion" -Level info
+    Write-Log "Resetting Salt minion" -Level info
 
     Remove-FileOrFolder "$salt_config_file\minion_id"
 
@@ -2310,7 +2314,7 @@ function Reset-SaltMinion {
 
 function Install {
     # Set status and update the log
-    Write-Log "Installing salt minion" -Level info
+    Write-Log "Installing Salt minion" -Level info
     Set-Status installing
 
     # Make sure the base install location exists
@@ -2350,7 +2354,7 @@ function Install {
 
 
 function Remove {
-    Write-Log "Removing salt minion" -Level info
+    Write-Log "Removing Salt minion" -Level info
     Set-Status removing
     Remove-SaltMinion
     Set-Status notInstalled
@@ -2406,10 +2410,10 @@ function Main {
             return $STATUS_CODES["scriptSuccess"]
         }
         "install" {
-            # Let's make sure there's not already a standard salt installation
+            # Let's make sure there's not already a standard Salt installation
             # on the system
             if (Find-StandardSaltInstallation) {
-                $msg = "Found an existing salt installation on the system."
+                $msg = "Found an existing Salt installation on the system."
                 Write-Log $msg -Level error
                 Write-Host $msg -ForegroundColor Red
                 return $STATUS_CODES["externalInstall"]
@@ -2451,10 +2455,10 @@ function Main {
             return $STATUS_CODES["scriptSuccess"]
         }
         "remove" {
-            # Let's make sure we're not trying to remove a standard salt
+            # Let's make sure we're not trying to remove a standard Salt
             # installation on the system
             if (Find-StandardSaltInstallation) {
-                $msg = "Found an existing salt installation on the system."
+                $msg = "Found an existing Salt installation on the system."
                 Write-Log $msg -Level error
                 Write-Host $msg -ForegroundColor Red
                 return $STATUS_CODES["externalInstall"]
@@ -2501,9 +2505,9 @@ function Main {
             return $STATUS_CODES["scriptSuccess"]
         }
         "status" {
-            # Let's check for a standard salt installation first
+            # Let's check for a standard Salt installation first
             if (Find-StandardSaltInstallation) {
-                $msg = "Found an existing salt installation on the system."
+                $msg = "Found an existing Salt installation on the system."
                 Write-Log $msg -Level error
                 Write-Host $msg -ForegroundColor Red
                 return $STATUS_CODES["externalInstall"]
