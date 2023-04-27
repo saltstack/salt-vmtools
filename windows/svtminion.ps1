@@ -1346,11 +1346,32 @@ function Add-MinionConfig {
     New-SecureDirectory -Path $base_salt_config_location
 
     # Child directories will inherit permissions from the parent
-    if ( !( Test-Path -path $salt_root_dir)) {
+    if ( !( Test-Path -path $salt_root_dir ) ) {
         New-Item -Path $salt_root_dir -Type Directory | Out-Null
     }
-    if ( !( Test-Path -path $salt_config_dir)) {
+    if ( !( Test-Path -path $salt_config_dir ) ) {
         New-Item -Path $salt_config_dir -Type Directory | Out-Null
+    }
+    if ( !( Test-Path -path $salt_pki_dir ) ) {
+        New-Item -Path "$salt_pki_dir" -Type Directory | Out-Null
+    }
+    if ( !( Test-Path -path $salt_log_dir ) ) {
+        New-Item -Path "$salt_log_dir" -Type Directory | Out-Null
+    }
+
+    # Create additional directories
+    $cache_dir = "$salt_root_dir\var\cache\salt\minion"
+    if ( !( Test-Path -path "$salt_config_dir\minion.d" ) ) {
+        New-Item -Path "$salt_config_dir\minion.d" -Type Directory | Out-Null
+    }
+    if ( !( Test-Path -path "$cache_dir\extmods\grains" ) ) {
+        New-Item -Path "$cache_dir\extmods\grains" -Type Directory | Out-Null
+    }
+    if ( !( Test-Path -path "$cache_dir\proc" ) ) {
+        New-Item -Path "$cache_dir\proc" -Type Directory | Out-Null
+    }
+    if ( !( Test-Path -path "$salt_root_dir\var\run" ) ) {
+        New-Item -Path "$salt_root_dir\var\run" -Type Directory | Out-Null
     }
 
     # Get the minion config
