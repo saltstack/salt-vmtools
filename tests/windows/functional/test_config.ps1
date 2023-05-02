@@ -106,3 +106,21 @@ function test_Add-MinionConfig {
     if (!($content -like "*master_port: 1234*")) { return 1 }
     return 0
 }
+
+function test_Add-MinionConfig_directories {
+    # We have to try to mock getting guestVars
+    function Get-GuestVars { "master=gv_master id=gv_minion" }
+    # We have to try to mock getting ini values
+    function Read-IniContent { @{ salt_minion = @{ master = "tc_master"; master_port="1234" } } }
+    # Set CLI Options
+    $ConfigOptions = @("root_dir=cli_root_dir")
+    Add-MinionConfig
+    if (!(Test-Path -Path "$salt_root_dir")) { return 1 }
+    if (!(Test-Path -Path "$salt_config_dir")) { return 1 }
+    if (!(Test-Path -Path "$salt_pki_dir")) { return 1 }
+    if (!(Test-Path -Path "$salt_config_dir\minion.d")) { return 1 }
+    if (!(Test-Path -Path "$salt_root_dir\var\cache\salt\minion\extmods\grains")) { return 1 }
+    if (!(Test-Path -Path "$salt_root_dir\var\cache\salt\minion\proc")) { return 1 }
+    if (!(Test-Path -Path "$salt_root_dir\var\run")) { return 1 }
+    return 0
+}
