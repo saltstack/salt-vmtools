@@ -6,6 +6,10 @@
 ## Salt VMware Tools Integration script
 ##  integration with Component Manager and GuestStore Helper
 
+# latest shellcheck 0.9.0-1 is showing false negatives
+# which 0.8.0-2 does not, disabling since using 0.9.0-1
+# shellcheck disable=SC2317,SC2004,SC2320,SC2086
+
 ## set -u
 ## set -xT
 set -o functrace
@@ -1257,7 +1261,41 @@ _fetch_salt_minion() {
     fi
 
     _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
-    tar xf "${salt_pkg_name}" -C "${base_salt_location}" 1>/dev/null
+    if [[ ${POST_3005_FLAG} -eq 1 ]]; then
+        # need to setup salt user and group if not already existing
+        _debug_log "$0:${FUNCNAME[0]} setup salt user and group if not "\
+            "already existing"
+        _SALT_GROUP=salt
+        _SALT_USER=salt
+        _SALT_NAME=Salt
+        # 1. create group if not existing
+        if getent group "${_SALT_GROUP}"; then
+            _debug_log "$0:${FUNCNAME[0]} already group salt, assume user "\
+                "and group setup for Salt"
+        else
+            _debug_log "$0:${FUNCNAME[0]} setup group and user salt"
+            # create user to avoid running server as root
+            # 1. create group if not existing
+            groupadd --system "${_SALT_GROUP}" 2>/dev/null
+            # 2. create homedir if not existing
+            if [[ ! -d "${salt_dir}" ]]; then
+                mkdir -p "${salt_dir}"
+            fi
+            # 3. create user if not existing
+            if ! getent passwd | grep -q "^${_SALT_USER}:"; then
+              useradd --system --no-create-home -s /sbin/nologin -g \
+                "${_SALT_GROUP}" "${_SALT_USER}" 2>/dev/null
+            fi
+            # 4. adjust passwd entry
+            usermod -c "${_SALT_NAME}" -d "${salt_dir}" -g "${_SALT_GROUP}" \
+                "${_SALT_USER}" 2>/dev/null
+        fi
+        tar xf "${salt_pkg_name}" -C "${base_salt_location}" 1>/dev/null
+        # 5. adjust file and directory permissions
+        chown -R "${_SALT_USER}":"${_SALT_GROUP}" "${salt_dir}"
+    else
+        tar xf "${salt_pkg_name}" -C "${base_salt_location}" 1>/dev/null
+    fi
     _retn=$?
     if [[ ${_retn} -ne 0 ]]; then
         CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
