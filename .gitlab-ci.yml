@@ -196,6 +196,8 @@ test-salt-vmtools-linux:
     - ls -alh /opt/saltstack/salt/salt-minion
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
+    - getent group salt | grep -w salt
+    - cat /etc/passwd | grep -w salt
     - sudo -u root /usr/bin/salt-call --local test.versions
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
@@ -443,6 +445,8 @@ test-tags-salt-vmtools-linux:
     - ls -alh /opt/saltstack/salt/salt-minion
     - ls -alh /usr/bin/salt-call
     - ls -alh /usr/bin/salt-minion
+    - getent group salt | grep -w salt
+    - cat /etc/passwd | grep -w salt
     - sudo -u root /usr/bin/salt-call --local test.versions
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
