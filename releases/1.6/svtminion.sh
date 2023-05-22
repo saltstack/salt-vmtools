@@ -1270,7 +1270,7 @@ _fetch_salt_minion() {
         _SALT_USER=salt
         _SALT_NAME=Salt
         # 1. create group if not existing
-        if getent group "${_SALT_GROUP}"; then
+        if getent group "${_SALT_GROUP}" 1>/dev/null; then
             _debug_log "$0:${FUNCNAME[0]} already group salt, assume user "\
                 "and group setup for Salt"
         else
