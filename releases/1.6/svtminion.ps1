@@ -828,6 +828,7 @@ function Add-SystemPathValue{
         Write-Log "Tried to write: $new_path" -Level warning
         Write-Log "Error message: $_" -Level warning
     }
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
 }
 
 
@@ -880,6 +881,7 @@ function Remove-SystemPathValue {
             Write-Log "Error message: $_" -level warning
         }
     }
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
 }
 
 
