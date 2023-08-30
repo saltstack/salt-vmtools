@@ -32,8 +32,20 @@ function test_Get-Status_installed {
     Set-ItemProperty -Path $vmtools_base_reg `
                      -Name $vmtools_salt_minion_status_name `
                      -Value $reg_value
+    function Get-ServiceStatus { return "Running" }
     $result = Get-Status
     if ($result -eq $STATUS_CODES["installed"]) { return 0 }
+    return 1
+}
+
+function test_Get-Status_installedStopped {
+    $reg_value = $STATUS_CODES["installed"]
+    Set-ItemProperty -Path $vmtools_base_reg `
+                     -Name $vmtools_salt_minion_status_name `
+                     -Value $reg_value
+    function Get-ServiceStatus { return "Stopped" }
+    $result = Get-Status
+    if ($result -eq $STATUS_CODES["installedStopped"]) { return 0 }
     return 1
 }
 

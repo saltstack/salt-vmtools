@@ -31,9 +31,9 @@ override any config options defined in `tools.conf` with the same name.
 
 The guestVars paths are as follows:
 
-| Option | guestVars Location |
-| ------ | ------------------ |
-| Action | `vmware.components.salt_minion` |
+| Option | guestVars Location                   |
+| ------ |--------------------------------------|
+| Action | `vmware.components.salt_minion`      |
 | Config | `vmware.components.salt_minion.args` |
 
 If set, the `Action` option will return a single word that is the action this
@@ -64,9 +64,9 @@ The `tools.conf` file contains the configurations for vmtools in an `.ini` forma
 This tool looks for the `salt_minion` section and uses the configurations defined
 under that section. This file is stored at:
 
-| OS  | Location |
-| --- | -------- |
-| Linux | `/etc/vmware-tools/tools.conf` |
+| OS      | Location                                        |
+|---------|-------------------------------------------------|
+| Linux   | `/etc/vmware-tools/tools.conf`                  |
 | Windows | `C:\ProgramData\VMware\VMware Tools\tools.conf` |
 
 Below is an example of the `salt_minion` section as it may be defined in
@@ -133,21 +133,21 @@ be installed.
 
 This script creates a log file at the following location:
 
-| OS  | Location |
-| --- | -------- |
-| Linux | `/var/log` |
+| OS      | Location          |
+|---------|-------------------|
+| Linux   | `/var/log`        |
 | Windows | `C:\Windows\temp` |
 
 The content of the log file depends on the `LogLevel` passed on the command
 line. The default value is `warning`. Valid options are:
 
-| Log Level | Description |
-| --------- | ----------- |
+| Log Level | Description                                              |
+| --------- |----------------------------------------------------------|
 | `silent`  | Suppresses displayed output but logs errors and warnings |
-| `error`   | Displays and logs only errors |
-| `warning` | Displays and logs errors and warnings |
-| `info`    | Displays and logs errors, warnings, and info messages |
-| `debug`   | Displays and logs all messages |
+| `error`   | Displays and logs only errors                            |
+| `warning` | Displays and logs errors and warnings                    |
+| `info`    | Displays and logs errors, warnings, and info messages    |
+| `debug`   | Displays and logs all messages                           |
 
 The names of Log files are based on the action that the script is performing. The
 `action` can be defined on the command line or by setting a value in guestVars.
@@ -157,8 +157,11 @@ actions are as follows:
 - `clear`
 - `depend`
 - `install`
+- `reconfig`
 - `remove`
+- `start`
 - `status`
+- `stop`
 
 For example, running the script without a defined action results in a log
 file with the following name:
@@ -247,13 +250,12 @@ or `Get-Help svtminion.ps1`:
         VMware Tools script for managing the Salt minion on a Windows guest
 
     SYNTAX
-        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [-Source <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        .\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        .\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        .\svtminion.ps1 [-Status] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        .\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Help] [-Version] [<CommonParameters>]
-        .\svtminion.ps1 [-Help] [<CommonParameters>]
-        .\svtminion.ps1 [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [-Source <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Reconfig] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Status] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
 
     DESCRIPTION
         This script manages the Salt minion on a Windows guest. The minion is a OneDir
@@ -290,13 +292,14 @@ or `Get-Help svtminion.ps1`:
         104 - removing
         105 - removeFailed
         106 - externalInstall
+        107 - installedStopped
 
         NOTE: This script must be run with Administrator privileges
 
     PARAMETERS
         -Install [<SwitchParameter>]
             Downloads, installs, and starts the salt-minion service. Exits with
-            scriptFailed exit (126) code under the following conditions:
+            scriptFailed exit code (126) under the following conditions:
             - Existing Standard Salt Installation detected
             - Unknown status found
             - Installation in progress
@@ -309,7 +312,8 @@ or `Get-Help svtminion.ps1`:
             - Already installed
 
         -MinionVersion <String>
-            The version of Salt minion to install. Default is "latest".
+            The version of Salt minion to install. The word "latest" will install the
+            latest version of Salt. Default is "latest".
 
         -Source <String>
             The url or path to the repo containing the installers and, preferably, the
@@ -324,6 +328,15 @@ or `Get-Help svtminion.ps1`:
             requested version.
 
             This can handle most common protocols: http, https, ftp, unc, local
+
+        -Reconfig [<SwitchParameter>]
+            Update the minion configuration with settings passed either on the
+            command-line, through guestVars, or tools.conf. The minion will be
+            restarted to apply the new config.
+
+            The following exit codes will occur:
+            102 - Salt minion not installed
+            106 - External install of the Salt minion found
 
         -ConfigOptions <String[]>
             Any number of minion config options specified by the name of the config
@@ -360,6 +373,7 @@ or `Get-Help svtminion.ps1`:
         -Status [<SwitchParameter>]
             Gets the status of the Salt minion installation. This command returns an
             exit code that corresponds to one of the following:
+
             100 - installed
             101 - installing
             102 - notInstalled
@@ -367,6 +381,7 @@ or `Get-Help svtminion.ps1`:
             104 - removing
             105 - removeFailed
             106 - externalInstall
+            107 - installedStopped
 
             Exits with scriptFailed exit code (126) under the following conditions:
             - Unknown status found
@@ -378,17 +393,33 @@ or `Get-Help svtminion.ps1`:
             scriptSuccess exit code (0) if all dependencies are present.
 
         -LogLevel <String>
-            Sets the log level to display and log. Default is warning. Silent
+            Sets the log level to display and log. Default is "warning". "silent"
             suppresses all logging output. Available options are:
+
             - silent
             - error
             - warning
             - info
             - debug
+
             Logs are placed in C:\Windows\temp and are named according to the action
             the script is performing and a timestamp for when the script was run.
             This is a sample name:
             `vmware-svtminion-<action>-<timestamp>.log`
+
+        -Stop [<SwitchParameter>]
+            Stops the salt-minion service.
+
+            The following exit codes will occur:
+            102 - Salt minion not installed
+            106 - External install of the Salt minion found
+
+        -Start [<SwitchParameter>]
+            Starts or restarts the salt-minion service.
+
+            The following exit codes will occur:
+            102 - Salt minion not installed
+            106 - External install of the Salt minion found
 
         -Help [<SwitchParameter>]
             Displays help for this script.
@@ -404,7 +435,7 @@ or `Get-Help svtminion.ps1`:
 
         -------------------------- EXAMPLE 1 --------------------------
         PS>svtminion.ps1 -Install
-        PS>svtminion.ps1 -Install -MinionVersion 3004-1 master=192.168.10.10 id=dev_box
+        PS>svtminion.ps1 -Install -MinionVersion 3006.2 master=192.168.10.10 id=dev_box
         PS>svtminion.ps1 -Install -Source https://my.domain.com/vmtools/salt
 
         -------------------------- EXAMPLE 2 --------------------------

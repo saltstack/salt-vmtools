@@ -40,6 +40,7 @@ Salt minion installation. Status exit codes are as follows:
 104 - removing
 105 - removeFailed
 106 - externalInstall
+107 - installedStopped
 
 NOTE: This script must be run with Administrator privileges
 
@@ -68,7 +69,7 @@ param(
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("i")]
     # Downloads, installs, and starts the salt-minion service. Exits with
-    # scriptFailed exit (126) code under the following conditions:
+    # scriptFailed exit code (126) under the following conditions:
     # - Existing Standard Salt Installation detected
     # - Unknown status found
     # - Installation in progress
@@ -83,7 +84,8 @@ param(
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("m")]
-    # The version of Salt minion to install. Default is "latest".
+    # The version of Salt minion to install. The word "latest" will install the
+    # latest version of Salt. Default is "latest".
     [String] $MinionVersion="latest",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -102,8 +104,21 @@ param(
     # This can handle most common protocols: http, https, ftp, unc, local
     [String] $Source="https://repo.saltproject.io/salt/py3/onedir",
 
-    [Parameter(Mandatory=$false, ParameterSetName="Install",
-            Position=0, ValueFromRemainingArguments=$true)]
+    [Parameter(Mandatory=$false, ParameterSetName="Reconfig")]
+    [Alias("n")]
+    # Update the minion configuration with settings passed either on the
+    # command-line, through guestVars, or tools.conf. The minion will be
+    # restarted to apply the new config.
+    #
+    # The following exit codes will occur:
+    # 102 - Salt minion not installed
+    # 106 - External install of the Salt minion found
+    [Switch] $Reconfig,
+
+    [Parameter(Position=0, ValueFromRemainingArguments=$true,
+            Mandatory=$false, ParameterSetName="Install")]
+    [Parameter(Position=0, ValueFromRemainingArguments=$true,
+            Mandatory=$false, ParameterSetName="Reconfig")]
     # Any number of minion config options specified by the name of the config
     # option as found in Salt documentation. All options will be lower-cased and
     # written to the minion config as passed. All values are in the key=value
@@ -144,6 +159,7 @@ param(
     [Alias("s")]
     # Gets the status of the Salt minion installation. This command returns an
     # exit code that corresponds to one of the following:
+    #
     # 100 - installed
     # 101 - installing
     # 102 - notInstalled
@@ -151,6 +167,7 @@ param(
     # 104 - removing
     # 105 - removeFailed
     # 106 - externalInstall
+    # 107 - installedStopped
     #
     # Exits with scriptFailed exit code (126) under the following conditions:
     # - Unknown status found
@@ -164,11 +181,7 @@ param(
     # scriptSuccess exit code (0) if all dependencies are present.
     [Switch] $Depend,
 
-    [Parameter(Mandatory=$false, ParameterSetName="Install")]
-    [Parameter(ParameterSetName="Clear")]
-    [Parameter(ParameterSetName="Status")]
-    [Parameter(ParameterSetName="Depend")]
-    [Parameter(ParameterSetName="Remove")]
+    [Parameter(Mandatory=$false)]
     [Alias("l")]
     [ValidateSet(
             "silent",
@@ -177,41 +190,48 @@ param(
             "info",
             "debug",
             IgnoreCase=$true)]
-    [String]
-    # Sets the log level to display and log. Default is warning. Silent
+    # Sets the log level to display and log. Default is "warning". "silent"
     # suppresses all logging output. Available options are:
+    #
     # - silent
     # - error
     # - warning
     # - info
     # - debug
+    #
     # Logs are placed in C:\Windows\temp and are named according to the action
     # the script is performing and a timestamp for when the script was run.
     # This is a sample name:
     # `vmware-svtminion-<action>-<timestamp>.log`
-    $LogLevel = "warning",
+    [String] $LogLevel = "warning",
 
-    [Parameter(Mandatory=$false, ParameterSetName="Help")]
-    [Parameter(ParameterSetName="Install")]
-    [Parameter(ParameterSetName="Clear")]
-    [Parameter(ParameterSetName="Status")]
-    [Parameter(ParameterSetName="Depend")]
-    [Parameter(ParameterSetName="Remove")]
+    [Parameter(Mandatory=$false)]
+    [Alias("q")]
+    # Stops the salt-minion service.
+    #
+    # The following exit codes will occur:
+    # 102 - Salt minion not installed
+    # 106 - External install of the Salt minion found
+    [Switch] $Stop,
+
+    [Parameter(Mandatory=$false)]
+    [Alias("p")]
+    # Starts or restarts the salt-minion service.
+    #
+    # The following exit codes will occur:
+    # 102 - Salt minion not installed
+    # 106 - External install of the Salt minion found
+    [Switch] $Start,
+
+    [Parameter(Mandatory=$false)]
     [Alias("h")]
-    [Switch]
     # Displays help for this script.
-    $Help,
+    [Switch] $Help,
 
-    [Parameter(Mandatory=$false, ParameterSetName="Version")]
-    [Parameter(ParameterSetName="Install")]
-    [Parameter(ParameterSetName="Clear")]
-    [Parameter(ParameterSetName="Status")]
-    [Parameter(ParameterSetName="Depend")]
-    [Parameter(ParameterSetName="Remove")]
+    [Parameter(Mandatory=$false)]
     [Alias("v")]
-    [Switch]
     # Displays the version of this script.
-    $Version
+    [Switch] $Version
 
 )
 
@@ -254,6 +274,7 @@ $STATUS_CODES = @{
     "removing" = 104;
     "removeFailed" = 105;
     "externalInstall" = 106;
+    "installedStopped" = 107;
     "scriptFailed" = 126;
     "scriptTerminated" = 130;
     100 = "installed";
@@ -263,6 +284,7 @@ $STATUS_CODES = @{
     104 = "removing";
     105 = "removeFailed";
     106 = "externalInstall";
+    107 = "installedStopped";
 }
 
 ################################ REQUIREMENTS ##################################
@@ -299,7 +321,16 @@ $script_log_dir = "$env:SystemRoot\Temp"
 $script_log_base_name = "vmware-$($script_name.Split(".")[0])-{0}"
 $script_log_name = "$script_log_base_name-$script_date.log"
 $script_log_file_count = 5
-$action_list = @("install", "remove", "depend", "clear", "status")
+$action_list = @(
+    "install",
+    "reconfig",
+    "remove",
+    "depend",
+    "clear",
+    "status",
+    "start",
+    "stop"
+)
 
 ################################# VARIABLES ####################################
 # Repository locations and names
@@ -332,7 +363,7 @@ $file_dirs_to_remove.Add($base_salt_install_location) | Out-Null
 $file_dirs_to_remove.Add("C:\salt") | Out-Null
 
 ## VMware registry locations
-$salt_base_reg = "HKLM:\SOFTWARE\Salt Project\salt"
+$salt_base_reg = "HKLM:\SOFTWARE\Salt Project\Salt"
 $vmtools_base_reg = "HKLM:\SOFTWARE\VMware, Inc.\VMware Tools"
 
 $vmtools_salt_minion_status_name = "SaltMinionStatus"
@@ -530,6 +561,19 @@ function Get-Status {
                 Write-Log "Found failed remove" -Level debug
                 $current_status = $STATUS_CODES["removeFailed"]
             }
+        }
+    }
+
+    # If status 100 (installed) but the service isn't running, then the status
+    # is installedStopped
+    if ( $current_status -eq $STATUS_CODES["installed"] ) {
+        $service_status = Get-ServiceStatus
+        if ( [String]::IsNullOrEmpty($service_status) ) {
+            Write-Log "Service not installed" -Level debug
+            $current_status = $STATUS_CODES["notInstalled"]
+        } elseif ( $service_status -ne "Running" ) {
+            Write-Log "Service not running" -Level debug
+            $current_status = $STATUS_CODES["installedStopped"]
         }
     }
 
@@ -1344,9 +1388,6 @@ function New-SecureDirectory {
 function Add-MinionConfig {
     # Write minion config options to the minion config file
 
-    # New-SecureDirectory will handle reparse points and ownership issues
-    New-SecureDirectory -Path $base_salt_config_location
-
     # Child directories will inherit permissions from the parent
     if ( !( Test-Path -path $salt_root_dir ) ) {
         New-Item -Path $salt_root_dir -Type Directory | Out-Null
@@ -1468,6 +1509,34 @@ function Start-MinionService {
             }
         }
     }
+}
+
+
+function Get-ServiceStatus {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [String] $ServiceName = "salt-minion"
+    )
+
+    try {
+        $service = Get-Service -Name $ServiceName
+    } catch {
+        switch ($_.FullyQualifiedErrorId.Split(",")[0]) {
+            "NoServiceFoundForGivenName" {
+                # We'll return here because we don't need to stop a service that
+                # isn't installed
+                Write-Log "$ServiceName is not installed" -Level info
+                return
+            }
+            Default {
+                Write-Log $_ -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
+    }
+    return $service.Status
 }
 
 
@@ -1615,13 +1684,11 @@ function Find-StandardSaltInstallation {
     # First we'll look for the install_dir registry entry
     # If we find that, we'll use it to detect the version
     # This works for 3004 and newer versions of Salt
-    $salt_path = $null
     try {
         $dir_path = (Get-Item -Path $salt_base_reg).GetValue("install_dir")
     } catch {}
-    if ($dir_path -ne $null) {
+    if ($null -ne $dir_path) {
         $dir_path = [System.Environment]::ExpandEnvironmentVariables($dir_path)
-        Write-Host $dir_path
         if ( Test-Path -Path $dir_path ) {
             $version = Get-SaltVersion -Path $dir_path
             Write-Log "Standard Installation detected" -Level error
@@ -2364,6 +2431,9 @@ function Install {
     # Install the Salt Package
     Install-SaltMinion -Path $zip_file -Version $info.version
 
+    # New-SecureDirectory will handle reparse points and ownership issues
+    New-SecureDirectory -Path $base_salt_config_location
+
     # Generate and update the minion config
     Add-MinionConfig
 
@@ -2373,6 +2443,24 @@ function Install {
     # Update the Status and output the Log
     Set-Status installed
     Write-Log "Salt minion installed successfully" -Level info
+}
+
+
+function Reconfigure {
+    # Set status and update the log
+    Write-Log "Reconfiguring the Salt minion" -Level info
+
+    # Generate and update the minion config
+    Add-MinionConfig
+
+    # Stop the Minion Service
+    Stop-MinionService
+
+    # Start the Minion Service
+    Start-MinionService
+
+    # Update the Status and output the Log
+    Write-Log "Salt minion configured successfully" -Level info
 }
 
 
@@ -2390,10 +2478,13 @@ function Main {
     # Check for Action. If not specified on the command line, get it from
     # guestVars
     if ($Install) { $Action = "install" }
+    if ($Reconfig) { $Action = "reconfig" }
     if ($Status) { $Action = "status" }
     if ($Depend) { $Action = "depend" }
     if ($Clear) { $Action = "clear" }
     if ($Remove) { $Action = "remove" }
+    if ($Stop) { $Action = "stop" }
+    if ($Start) { $Action = "start" }
     if (!$Action) {
         # We're not logging yet because we don't know the status
         $Action = Get-GuestVars -GuestVarsPath $guestvars_salt_desired_state
@@ -2427,6 +2518,52 @@ function Main {
 
     # Perform the action
     switch ($Action.ToLower()) {
+        "stop" {
+            # If not installed (0), bail out
+            $current_status = Get-Status
+            if ($STATUS_CODES.keys -notcontains $current_status) {
+                $msg = "Unknown status code: $current_status"
+                Write-Log $msg -Level error
+                return $STATUS_CODES["scriptFailed"]
+            }
+            if ( $current_status -eq $STATUS_CODES["installedStopped"] ) {
+                Write-Host "Service already stopped"
+                return $STATUS_CODES["scriptSuccess"]
+            }
+            if ( $current_status -ne $STATUS_CODES["installed"] ) {
+                Write-Host "Not installed. Stop will not continue"
+                return $STATUS_CODES["scriptSuccess"]
+            }
+            Stop-MinionService
+            Write-Host "Salt minion stopped successfully"
+            return $STATUS_CODES["scriptSuccess"]
+        }
+        "start" {
+            # If not installed (0), bail out
+            $current_status = Get-Status
+            if ($STATUS_CODES.keys -notcontains $current_status) {
+                $msg = "Unknown status code: $current_status"
+                Write-Host $msg -Level error
+                return $STATUS_CODES["scriptFailed"]
+            }
+            $valid = @(
+                $STATUS_CODES["installed"],
+                $STATUS_CODES["installedStopped"]
+            )
+            if ( $valid -notcontains $current_status ) {
+                Write-Host "Not installed. Start will not continue"
+                return $STATUS_CODES["scriptSuccess"]
+            }
+            $service_status = Get-ServiceStatus
+            $verb = "started"
+            if ( $service_status -eq "Running" ) {
+                $verb = "restarted"
+            }
+            Stop-MinionService
+            Start-MinionService
+            Write-Host "Salt minion $verb successfully"
+            return $STATUS_CODES["scriptSuccess"]
+        }
         "depend" {
             # If we've gotten this far, dependencies have been confirmed
             Write-Host "Found all dependencies"
@@ -2441,7 +2578,6 @@ function Main {
                 Write-Host $msg -ForegroundColor Red
                 return $STATUS_CODES["externalInstall"]
             }
-            # If status is installed, installing, or removing, bail out
             $current_status = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
                 $msg = "Unknown status code: $current_status"
@@ -2449,9 +2585,14 @@ function Main {
                 Write-Host $msg -ForegroundColor Red
                 return $STATUS_CODES["scriptFailed"]
             }
+            # If status is "installed", "installing", or "removing", bail out
             switch ($current_status) {
                 $STATUS_CODES["installed"] {
                     Write-Host "Already installed"
+                    return $STATUS_CODES["scriptSuccess"]
+                }
+                $STATUS_CODES["installedStopped"] {
+                    Write-Host "Already installed, but stopped"
                     return $STATUS_CODES["scriptSuccess"]
                 }
                 $STATUS_CODES["installing"] {
@@ -2475,6 +2616,35 @@ function Main {
             }
             Install
             Write-Host "Salt minion installed successfully"
+            return $STATUS_CODES["scriptSuccess"]
+        }
+        "reconfig" {
+            # Let's make sure there's not a standard Salt installation on the
+            # system
+            if (Find-StandardSaltInstallation) {
+                $msg = "Found an existing Salt installation on the system."
+                Write-Log $msg -Level error
+                Write-Host $msg -ForegroundColor Red
+                return $STATUS_CODES["externalInstall"]
+            }
+            $current_status = Get-Status
+            if ($STATUS_CODES.keys -notcontains $current_status) {
+                $msg = "Unknown status code: $current_status"
+                Write-Log $msg -Level error
+                Write-Host $msg -ForegroundColor Red
+                return $STATUS_CODES["scriptFailed"]
+            }
+            # If status is not "installed", bail out
+            $valid = @(
+                $STATUS_CODES["installed"],
+                $STATUS_CODES["installedStopped"]
+            )
+            if ( $valid -notcontains $current_status ) {
+                Write-Host "Not installed. Reconfig will not continue"
+                return $STATUS_CODES["scriptSuccess"]
+            }
+            Reconfigure
+            Write-Host "Salt minion reconfigured successfully"
             return $STATUS_CODES["scriptSuccess"]
         }
         "remove" {
@@ -2519,7 +2689,11 @@ function Main {
                 Write-Host $msg -Level error
                 return $STATUS_CODES["scriptFailed"]
             }
-            if ($current_status -ne $STATUS_CODES["installed"]) {
+            $valid = @(
+                $STATUS_CODES["installed"],
+                $STATUS_CODES["installedStopped"]
+            )
+            if ( $valid -notcontains $current_status ) {
                 Write-Host "Not installed. Reset will not continue"
                 return $STATUS_CODES["scriptSuccess"]
             }
