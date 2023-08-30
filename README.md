@@ -292,6 +292,7 @@ or `Get-Help svtminion.ps1`:
         104 - removing
         105 - removeFailed
         106 - externalInstall
+        107 - installedStopped
 
         NOTE: This script must be run with Administrator privileges
 
@@ -380,6 +381,7 @@ or `Get-Help svtminion.ps1`:
             104 - removing
             105 - removeFailed
             106 - externalInstall
+            107 - installedStopped
 
             Exits with scriptFailed exit code (126) under the following conditions:
             - Unknown status found

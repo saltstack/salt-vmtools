@@ -40,6 +40,7 @@ Salt minion installation. Status exit codes are as follows:
 104 - removing
 105 - removeFailed
 106 - externalInstall
+107 - installedStopped
 
 NOTE: This script must be run with Administrator privileges
 
@@ -166,6 +167,7 @@ param(
     # 104 - removing
     # 105 - removeFailed
     # 106 - externalInstall
+    # 107 - installedStopped
     #
     # Exits with scriptFailed exit code (126) under the following conditions:
     # - Unknown status found
@@ -272,6 +274,7 @@ $STATUS_CODES = @{
     "removing" = 104;
     "removeFailed" = 105;
     "externalInstall" = 106;
+    "installedStopped" = 107;
     "scriptFailed" = 126;
     "scriptTerminated" = 130;
     100 = "installed";
@@ -281,6 +284,7 @@ $STATUS_CODES = @{
     104 = "removing";
     105 = "removeFailed";
     106 = "externalInstall";
+    107 = "installedStopped";
 }
 
 ################################ REQUIREMENTS ##################################
@@ -557,6 +561,19 @@ function Get-Status {
                 Write-Log "Found failed remove" -Level debug
                 $current_status = $STATUS_CODES["removeFailed"]
             }
+        }
+    }
+
+    # If status 100 (installed) but the service isn't running, then the status
+    # is installedStopped
+    if ( $current_status -eq $STATUS_CODES["installed"] ) {
+        $service_status = Get-ServiceStatus
+        if ( [String]::IsNullOrEmpty($service_status) ) {
+            Write-Log "Service not installed" -Level debug
+            $current_status = $STATUS_CODES["notInstalled"]
+        } elseif ( $service_status -ne "Running" ) {
+            Write-Log "Service not running" -Level debug
+            $current_status = $STATUS_CODES["installedStopped"]
         }
     }
 
@@ -2506,10 +2523,14 @@ function Main {
             $current_status = Get-Status
             if ($STATUS_CODES.keys -notcontains $current_status) {
                 $msg = "Unknown status code: $current_status"
-                Write-Host $msg -Level error
+                Write-Log $msg -Level error
                 return $STATUS_CODES["scriptFailed"]
             }
-            if ($current_status -ne $STATUS_CODES["installed"]) {
+            if ( $current_status -eq $STATUS_CODES["installedStopped"] ) {
+                Write-Host "Service already stopped"
+                return $STATUS_CODES["scriptSuccess"]
+            }
+            if ( $current_status -ne $STATUS_CODES["installed"] ) {
                 Write-Host "Not installed. Stop will not continue"
                 return $STATUS_CODES["scriptSuccess"]
             }
@@ -2525,7 +2546,11 @@ function Main {
                 Write-Host $msg -Level error
                 return $STATUS_CODES["scriptFailed"]
             }
-            if ($current_status -ne $STATUS_CODES["installed"]) {
+            $valid = @(
+                $STATUS_CODES["installed"],
+                $STATUS_CODES["installedStopped"]
+            )
+            if ( $valid -notcontains $current_status ) {
                 Write-Host "Not installed. Start will not continue"
                 return $STATUS_CODES["scriptSuccess"]
             }
@@ -2564,6 +2589,10 @@ function Main {
             switch ($current_status) {
                 $STATUS_CODES["installed"] {
                     Write-Host "Already installed"
+                    return $STATUS_CODES["scriptSuccess"]
+                }
+                $STATUS_CODES["installedStopped"] {
+                    Write-Host "Already installed, but stopped"
                     return $STATUS_CODES["scriptSuccess"]
                 }
                 $STATUS_CODES["installing"] {
@@ -2606,7 +2635,11 @@ function Main {
                 return $STATUS_CODES["scriptFailed"]
             }
             # If status is not "installed", bail out
-            if ($current_status -ne $STATUS_CODES["installed"]) {
+            $valid = @(
+                $STATUS_CODES["installed"],
+                $STATUS_CODES["installedStopped"]
+            )
+            if ( $valid -notcontains $current_status ) {
                 Write-Host "Not installed. Reconfig will not continue"
                 return $STATUS_CODES["scriptSuccess"]
             }
@@ -2656,7 +2689,11 @@ function Main {
                 Write-Host $msg -Level error
                 return $STATUS_CODES["scriptFailed"]
             }
-            if ($current_status -ne $STATUS_CODES["installed"]) {
+            $valid = @(
+                $STATUS_CODES["installed"],
+                $STATUS_CODES["installedStopped"]
+            )
+            if ( $valid -notcontains $current_status ) {
                 Write-Host "Not installed. Reset will not continue"
                 return $STATUS_CODES["scriptSuccess"]
             }
