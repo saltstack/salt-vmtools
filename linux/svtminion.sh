@@ -77,6 +77,7 @@ depend
 install
 clear
 remove
+reconfig
 default
 "
 
@@ -137,13 +138,14 @@ declare -a m_cfg_values
 
 ## Component Manager Installer/Script return/exit status codes
 # return/exit Status codes
-#  100 + 0 => installed
+#  100 + 0 => installed (and running)
 #  100 + 1 => installing
 #  100 + 2 => notInstalled
 #  100 + 3 => installFailed
 #  100 + 4 => removing
 #  100 + 5 => removeFailed
 #  100 + 6 => externalInstall
+#  100 + 7 => installedStopped
 #  126 => scriptFailed
 #  130 => scriptTerminated
 declare -A STATUS_CODES_ARY
@@ -154,6 +156,7 @@ STATUS_CODES_ARY[installFailed]=103
 STATUS_CODES_ARY[removing]=104
 STATUS_CODES_ARY[removeFailed]=105
 STATUS_CODES_ARY[externalInstall]=106
+STATUS_CODES_ARY[installedStopped]=107
 STATUS_CODES_ARY[scriptFailed]=126
 STATUS_CODES_ARY[scriptTerminated]=130
 
@@ -182,6 +185,12 @@ INSTALL_PARAMS=""
 
 MINION_VERSION_FLAG=0
 MINION_VERSION_PARAMS=""
+
+RECONFIG_FLAG=0
+RECONFIG_PARAMS=""
+
+STOP_FLAG=0
+RESTART_FLAG=0
 
 LOG_LEVEL_FLAG=0
 LOG_LEVEL_PARAMS=""
@@ -268,6 +277,7 @@ esac
      echo "usage: ${0}"
      echo "             [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
      echo "             [-j|--source] [-l|--loglevel] [-m|--minionversion]"
+     echo "             [-n|--reconfig] [-q|--stop] [-p|--start]"
      echo "             [-r|--remove] [-s|--status] [-v|--version]"
      echo ""
      echo "  -c, --clear     clear previous minion identifier and keys,"
@@ -289,6 +299,9 @@ esac
      echo "                     silent error warning debug info"
      echo "                     default loglevel is warning"
      echo "  -m, --minionversion install salt-minion version, default[latest]"
+     echo "  -n, --reconfig  salt-minion restarts after reading updated config"
+     echo "  -q, --stop      stop salt-minion"
+     echo "  -p, --start     start salt-minion (restarts salt-minion)"
      echo "  -r, --remove    deactivate and remove the salt-minion"
      echo "  -s, --status    return status for this script"
      echo "  -v, --version   version of this script"
@@ -628,9 +641,9 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
         cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
         cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
         _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
-            _error_log "$0:${FUNCNAME[0]} error updating minion configuration "\
-                "array with key '${cfg_key}' and value '${cfg_value}', "\
-                "retcode '$?'";
+            _error_log "$0:${FUNCNAME[0]} error updating minion "\
+                "configuration array with key '${cfg_key}' and value "\
+                "'${cfg_value}', retcode '$?'";
         }
     done
 
@@ -1358,8 +1371,8 @@ _check_multiple_script_running() {
 #   for example: install salt-minion from rpm or deb package
 #
 # Results:
-#   0 - No standard install found and empty string output
-#   !0 - Standard install found and Salt version found output
+#   0 - No standard classic install found and empty string output
+#   !0 - Standard  classic install found and Salt version found output
 #
 
 _check_classic_minion_install() {
@@ -1375,7 +1388,8 @@ _check_classic_minion_install() {
 /usr/bin/salt-call
 /usr/local/bin/salt-call
 "
-    _info_log "$0:${FUNCNAME[0]} check if standard salt-minion installed"
+    _info_log "$0:${FUNCNAME[0]} check if standard classic "\
+        "salt-minion installed"
 
     for idx in ${list_of_files_check}
     do
@@ -1393,8 +1407,8 @@ _check_classic_minion_install() {
                 # get salt-version
                 local s_ver=""
                 s_ver=$("${idx}" --local test.version |grep -v 'local:' |xargs)
-                _debug_log "$0:${FUNCNAME[0]} found standard salt-minion, "\
-                    "Salt version: '${s_ver}'"
+                _debug_log "$0:${FUNCNAME[0]} found standard classic "\
+                    "salt-minion, Salt version: '${s_ver}'"
                 echo "${s_ver}"
                 _retn=1
                 break
@@ -1579,13 +1593,14 @@ _create_pre_3006_helper_scripts() {
 #
 #   discover and return the current status
 #
-#       0 => installed
+#       0 => installed (and running)
 #       1 => installing
 #       2 => notInstalled
 #       3 => installFailed
 #       4 => removing
 #       5 => removeFailed
 #       6 => externalInstall
+#       7 => installedStopped
 #       126 => scriptFailed
 #
 # Side Effects:
@@ -1608,12 +1623,12 @@ _status_fn() {
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
         _debug_log "$0:${FUNCNAME[0]}" \
-            "existing Standard Salt Installation detected, "\
+            "existing Standard Classic Salt Installation detected, "\
             "Salt version: '${found_salt_ver}'"
             CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
             _retn_status=${STATUS_CODES_ARY[externalInstall]}
     else
-        _debug_log "$0:${FUNCNAME[0]} no standardized install found"
+        _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
 
         install_onedir_chk=$(_check_onedir_minion_install)
         if [[ ${install_onedir_chk} -eq 2 ]]; then
@@ -1622,11 +1637,11 @@ _status_fn() {
 
         svpid=$(_find_salt_pid)
         if [[ ${install_onedir_chk} -eq 0 && -z ${svpid} ]]; then
-            # check not installed and no process id
+            # not installed and no process id
             CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
             _retn_status=${STATUS_CODES_ARY[notInstalled]}
         elif [[ ${install_onedir_chk} -ne 0 ]]; then
-            # check installed
+            # installed, check for pid
             CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
             _retn_status=${STATUS_CODES_ARY[installed]}
             # normal case but double-check
@@ -1634,21 +1649,198 @@ _status_fn() {
             if [[ -z ${svpid} ]]; then
                 # Note: someone could have stopped the salt-minion,
                 # so installed but not running,
-                # status codes don't allow for that case
-                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-                _retn_status=${STATUS_CODES_ARY[installFailed]}
+                ## TBD DGM with additon of stop/start, can be installed and not running
+                ##  hence doesn't imply removeFailed, need to check elsewhere in code this assumption is made
+                CURRENT_STATUS=${STATUS_CODES_ARY[installedStopped]}
+                _retn_status=${STATUS_CODES_ARY[installedStopped]}
+            else
+                # have running pid for salt-minion
+                CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
+                _retn_status=${STATUS_CODES_ARY[installed]}
             fi
         elif [[ -z ${svpid} ]]; then
-            # check no process id and main directory still left, =>removeFailed
+            # check no process id and main directory still left, =>installedStopped
+            ## TBD DGM with additon of stop/start, can be installed and not running
+            ##  hence doesn't imply removeFailed, need to check elsewhere in code this assumption is made
             if [[ ${install_onedir_chk} -ne 0 ]]; then
-                CURRENT_STATUS=${STATUS_CODES_ARY[removeFailed]}
-                _retn_status=${STATUS_CODES_ARY[removeFailed]}
+                CURRENT_STATUS=${STATUS_CODES_ARY[installedStopped]}
+                _retn_status=${STATUS_CODES_ARY[installedStopped]}
             fi
         fi
     fi
 
     return ${_retn_status}
 }
+
+
+#
+# _stop_fn
+#
+#   stop the salt-minion if running and return the current status
+#
+#       0 => installed (and running)
+#       1 => installing
+#       2 => notInstalled
+#       3 => installFailed
+#       4 => removing
+#       5 => removeFailed
+#       6 => externalInstall
+#       7 => installedStopped
+#       126 => scriptFailed
+#
+# Side Effects:
+#   CURRENT_STATUS updated
+#
+# Results:
+#   Exits numerical status
+#
+
+_stop_fn() {
+    # return status
+    local _retn_status=${STATUS_CODES_ARY[notInstalled]}
+    local install_onedir_chk=0
+    local found_salt_ver=""
+    local systemctl_issue=0
+
+    _info_log "$0:${FUNCNAME[0]} checking status for script"
+
+    _check_multiple_script_running
+
+    found_salt_ver=$(_check_classic_minion_install)
+    if [[ -n "${found_salt_ver}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]}" \
+            "existing Standard Classic Salt Installation detected, "\
+            "Salt version: '${found_salt_ver}'"
+            CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
+            _retn_status=${STATUS_CODES_ARY[externalInstall]}
+    else
+        _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
+
+        install_onedir_chk=$(_check_onedir_minion_install)
+        if [[ ${install_onedir_chk} -eq 2 ]]; then
+            POST_3005_FLAG=1    # ensure note 3006 and above
+        fi
+
+        if [[ ${install_onedir_chk} -eq 0 ]]; then
+            # not installed
+            CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
+            _retn_status=${STATUS_CODES_ARY[notInstalled]}
+        elif [[ ${install_onedir_chk} -ne 0 ]]; then
+            # installed, check for pid
+            CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
+            _retn_status=${STATUS_CODES_ARY[installed]}
+            svpid=$(_find_salt_pid)
+            if [[ -z ${svpid} ]]; then
+                # Note: someone could have stopped the salt-minion,
+                # so installed but not running,
+                CURRENT_STATUS=${STATUS_CODES_ARY[installedStopped]}
+                _retn_status=${STATUS_CODES_ARY[installedStopped]}
+            else
+                # have pid for salt-minion, need to stop
+                systemctl stop salt-minion || {
+                    _warning_log "$0:${FUNCNAME[0]} stopping existing Salt "\
+                        "functionality salt-minion encountered difficulties "\
+                        "using systemctl, retcode '$?'";
+                    systemctl_issue=1;
+                }
+                if [[ "${systemctl_issue}" -eq 0 ]]; then
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installedStopped]}
+                    _retn_status=${STATUS_CODES_ARY[installedStopped]}
+                else
+                    CURRENT_STATUS=${STATUS_CODES_ARY[installedStopped]}
+                    _retn_status=${STATUS_CODES_ARY[installedStopped]}
+                    _error_log "$0:${FUNCNAME[0]} stopping existing Salt "\
+                        "functionality salt-minion encountered difficulties "\
+                        "using systemctl, run 'systemctl status salt-minion'"\
+                        "to resolve issue'";
+                fi
+            fi
+        fi
+    fi
+
+    _debug_log "$0:${FUNCNAME[0]} DGM stop returning '${_retn_status}'"
+    return ${_retn_status}
+}
+
+
+#
+# _restart_fn
+#
+#   restart the salt-minion if not running and return the current status
+#
+#       0 => installed (and running)
+#       1 => installing
+#       2 => notInstalled
+#       3 => installFailed
+#       4 => removing
+#       5 => removeFailed
+#       6 => externalInstall
+#       7 => installedStopped
+#       126 => scriptFailed
+#
+# Side Effects:
+#   CURRENT_STATUS updated
+#
+# Results:
+#   Exits numerical status
+#
+
+_restart_fn() {
+
+    # return status
+    local _retn_status=${STATUS_CODES_ARY[notInstalled]}
+    local install_onedir_chk=0
+    local found_salt_ver=""
+    local systemctl_issue=0
+
+    _info_log "$0:${FUNCNAME[0]} checking status for script"
+
+    _check_multiple_script_running
+
+    found_salt_ver=$(_check_classic_minion_install)
+    if [[ -n "${found_salt_ver}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]}" \
+            "existing Standard Classic Salt Installation detected, "\
+            "Salt version: '${found_salt_ver}'"
+            CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
+            _retn_status=${STATUS_CODES_ARY[externalInstall]}
+    else
+        _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
+
+        install_onedir_chk=$(_check_onedir_minion_install)
+        if [[ ${install_onedir_chk} -eq 2 ]]; then
+            POST_3005_FLAG=1    # ensure note 3006 and above
+        fi
+
+        if [[ ${install_onedir_chk} -eq 0 ]]; then
+            # not installed
+            CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
+            _retn_status=${STATUS_CODES_ARY[notInstalled]}
+        elif [[ ${install_onedir_chk} -ne 0 ]]; then
+            # installed, check running
+            systemctl restart salt-minion || {
+                _warning_log "$0:${FUNCNAME[0]} restarting existing Salt "\
+                    "functionality salt-minion encountered difficulties "\
+                    "using systemctl, retcode '$?'";
+                systemctl_issue=1;
+            }
+            if [[ "${systemctl_issue}" -eq 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
+                _retn_status=${STATUS_CODES_ARY[installed]}
+            else
+                CURRENT_STATUS=${STATUS_CODES_ARY[installed]}
+                _retn_status=${STATUS_CODES_ARY[installed]}
+                _error_log "$0:${FUNCNAME[0]} restarting existing Salt "\
+                    "functionality salt-minion encountered difficulties "\
+                    "using systemctl, run 'systemctl status salt-minion'"\
+                    "to resolve issue'";
+            fi
+        fi
+    fi
+    _debug_log "$0:${FUNCNAME[0]} DGM restart returning '${_retn_status}'"
+    return ${_retn_status}
+}
+
 
 
 #
@@ -1723,6 +1915,78 @@ _find_system_lib_path () {
 
 
 #
+# _reconfig_fn
+#
+# Executes scripts to stop the salt-minion, if active
+# Re-read the configuration
+# Restart the salt-minion, if it had been active
+#
+# Results:
+#   Exits with 0 or error code
+#
+_reconfig_fn () {
+    local _retn=0
+    local minion_was_active=""
+
+    _info_log "$0:${FUNCNAME[0]} processing script install"
+
+    _check_multiple_script_running
+
+    found_salt_ver=$(_check_classic_minion_install)
+    if [[ -n "${found_salt_ver}" ]]; then
+        _warning_log "$0:${FUNCNAME[0]} failed to install, "\
+            "existing Standard Classic Salt Installation detected, "\
+            "Salt version: '${found_salt_ver}'"
+        CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
+        exit ${STATUS_CODES_ARY[externalInstall]}
+    else
+        _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
+    fi
+
+    minion_was_active=$(systemctl is-active salt-minion) || {
+        _error_log "$0:${FUNCNAME[0]} checking running existing salt-minion "\
+            "encountered difficulties using systemctl, retcode '$?'";
+        }
+
+    # get configuration for salt-minion
+    _fetch_vmtools_salt_minion_conf "$@" || {
+        _error_log "$0:${FUNCNAME[0]} failed, read configuration for "\
+            "salt-minion, retcode '$?'";
+    }
+
+    # ensure minion id or fqdn for salt-minion
+    _ensure_id_or_fqdn
+
+    cd "${CURRDIR}" || return $?
+
+    # restart the salt-minion using systemd if it was active at the start
+    systemctl daemon-reload || {
+        _error_log "$0:${FUNCNAME[0]} reloading the systemd daemon "\
+            "failed , retcode '$?'";
+    }
+    _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl "\
+        "daemon-reload"
+    if [[ "${minion_was_active}" = "active" ]]; then
+        local name_service="salt-minion.service"
+        systemctl restart "${name_service}" || {
+            _error_log "$0:${FUNCNAME[0]} restarting the salt-minion using "\
+                "systemctl failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl "\
+            "restart '${name_service}'"
+        systemctl enable "${name_service}" || {
+            _error_log "$0:${FUNCNAME[0]} enabling the salt-minion using "\
+                "systemctl failed , retcode '$?'";
+        }
+        _debug_log "$0:${FUNCNAME[0]} successfully executed systemctl "\
+            "enable '${name_service}'"
+    fi
+    return ${_retn}
+}
+
+
+
+#
 #  _install_fn
 #
 #   Executes scripts to install Salt from Salt repository
@@ -1746,12 +2010,12 @@ _install_fn () {
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
         _warning_log "$0:${FUNCNAME[0]} failed to install, "\
-            "existing Standard Salt Installation detected, "\
+            "existing Standard Classic Salt Installation detected, "\
             "Salt version: '${found_salt_ver}'"
         CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
         exit ${STATUS_CODES_ARY[externalInstall]}
     else
-        _debug_log "$0:${FUNCNAME[0]} no standardized install found"
+        _debug_log "$0:${FUNCNAME[0]} no standardized Classic install found"
     fi
 
     # check if salt-minion or salt-master (salt-cloud etc req master)
@@ -2140,12 +2404,12 @@ _uninstall_fn () {
     found_salt_ver=$(_check_classic_minion_install)
     if [[ -n "${found_salt_ver}" ]]; then
         _warning_log "$0:${FUNCNAME[0]} failed to install, "\
-            "existing Standard Salt Installation detected, "\
+            "existing Standard Classic Salt Installation detected, "\
             "Salt version: '${found_salt_ver}'"
         CURRENT_STATUS=${STATUS_CODES_ARY[externalInstall]}
         exit ${STATUS_CODES_ARY[externalInstall]}
     else
-        _debug_log "$0:${FUNCNAME[0]} no standardized install found"
+        _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
     fi
 
     install_onedir_chk=$(_check_onedir_minion_install)
@@ -2348,6 +2612,19 @@ while true; do
             shift;
             MINION_VERSION_PARAMS="$*";
             ;;
+        -n | --reconfig )
+            RECONFIG_FLAG=1;
+            shift;
+            RECONFIG_PARAMS="$*";
+            ;;
+        -q | --stop )
+            STOP_FLAG=1;
+            shift;
+            ;;
+        -p | --start )
+            RESTART_FLAG=1;
+            shift;
+            ;;
         -r | --remove )
             UNINSTALL_FLAG=1;
             shift;
@@ -2435,6 +2712,24 @@ if [[ ${VERSION_FLAG} -eq 1 ]]; then
     echo "${SCRIPT_VERSION}"
     retn=0
 fi
+if [[ ${RECONFIG_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
+    LOG_ACTION="reconfig"
+    _reconfig_fn "${RECONFIG_PARAMS}"
+    retn=$?
+fi
+if [[ ${STOP_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
+    LOG_ACTION="default"
+    _stop_fn
+    retn=$?
+fi
+if [[ ${RESTART_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
+    LOG_ACTION="default"
+    _restart_fn
+    retn=$?
+fi
 
 if [[ ${CLI_ACTION} -eq 0 ]]; then
     # check if guest variables have an action since none from CLI
@@ -2467,6 +2762,7 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
                 _status_fn
                 retn=$?
                 ;;
+            ## TBD DGM what will VM TOOLS do for reconfig, stop and start ???
             *)
                 ;;
         esac

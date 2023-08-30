@@ -202,7 +202,6 @@ test-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
     - sudo -u root ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
-    - sudo -u root ./svtminion.sh --status && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; exit 1; }
     - sudo -u root ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - sudo -u root ./svtminion.sh --clear
@@ -316,6 +315,30 @@ test-salt-vmtools-linux:
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test stop and start
+    - sudo -u root ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://staging.repo.saltproject.io/salt/py3/onedir
+    - sudo -u root ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - sudo -u root ps -ef | grep salt
+    - systemctl is-active salt-minion
+    - sudo -u root ./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 107 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
+    - sudo -u root ps -ef | grep salt
+    - systemctl is-active salt-minion || { echo "test correct"; }
+    - sudo -u root ps -ef | grep salt
+    - sudo -u root ./svtminion.sh --start --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be running, returned '${_retn}'"; exit 1; fi; }
+    - sudo -u root ps -ef | grep salt
+    - systemctl is-active salt-minion || { echo "test failed, salt-minion should be running"; exit 1; }
+    # test reconfig
+    - cat /etc/salt/minion
+    - sudo -u root ./svtminion.sh --reconfig master=192.168.0.7 --loglevel debug
+    - sleep 3
+    - sudo -u root ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be running, returned '${_retn}'"; exit 1; fi; }
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.7' 1>/dev/null
+    - sudo -u root ps -ef | grep salt
+    - systemctl is-active salt-minion
     # test source installs without repo.json
     - cd ${oldpwd}/tests/testarea
     - mv repo.json repo.json_hold
@@ -451,7 +474,6 @@ test-tags-salt-vmtools-linux:
     - sudo -u root /usr/bin/salt-call --local grains.items
     - sudo -u root /usr/bin/salt-call --local cmd.run "ls -al /"
     - sudo -u root ./svtminion.sh --status || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
-    - sudo -u root ./svtminion.sh --status && { echo "test failed- expecting 100 exit code, salt-minion should be installed"; exit 1; }
     - sudo -u root ./svtminion.sh --clear myminion
     - cat /etc/salt/minion | grep 'id:\ myminion' 1>/dev/null
     - sudo -u root ./svtminion.sh --clear
@@ -565,6 +587,21 @@ test-tags-salt-vmtools-linux:
     - cat /etc/salt/minion
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+    # test start, stop, reconfig
+    - sudo -u root ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://staging.repo.saltproject.io/salt/py3/onedir
+    - sudo -u root ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
+    - sleep 1
+    - cat /etc/salt/minion
+    - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    - sudo -u root ps -ef | grep salt
+    - sudo -u root systemctl is-active salt-minion
+    - sudo -u root ./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 107 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
+    - sudo -u root ps -ef | grep salt
+    - systemctl is-active salt-minion || { echo "test correct"; }
+    - sudo -u root ps -ef | grep salt
+    - sudo -u root ./svtminion.sh --start --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be running, returned '${_retn}'"; exit 1; fi; }
+    - sudo -u root ps -ef | grep salt
+    - systemctl is-active salt-minion || { echo "test failed, salt-minion should be running"; exit 1; }
     # test source installs without repo.json
     - cd ${oldpwd}/tests/testarea
     - mv repo.json repo.json_hold
