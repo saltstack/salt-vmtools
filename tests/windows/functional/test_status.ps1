@@ -55,9 +55,21 @@ function test_Get-Status_installing
     Set-ItemProperty -Path $vmtools_base_reg `
                      -Name $vmtools_salt_minion_status_name `
                      -Value $reg_value
-    Start-Process powershell -ArgumentList "-file .\svtminion.ps1 -d"
+    function Get-ScriptRunningStatus { return $true }
     $result = Get-Status
     if ($result -eq $STATUS_CODES["installing"]) { return 0 }
+    return 1
+}
+
+function test_Get-Status_installing_failed
+{
+    $reg_value = $STATUS_CODES["installing"]
+    Set-ItemProperty -Path $vmtools_base_reg `
+                     -Name $vmtools_salt_minion_status_name `
+                     -Value $reg_value
+    function Get-ScriptRunningStatus { return $false }
+    $result = Get-Status
+    if ($result -eq $STATUS_CODES["installFailed"]) { return 0 }
     return 1
 }
 
@@ -76,9 +88,20 @@ function test_Get-Status_removing {
     Set-ItemProperty -Path $vmtools_base_reg `
                      -Name $vmtools_salt_minion_status_name `
                      -Value $reg_value
-    Start-Process powershell -ArgumentList "-file .\svtminion.ps1 -d"
+    function Get-ScriptRunningStatus { return $true }
     $result = Get-Status
     if ($result -eq $STATUS_CODES["removing"]) { return 0 }
+    return 1
+}
+
+function test_Get-Status_removing_failed {
+    $reg_value = $STATUS_CODES["removing"]
+    Set-ItemProperty -Path $vmtools_base_reg `
+                     -Name $vmtools_salt_minion_status_name `
+                     -Value $reg_value
+    function Get-ScriptRunningStatus { return $false }
+    $result = Get-Status
+    if ($result -eq $STATUS_CODES["removeFailed"]) { return 0 }
     return 1
 }
 
