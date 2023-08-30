@@ -205,6 +205,7 @@ pre-requisites:
 
         usage: ./svtminion.sh  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]
                      [-j|--source] [-l|--loglevel] [-m|--minionversion]
+                     [-n|--reconfig] [-q|--stop] [-p|--start]
                      [-r|--remove] [-s|--status] [-v|--version]
 
           -c, --clear     clear previous minion identifer and keys,
@@ -225,6 +226,9 @@ pre-requisites:
           -l, --loglevel  set log level for logging, silent error warning debug info
                              default loglevel is warning
           -m, --minionversion salt-minion version to install, default[latest]
+          -n, --reconfig    salt-minion restarts after re-reading updated configuration
+          -q, --stop      stop salt-minion
+          -p, --start     start salt-minion (effectively restart salt-minion)
           -r, --remove    deactivate and remove the salt-minion
           -s, --status    return status for this script
           -v, --version   version of this script
@@ -285,7 +289,7 @@ or `Get-Help svtminion.ps1`:
         If the Status option is passed, then the exit code will signal the status of the
         Salt minion installation. Status exit codes are as follows:
 
-        100 - installed
+        100 - installed (and running)
         101 - installing
         102 - notInstalled
         103 - installFailed
@@ -373,8 +377,7 @@ or `Get-Help svtminion.ps1`:
         -Status [<SwitchParameter>]
             Gets the status of the Salt minion installation. This command returns an
             exit code that corresponds to one of the following:
-
-            100 - installed
+            100 - installed (and running)
             101 - installing
             102 - notInstalled
             103 - installFailed
