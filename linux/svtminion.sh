@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2021-2023 VMware, Inc.
+# Copyright 2021-2024 Broadcom Inc.
 # SPDX-License-Identifier: Apache-2
 
 ## Salt VMware Tools Integration script
@@ -61,6 +61,7 @@ ${list_files_systemd_to_remove}
 "
 ## /var/log/vmware-${SCRIPTNAME}-*
 
+# some docker containers don't include 'find' - RHEL 8 equivalents
 readonly salt_dep_file_list="systemctl
 curl
 sha512sum
@@ -70,6 +71,7 @@ awk
 sed
 cut
 wget
+find
 "
 
 readonly allowed_log_file_action_names="status
@@ -191,6 +193,7 @@ RECONFIG_PARAMS=""
 
 STOP_FLAG=0
 RESTART_FLAG=0
+UPGRADE_FLAG=0
 
 LOG_LEVEL_FLAG=0
 LOG_LEVEL_PARAMS=""
@@ -278,7 +281,8 @@ esac
      echo "             [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]"
      echo "             [-j|--source] [-l|--loglevel] [-m|--minionversion]"
      echo "             [-n|--reconfig] [-q|--stop] [-p|--start]"
-     echo "             [-r|--remove] [-s|--status] [-v|--version]"
+     echo "             [-r|--remove] [-s|--status] [-u|--upgrade]"
+     echo "             [-v|--version]"
      echo ""
      echo "  -c, --clear     clear previous minion identifier and keys,"
      echo "                     and set specified identifier if present"
@@ -305,6 +309,7 @@ esac
      echo "  -r, --remove    deactivate and remove the salt-minion"
      echo "  -s, --status    return status for this script"
      echo "  -v, --version   version of this script"
+     echo "  -u, --upgrade   upgrade when installing, used with --install"
      echo ""
      echo "  salt-minion VMTools integration script"
      echo "      example: $0 --status"
@@ -778,7 +783,7 @@ _fetch_vmtools_salt_minion_conf() {
                     "configuration parameters for master public signed key"
                 echo "${m_cfg_keys[${chk_idx}]}: True" \
                     >> "${salt_minion_conf_file}"
-                mkdir -p "/etc/salt/pki/minion"
+                mkdir -p "${salt_conf_dir}/pki/minion"
                 cp -f "${m_cfg_values[${chk_idx}]}" \
                     "${salt_master_sign_dir}/"
             else
@@ -1649,8 +1654,6 @@ _status_fn() {
             if [[ -z ${svpid} ]]; then
                 # Note: someone could have stopped the salt-minion,
                 # so installed but not running,
-                ## TBD DGM with additon of stop/start, can be installed and not running
-                ##  hence doesn't imply removeFailed, need to check elsewhere in code this assumption is made
                 CURRENT_STATUS=${STATUS_CODES_ARY[installedStopped]}
                 _retn_status=${STATUS_CODES_ARY[installedStopped]}
             else
@@ -1659,9 +1662,8 @@ _status_fn() {
                 _retn_status=${STATUS_CODES_ARY[installed]}
             fi
         elif [[ -z ${svpid} ]]; then
-            # check no process id and main directory still left, =>installedStopped
-            ## TBD DGM with additon of stop/start, can be installed and not running
-            ##  hence doesn't imply removeFailed, need to check elsewhere in code this assumption is made
+            # check no process id and
+            # main directory still left, =>installedStopped
             if [[ ${install_onedir_chk} -ne 0 ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installedStopped]}
                 _retn_status=${STATUS_CODES_ARY[installedStopped]}
@@ -2026,9 +2028,17 @@ _install_fn () {
         do
             local salt_fn=""
             salt_fn="$(basename "${idx}")"
-            _warning_log "$0:${FUNCNAME[0]} existing Salt functionality "\
-                "${salt_fn} shall be stopped and replaced when new "\
-                "salt-minion is installed"
+            if [ "${UPGRADE_FLAG}" -eq 0 ]; then
+                # performing a clean install
+                _warning_log "$0:${FUNCNAME[0]} existing Salt functionality "\
+                    "${salt_fn} shall be stopped and replaced when new "\
+                    "salt-minion is installed"
+            else
+                # performing an upgrade, note in logs
+                _warning_log "$0:${FUNCNAME[0]} existing Salt functionality "\
+                    "${salt_fn} shall be stopped and upgraded when new "\
+                    "salt-minion is installed"
+            fi
         done
     fi
 
@@ -2039,10 +2049,17 @@ _install_fn () {
     }
 
     # get configuration for salt-minion
-    _fetch_vmtools_salt_minion_conf "$@" || {
-        _error_log "$0:${FUNCNAME[0]} failed, read configuration for "\
-            "salt-minion, retcode '$?'";
-    }
+    if [ "${UPGRADE_FLAG}" -eq 0 ]; then
+        # performing a clean install
+        _fetch_vmtools_salt_minion_conf "$@" || {
+            _error_log "$0:${FUNCNAME[0]} failed, read configuration for "\
+                "salt-minion, retcode '$?'";
+        }
+    else
+        # performing an upgrade, note in logs, and leave config alone
+        _debug_log "$0:${FUNCNAME[0]} performing upgrade, using existing "\
+            "read configuration for salt-minion";
+    fi
 
     if [[ ${_retn} -eq 0 && -f "${onedir_pre_3006_location}" ]]; then
         # create helper scripts for /usr/bin to ensure they are present
@@ -2265,7 +2282,7 @@ _generate_minion_id () {
 #   re-generates new identifier, allows for a VM containing a salt-minion,
 #   to be cloned and not have conflicting id and keys
 #   salt-minion is stopped, id and keys cleared, and restarted
-#   if it was previously running
+#   if it was previously running, and not an upgrade
 #
 # Input:
 #   Optional specified input ID to be used, default generate randomized value
@@ -2321,24 +2338,33 @@ _clear_id_key_fn () {
         salt_minion_pre_active_flag=1
     fi
 
-    rm -fR "${salt_conf_dir}/minion_id"
-    rm -fR "${salt_conf_dir}/pki/${salt_minion_conf_name}"
-    # always comment out what was there
-    sed -i 's/^id/# id/g' "${salt_minion_conf_file}"
-    _debug_log "$0:${FUNCNAME[0]} removed '${salt_conf_dir}/minion_id' "\
-        "and '${salt_conf_dir}/pki/${salt_minion_conf_name}', and "\
-        "commented out id in '${salt_minion_conf_file}'"
+    if [ "${UPGRADE_FLAG}" -eq 0 ]; then
+        # perform a clean install and generate new keys and minion id
+        rm -fR "${salt_conf_dir}/minion_id"
+        rm -fR "${salt_conf_dir}/pki/${salt_minion_conf_name}"
+        # always comment out what was there
+        sed -i 's/^id/# id/g' "${salt_minion_conf_file}"
+        _debug_log "$0:${FUNCNAME[0]} removed '${salt_conf_dir}/minion_id' "\
+            "and '${salt_conf_dir}/pki/${salt_minion_conf_name}', and "\
+            "commented out id in '${salt_minion_conf_file}'"
 
-    if [[ -z "${minion_ip_id}" ]] ;then
-        minion_id=$(_generate_minion_id)
+        if [[ -z "${minion_ip_id}" ]] ;then
+            minion_id=$(_generate_minion_id)
+        else
+            minion_id="${minion_ip_id}"
+        fi
+
+        # add new minion id to bottom of minion configuration file
+        echo "id: ${minion_id}" >> "${salt_minion_conf_file}"
+        _debug_log "$0:${FUNCNAME[0]} updated salt-minion identifier "\
+            "'${minion_id}' in configuration file '${salt_minion_conf_file}'"
     else
+        # performing an upgrade, log info
         minion_id="${minion_ip_id}"
+        _debug_log "$0:${FUNCNAME[0]} maintaining salt-minion identifier "\
+            "'${minion_id}' and keys in configuration file "\
+            "'${salt_minion_conf_file}' since performing upgrade"
     fi
-
-    # add new minion id to bottom of minion configuration file
-    echo "id: ${minion_id}" >> "${salt_minion_conf_file}"
-    _debug_log "$0:${FUNCNAME[0]} updated salt-minion identifier "\
-        "'${minion_id}' in configuration file '${salt_minion_conf_file}'"
 
     if [[ ${salt_minion_pre_active_flag} -eq 1 ]]; then
         # restart the stopped salt-minion using systemd
@@ -2360,11 +2386,15 @@ _clear_id_key_fn () {
 #
 #   Removes all Salt files and directories that may be used
 #
+# Note:
+#   funciton only call when performing an uninstall
+#
 # Results:
 #   Exits with 0 or error code
 #
 
 _remove_installed_files_dirs() {
+    # performing an uninstall
     _debug_log "$0:${FUNCNAME[0]} removing directories and files "\
         "in '${list_file_dirs_to_remove}'"
     for idx in ${list_file_dirs_to_remove}
@@ -2637,6 +2667,11 @@ while true; do
             VERSION_FLAG=1;
             shift;
             ;;
+        -u | --upgrade )
+            UPGRADE_FLAG=1;
+            shift;
+            ;;
+
         -- )
             shift;
             break;
@@ -2687,6 +2722,11 @@ if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
     # ensure this is processed before install
     _set_install_minion_version_fn "${MINION_VERSION_PARAMS}"
+    retn=$?
+fi
+if [[ ${UPGRADE_FLAG} -eq 1 ]]; then
+    CLI_ACTION=1
+    # ensure this is processed before install
     retn=$?
 fi
 if [[ ${INSTALL_FLAG} -eq 1 ]]; then
@@ -2762,7 +2802,7 @@ if [[ ${CLI_ACTION} -eq 0 ]]; then
                 _status_fn
                 retn=$?
                 ;;
-            ## TBD DGM what will VM TOOLS do for reconfig, stop and start ???
+            # TBD what will VM TOOLS do for reconfig, upgrade, stop and start ?
             *)
                 ;;
         esac
