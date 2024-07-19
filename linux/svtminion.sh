@@ -1760,7 +1760,7 @@ _stop_fn() {
         fi
     fi
 
-    _debug_log "$0:${FUNCNAME[0]} DGM stop returning '${_retn_status}'"
+    _debug_log "$0:${FUNCNAME[0]} stop returning '${_retn_status}'"
     return ${_retn_status}
 }
 
@@ -1839,7 +1839,7 @@ _restart_fn() {
             fi
         fi
     fi
-    _debug_log "$0:${FUNCNAME[0]} DGM restart returning '${_retn_status}'"
+    _debug_log "$0:${FUNCNAME[0]} restart returning '${_retn_status}'"
     return ${_retn_status}
 }
 
