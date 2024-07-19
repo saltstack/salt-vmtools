@@ -198,6 +198,7 @@ pre-requisites:
 - sed
 - cut
 - wget
+- find
 
 `svtminion.sh --help` shows the command line options
 
@@ -206,7 +207,8 @@ pre-requisites:
         usage: ./svtminion.sh  [-c|--clear] [-d|--depend] [-h|--help] [-i|--install]
                      [-j|--source] [-l|--loglevel] [-m|--minionversion]
                      [-n|--reconfig] [-q|--stop] [-p|--start]
-                     [-r|--remove] [-s|--status] [-v|--version]
+                     [-r|--remove] [-s|--status] [-u|--upgrade]
+                     [-v|--version]
 
           -c, --clear     clear previous minion identifer and keys,
                              and set specified identifer if present
@@ -231,6 +233,7 @@ pre-requisites:
           -p, --start     start salt-minion (effectively restart salt-minion)
           -r, --remove    deactivate and remove the salt-minion
           -s, --status    return status for this script
+          -u, --upgrade   upgrade when installing, used with --install
           -v, --version   version of this script
 
           salt-minion vmtools integration script
