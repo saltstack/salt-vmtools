@@ -254,7 +254,7 @@ or `Get-Help svtminion.ps1`:
         VMware Tools script for managing the Salt minion on a Windows guest
 
     SYNTAX
-        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [-Source <String>] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
+        .\svtminion.ps1 [-Install] [-MinionVersion <String>] [-Source <String>] [-Upgrade] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Reconfig] [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
         .\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
@@ -314,6 +314,17 @@ or `Get-Help svtminion.ps1`:
             Exits with scriptSuccess exit code (0) under the following conditions:
             - Installed successfully
             - Already installed
+
+        -Upgrade [<SwitchParameter>]
+            Perform an upgrade. If there is an existing installation, Salt will be
+            upgraded in place with no modifications to the minion config. Guest vars
+            and cli values will be ignored. Use this option to roll back and forth
+            between versions of Salt.
+
+            Pass this parameter with the Install parameter to upgrade to the specified
+            version. If not passed, and there is an existing version, the script will
+            exit with a scriptSuccess code (0) and a message stating that the minion
+            is already installed.
 
         -MinionVersion <String>
             The version of Salt minion to install. The word "latest" will install the
@@ -442,15 +453,18 @@ or `Get-Help svtminion.ps1`:
         PS>svtminion.ps1 -Install -Source https://my.domain.com/vmtools/salt
 
         -------------------------- EXAMPLE 2 --------------------------
-        PS>svtminion.ps1 -Clear
+        PS>svtminion.ps1 -Install -MinionVersion 3006.8 -Upgrade
 
         -------------------------- EXAMPLE 3 --------------------------
-        PS>svtminion.ps1 -Status
+        PS>svtminion.ps1 -Clear
 
         -------------------------- EXAMPLE 4 --------------------------
-        PS>svtminion.ps1 -Depend
+        PS>svtminion.ps1 -Status
 
         -------------------------- EXAMPLE 5 --------------------------
+        PS>svtminion.ps1 -Depend
+
+        -------------------------- EXAMPLE 6 --------------------------
         PS>svtminion.ps1 -Remove -LogLevel debug
 
     REMARKS

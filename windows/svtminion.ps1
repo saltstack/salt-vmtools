@@ -1,4 +1,4 @@
-# Copyright 2021-2023 VMware, Inc.
+# Copyright 2021-2024 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
 <#
@@ -33,7 +33,7 @@ are as follows:
 If the Status option is passed, then the exit code will signal the status of the
 Salt minion installation. Status exit codes are as follows:
 
-100 - installed
+100 - installed (and running)
 101 - installing
 102 - notInstalled
 103 - installFailed
@@ -46,8 +46,11 @@ NOTE: This script must be run with Administrator privileges
 
 .EXAMPLE
 PS>svtminion.ps1 -Install
-PS>svtminion.ps1 -Install -MinionVersion 3004-1 master=192.168.10.10 id=dev_box
+PS>svtminion.ps1 -Install -MinionVersion 3006.2 master=192.168.10.10 id=dev_box
 PS>svtminion.ps1 -Install -Source https://my.domain.com/vmtools/salt
+
+.EXAMPLE
+PS>svtminion.ps1 -Install -MinionVersion 3006.8 -Upgrade
 
 .EXAMPLE
 PS>svtminion.ps1 -Clear
@@ -81,6 +84,19 @@ param(
     # - Installed successfully
     # - Already installed
     [Switch] $Install,
+
+    [Parameter(Mandatory=$false, ParameterSetName="Install")]
+    [Alias("u")]
+    # Perform an upgrade. If there is an existing installation, Salt will be
+    # upgraded in place with no modifications to the minion config. Guest vars
+    # and cli values will be ignored. Use this option to roll back and forth
+    # between versions of Salt.
+    #
+    # Pass this parameter with the Install parameter to upgrade to the specified
+    # version. If not passed, and there is an existing version, the script will
+    # exit with a scriptSuccess code (0) and a message stating that the minion
+    # is already installed.
+    [Switch] $Upgrade,
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
     [Alias("m")]
@@ -2184,7 +2200,7 @@ function Install-SaltMinion-Tiamat {
     & $ssm_bin install salt-minion "$salt_bin" `
                 "minion -c """"$salt_config_dir"""" -l quiet" *> $null
     $description = "Salt Minion from VMware Tools ($Version)"
-    & $ssm_bin set salt-minion Description $description
+    & $ssm_bin set salt-minion Description $description *> $null
 }
 
 
@@ -2203,7 +2219,7 @@ function Install-SaltMinion-Relenv {
     & $ssm_bin install salt-minion "$salt_minion_bin" `
                 "-c """"$salt_config_dir"""" -l quiet" *> $null
     $description = "Salt Minion from VMware Tools ($Version)"
-    & $ssm_bin set salt-minion Description $description
+    & $ssm_bin set salt-minion Description $description *> $null
 }
 
 
@@ -2349,9 +2365,14 @@ function Remove-SaltMinion {
     }
 
     # 3. Remove the files
-    # Do this in a for loop for logging
-    foreach ($item in $file_dirs_to_remove) {
-        Remove-FileOrFolder -Path $item
+    if ($Upgrade) {
+        # Just remove the program files on an upgrade
+        Remove-FileOrFolder -Path $base_salt_install_location
+    } else {
+        # Do this in a for loop for logging
+        foreach ($item in $file_dirs_to_remove) {
+            Remove-FileOrFolder -Path $item
+        }
     }
 
     # 4. Remove entry from the path
@@ -2368,7 +2389,11 @@ function Reset-SaltMinion {
 
     Write-Log "Resetting Salt minion" -Level info
 
+    # Remove the minion_id file
     Remove-FileOrFolder "$salt_config_file\minion_id"
+
+    # Remove the minion.d directory
+    Remove-FileOrFolder "$salt_config_dir\minion.d"
 
     # Comment out id: in the minion config
     $new_content = New-Object System.Collections.Generic.List[String]
@@ -2423,6 +2448,10 @@ function Install {
         exit $STATUS_CODES["scriptFailed"]
     }
 
+    # We need to remove the previous minion before we do anything else since
+    # this will remove the Program Files directory
+    Remove-SaltMinion
+
     $zip_file = "$base_salt_install_location\$($info.file_name)"
 
     # Download Salt from the Web
@@ -2431,11 +2460,17 @@ function Install {
     # Install the Salt Package
     Install-SaltMinion -Path $zip_file -Version $info.version
 
-    # New-SecureDirectory will handle reparse points and ownership issues
-    New-SecureDirectory -Path $base_salt_config_location
+    # If it is not an upgrade, add config
+    # If it is an upgrade but the path doesn't exist, add config
+    # Otherwise, don't touch the config
+    if ( (! $Upgrade) -or ( ! (Test-Path -Path $base_salt_config_location) ) ) {
 
-    # Generate and update the minion config
-    Add-MinionConfig
+        # New-SecureDirectory will handle reparse points and ownership issues
+        New-SecureDirectory -Path $base_salt_config_location
+
+        # Generate and update the minion config
+        Add-MinionConfig
+    }
 
     # Start the Minion Service
     Start-MinionService
@@ -2588,12 +2623,16 @@ function Main {
             # If status is "installed", "installing", or "removing", bail out
             switch ($current_status) {
                 $STATUS_CODES["installed"] {
-                    Write-Host "Already installed"
-                    return $STATUS_CODES["scriptSuccess"]
+                    if (! $Upgrade) {
+                        Write-Host "Already installed"
+                        return $STATUS_CODES["scriptSuccess"]
+                    }
                 }
                 $STATUS_CODES["installedStopped"] {
-                    Write-Host "Already installed, but stopped"
-                    return $STATUS_CODES["scriptSuccess"]
+                    if (! $Upgrade) {
+                        Write-Host "Already installed, but stopped"
+                        return $STATUS_CODES["scriptSuccess"]
+                    }
                 }
                 $STATUS_CODES["installing"] {
                     Write-Host "Installation in progress"

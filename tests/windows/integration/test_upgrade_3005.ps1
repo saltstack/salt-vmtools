@@ -7,8 +7,15 @@ function setUpScript {
     Reset-Environment *> $null
     Write-Done
 
-    $MinionVersion = "3005.1-4"
+    $MinionVersion = "3005.1-3"
     Write-Host "Installing salt ($MinionVersion): " -NoNewline
+    function Get-GuestVars { "master=existing_master id=existing_minion" }
+    Install *> $null
+    Write-Done
+
+    $MinionVersion = "3005.1-4"
+    $Upgrade = $true
+    Write-Host "Upgrading salt ($MinionVersion): " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     Install *> $null
     Write-Done
@@ -44,8 +51,7 @@ function test_ssm_binary_present {
     return 0
 }
 
-function test_bat_files_present {
-    # Is salt-call.bat present
+function test_batch_files_present {
     if (!(Test-Path "$salt_dir\salt-call.bat")) { return 1 }
     if (!(Test-Path "$salt_dir\salt-minion.bat")) { return 1 }
     return 0
@@ -76,8 +82,8 @@ function test_config_correct {
     $master_not_found = 1
     # Verify that the old minion id is commented out
     foreach ($line in Get-Content $salt_config_file) {
-        if ($line -match "^id: gv_minion$") { $minion_not_found = 0}
-        if ($line -match "^master: gv_master$") { $master_not_found = 0}
+        if ($line -match "^id: existing_minion$") { $minion_not_found = 0}
+        if ($line -match "^master: existing_master$") { $master_not_found = 0}
     }
     return $minion_not_found -bor $master_not_found
 }

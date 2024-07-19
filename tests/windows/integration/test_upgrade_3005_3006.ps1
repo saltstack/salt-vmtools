@@ -1,4 +1,4 @@
-# Copyright 2021-2023 VMware, Inc.
+# Copyright 2021-2024 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
 function setUpScript {
@@ -9,6 +9,13 @@ function setUpScript {
 
     $MinionVersion = "3005.1-4"
     Write-Host "Installing salt ($MinionVersion): " -NoNewline
+    function Get-GuestVars { "master=existing_master id=existing_minion" }
+    Install *> $null
+    Write-Done
+
+    $MinionVersion = "3006.1"
+    $Upgrade = $true
+    Write-Host "Upgrading salt ($MinionVersion): " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     Install *> $null
     Write-Done
@@ -32,22 +39,11 @@ function test_status_installed {
     return 0
 }
 
-function test_salt_binary_present {
-    # Is the salt binary present
-    if (!(Test-Path $salt_bin)) { return 1 }
-    return 0
-}
-
-function test_ssm_binary_present {
+function test_binaries_present{
     # Is the SSM Binary present
     if (!(Test-Path $ssm_bin)) { return 1 }
-    return 0
-}
-
-function test_bat_files_present {
-    # Is salt-call.bat present
-    if (!(Test-Path "$salt_dir\salt-call.bat")) { return 1 }
-    if (!(Test-Path "$salt_dir\salt-minion.bat")) { return 1 }
+    if (!(Test-Path "$salt_dir\salt-call.exe")) { return 1 }
+    if (!(Test-Path "$salt_dir\salt-minion.exe")) { return 1 }
     return 0
 }
 
@@ -76,8 +72,8 @@ function test_config_correct {
     $master_not_found = 1
     # Verify that the old minion id is commented out
     foreach ($line in Get-Content $salt_config_file) {
-        if ($line -match "^id: gv_minion$") { $minion_not_found = 0}
-        if ($line -match "^master: gv_master$") { $master_not_found = 0}
+        if ($line -match "^id: existing_minion$") { $minion_not_found = 0}
+        if ($line -match "^master: existing_master$") { $master_not_found = 0}
     }
     return $minion_not_found -bor $master_not_found
 }
