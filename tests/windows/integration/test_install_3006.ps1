@@ -3,121 +3,25 @@
 
 function setUpScript {
 
-    # Stop and remove the salt-minion service if it exists
-    $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
-    if ($service) {
-        Write-Host "Stopping the salt-minion service: " -NoNewline
-        Stop-Service -Name salt-minion
-        Write-Done
-        Write-Host "Removing the salt-minion service: " -NoNewline
-        $service = Get-WmiObject -Class Win32_Service -Filter "Name='salt-minion'"
-        $service.delete() *> $null
-        Write-Done
-    }
-
-    # Remove Program Data directory
-    if (Test-Path "$base_salt_config_location") {
-        Write-Host "Removing config directory: " -NoNewline
-        Remove-Item "$base_salt_config_location" -Force -Recurse
-        Write-Done
-    }
-
-    # Remove Program Files directory
-    if (Test-Path "$base_salt_install_location") {
-        Write-Host "Removing install directory: " -NoNewline
-        Remove-Item "$base_salt_install_location" -Force -Recurse
-        Write-Done
-    }
-
-    # Removing from the path
-
-    $path = "$salt_dir"
-    $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
-    $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
-    $new_path_list = [System.Collections.ArrayList]::new()
-    $removed = 0
-    foreach ($item in $current_path.Split(";")) {
-        $regex_path = $path.Replace("\", "\\")
-        # Bail if we find the new path in the current path
-        if ($item -imatch "^$regex_path(\\)?$") {
-            # Remove this one
-            Write-Host "Removing salt from the system path: " -NoNewline
-            $removed = 1
-        } else {
-            # Add the item to our new path array
-            $new_path_list.Add($item) | Out-Null
-        }
-    }
-    if ($removed) {
-        $new_path = $new_path_list -join ";"
-        Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
-        Write-Done
-    }
+    Write-Host "Resetting environment: " -NoNewline
+    Reset-Environment *> $null
+    Write-Done
 
     $MinionVersion = "3006.0"
     Write-Host "Installing salt ($MinionVersion): " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
-    Install
+    Install *> $null
     Write-Done
 
 }
 
 function tearDownScript {
-
-    # Stop and remove the salt-minion service if it exists
-    $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
-    if ($service) {
-        Write-Host "Stopping the salt-minion service: " -NoNewline
-        Stop-Service -Name salt-minion
-        Write-Done
-        Write-Host "Removing the salt-minion service: " -NoNewline
-        $service = Get-WmiObject -Class Win32_Service -Filter "Name='salt-minion'"
-        $service.delete() *> $null
-        Write-Done
-    }
-
-    # Remove Program Data directory
-    if (Test-Path "$base_salt_config_location") {
-        Write-Host "Removing config directory: " -NoNewline
-        Remove-Item "$base_salt_config_location" -Force -Recurse
-        Write-Done
-    }
-
-    # Remove Program Files directory
-    if (Test-Path "$base_salt_install_location") {
-        Write-Host "Removing install directory: " -NoNewline
-        Remove-Item "$base_salt_install_location" -Force -Recurse
-        Write-Done
-    }
-
-    # Removing from the path
-
-    $path = "$salt_dir"
-    $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
-    $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
-    $new_path_list = [System.Collections.ArrayList]::new()
-    $removed = 0
-    foreach ($item in $current_path.Split(";")) {
-        $regex_path = $path.Replace("\", "\\")
-        # Bail if we find the new path in the current path
-        if ($item -imatch "^$regex_path(\\)?$") {
-            # Remove this one
-            Write-Host "Removing salt from the system path: " -NoNewline
-            $removed = 1
-        } else {
-            # Add the item to our new path array
-            $new_path_list.Add($item) | Out-Null
-        }
-    }
-    if ($removed) {
-        $new_path = $new_path_list -join ";"
-        Set-ItemProperty -Path $path_reg_key -Name Path -Value $new_path
-        Write-Done
-    }
-
+    Write-Host "Resetting environment: " -NoNewline
+    Reset-Environment *> $null
+    Write-Done
 }
 
-function test_Install_status_installed {
+function test_status_installed {
     # Is the status set to installed
     try {
         $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
@@ -128,52 +32,51 @@ function test_Install_status_installed {
     return 0
 }
 
-function test_Install_ssm_binary_present {
+function test_ssm_binary_present {
     # Is the SSM Binary present
     if (!(Test-Path $ssm_bin)) { return 1 }
     return 0
 }
 
-function test_Install_salt-call_bin_present {
+function test_binaries_present {
     # Is salt-call.bat present
     if (!(Test-Path "$salt_dir\salt-call.exe")) { return 1 }
-    return 0
-}
-
-function test_Install_salt-minion_bin_present {
-    # Is salt-minion.bat present
     if (!(Test-Path "$salt_dir\salt-minion.exe")) { return 1 }
     return 0
 }
 
-function test_Install_salt-minion_service_installed {
+function test_service_installed {
     # Is the salt-minion service registerd
     $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
     if (!($service)) { return 1 }
     return 0
 }
 
-function test_Install_salt-minion_service_running {
+function test_service_running {
     # Is the salt minion service running
     if ((Get-Service -Name salt-minion).Status -ne "Running") { return 1 }
     return 0
 }
 
-function test_Install_salt-minion_config_present {
+function test_config_present {
     # Is the minion config file present
     if (!(Test-Path $salt_config_file)) { return 1 }
     return 0
 }
 
-function test_Install_minion_id_in_config {
+function test_config_correct {
+    # We have to do it this way so -bor will return 0 when both are 0
+    $minion_not_found = 1
+    $master_not_found = 1
     # Verify that the old minion id is commented out
     foreach ($line in Get-Content $salt_config_file) {
-        if ($line -match "^id: gv_minion$") { return 0 }
+        if ($line -match "^id: gv_minion$") { $minion_not_found = 0}
+        if ($line -match "^master: gv_master$") { $master_not_found = 0}
     }
-    return 1
+    return $minion_not_found -bor $master_not_found
 }
 
-function test_Install_salt_added_to_path {
+function test_salt_added_to_path {
     # Has salt been added to the system path
     $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
     $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
@@ -181,7 +84,7 @@ function test_Install_salt_added_to_path {
     return 0
 }
 
-function test_Install_salt-call {
+function test_salt_call {
     $failed = 0
     $result = & "$salt_dir\salt-call" --local test.ping
     if (!($result -like "local:*")) { $failed = 1 }

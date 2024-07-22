@@ -22,7 +22,6 @@ PS>powershell -file .\tests\windows\runtests.ps1
 PS>powershell -file .\tests\windows\runtests.ps1 -Integration
 
 .EXAMPLE
-PS>powershell -file .\tests\windows\runtests.ps1 -Man
 PS>powershell -file .\tests\windows\runtests.ps1 -h
 
 .EXAMPLE
