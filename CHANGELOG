@@ -33,3 +33,10 @@
 
 - Added support for salt user and group on Linux for Salt 3006 and later
 - Create expected directories on Windows and fix mis-spelling on Windows
+
+# Release 1.7
+
+## What's Changed
+
+- Added support to stop, start, reconfig and upgrade and installed salt-minion
+- Updated tests to exercise stop, start, reconfig and upgrade functionality
