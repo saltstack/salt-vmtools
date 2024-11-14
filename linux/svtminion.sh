@@ -71,7 +71,7 @@ ${list_files_systemd_to_remove}
 # some docker containers don't include 'find' - RHEL 8 equivalents
 readonly salt_dep_file_list="systemctl
 curl
-sha512sum
+sha256sum
 vmtoolsd
 grep
 awk
@@ -1073,18 +1073,15 @@ _fetch_salt_minion() {
     local local_base_url=""
     local local_file_flag=0
 
-    ## local salt_tarball=""
-    ## local salt_tarball_SHA256=""
-
-    ## DGM local salt_pkg256=""
-    ## DGM local calc_sha256sum=1
+    local salt_pkg_sha256_found=0
+    local salt_pkg_shakey=0
+    local salt_pkg_sha256=""
+    local calc_sha256sum=1
 
     local install_onedir_chk=0
     local sys_arch=""
 
-    ## DGM local ver_chk=""
-    ## DGM local ver_chk_major=""
-    ## DGM local ver_chk_minor=""
+    local salt_pkg_metadata=0
 
     _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check "\
         "its validity"
@@ -1139,7 +1136,6 @@ _fetch_salt_minion() {
         _debug_log "$0:${FUNCNAME[0]} successfully copied tarball from "\
             "'${salt_url}' file '${salt_pkg_name}'"
     else
-        # DGM TBD to be replaced
         # assume use curl for local or remote URI
         # directory with onedir files and retrieve files from it
 
@@ -1169,31 +1165,40 @@ _fetch_salt_minion() {
             "'${salt_pkg_name}' failed to download, error '${_retn}'"
         fi
 
-        ## DGM TBD need to get sha256 if can, if not note, but move on
-        ## DGM wget -q -r -l1 -nd -np -A "${salt_name}*_SHA512" "${salt_url}"
-        ## DGM _retn=$?
-        ## DGM if [[ ${_retn} -ne 0 ]]; then
-        ## DGM     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-        ## DGM     _error_log "$0:${FUNCNAME[0]} downloaded file "\
-        ## DGM     "'${salt_tarball_SHA512}' failed to download, error '${_retn}'"
-        ## DGM fi
+        salt_pkg_metadata=$(curl "https://${_REPO_URL}/saltproject-generic/api/support/${salt_specific_version}/${salt_pkg_name}")
+        salt_pkg_sha=$(echo "${salt_pkg_metadata}" | grep -w "sha256" | sort | uniq)
+        if [[ -n "${salt_pkg_sha}" ]]; then
+            # have package metadata to process
+            salt_pkg_shakey=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $1}')
+            salt_pkg_sha256=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $2}')
 
-        _debug_log "$0:${FUNCNAME[0]} successfully downloaded tarball "\
-            "from '${salt_url}' into file '${salt_pkg_name}'"
-        ## DGM _debug_log "$0:${FUNCNAME[0]} successfully downloaded checksum "\
-        ## DGM     "from '${salt_url}' into file '${salt_chksum_file}'"
+            if [[ "${salt_pkg_shakey}" = "sha256" ]]; then
+                # Found sha256
+                salt_pkg_sha256_found=1
+                _debug_log "$0:${FUNCNAME[0]} successfully found sha256 information on file '${salt_pkg_name}'"
+            else
+                # sanity check for sha256 key not found
+                CURRENT_STATUS=${STATUS_CODES_ARY[dgm_info]}
+                _warning_log "$0:${FUNCNAME[0]} failed to find sha256 information for "\
+                "downloaded file '${salt_pkg_name}', error '${salt_pkg_sha256}'"
+            fi
+        fi
 
-        ## DGM calc_sha512sum=$(grep "${salt_pkg_name}" \
-        ## DGM     "${salt_chksum_file}" | sha512sum --check --status)
-        ## DGM if [[ ${calc_sha512sum} -ne 0 ]]; then
-        ## DGM     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-        ## DGM     _error_log "$0:${FUNCNAME[0]} downloaded file "\
-        ## DGM         "'${salt_pkg_name}' failed to match checksum in file "\
-        ## DGM         "'${salt_chksum_file}'"
-        ## DGM fi
+        if [[ ${salt_pkg_sha256_found} -eq 1 ]]; then
+            # Have sha256 information to check against
+            calc_sha256sum=$(sha256sum "${salt_pkg_name}" --quiet)
+            if [[ ${calc_sha256sum} -eq 0 ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[dgm_info]}
+                _warning_log "$0:${FUNCNAME[0]} failed to generate checksum for downloaded file '${salt_pkg_name}'"
+            elif [[ "${calc_sha256sum}" != "${salt_pkg_sha256}" ]]; then
+                CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
+                _error_log "$0:${FUNCNAME[0]} generated checksum '${calc_sha256sum}' for downloaded file '${salt_pkg_name}' does not match that retrieved from repository '${salt_pkg_sha256}'"
+            else
+                _debug_log "$0:${FUNCNAME[0]} downloaded file '${salt_pkg_name}' matched checksum retrieved from repository"
+            fi
+        fi
     fi
 
-    ## DGM _debug_log "$0:${FUNCNAME[0]} sha512sum match was successful"
     # need to setup salt user and group if not already existing
     _debug_log "$0:${FUNCNAME[0]} setup salt user and group if not "\
         "already existing"
