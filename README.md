@@ -251,28 +251,28 @@ guestVars data. You can get help for this script by running `svtminion.ps1 -h`
 or `Get-Help svtminion.ps1`:
 
     NAME
-        C:\src\salt-vm-tools\windows\svtminion.ps1
+        .\svtminion.ps1
 
     SYNOPSIS
         VMware Tools script for managing the Salt minion on a Windows guest.
 
     SYNTAX
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Install] [-Upgrade] [-MinionVersion <String>] [-Source <String>]
+        .\svtminion.ps1 [-Install] [-Upgrade] [-MinionVersion <String>] [-Source <String>]
         [[-ConfigOptions] <String[]>] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
 
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Reconfig] [[-ConfigOptions] <String[]>] [-LogLevel <String>]
+        .\svtminion.ps1 [-Reconfig] [[-ConfigOptions] <String[]>] [-LogLevel <String>]
         [-Stop] [-Start] [-Help] [-Version] [<CommonParameters>]
 
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
+        .\svtminion.ps1 [-Remove] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
         [<CommonParameters>]
 
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
+        .\svtminion.ps1 [-Clear] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
         [<CommonParameters>]
 
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Status] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
+        .\svtminion.ps1 [-Status] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
         [<CommonParameters>]
 
-        C:\src\salt-vm-tools\windows\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
+        .\svtminion.ps1 [-Depend] [-LogLevel <String>] [-Stop] [-Start] [-Help] [-Version]
         [<CommonParameters>]
 
     DESCRIPTION
@@ -501,6 +501,6 @@ or `Get-Help svtminion.ps1`:
         PS>svtminion.ps1 -Remove -LogLevel debug
 
     REMARKS
-        To see the examples, type: "get-help C:\src\salt-vm-tools\windows\svtminion.ps1 -examples".
-        For more information, type: "get-help C:\src\salt-vm-tools\windows\svtminion.ps1 -detailed".
-        For technical information, type: "get-help C:\src\salt-vm-tools\windows\svtminion.ps1 -full".
+        To see the examples, type: "get-help .\svtminion.ps1 -examples".
+        For more information, type: "get-help .\svtminion.ps1 -detailed".
+        For technical information, type: "get-help .\svtminion.ps1 -full".
