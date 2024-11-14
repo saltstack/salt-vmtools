@@ -7,9 +7,9 @@ VMware Tools script for managing the Salt minion on a Windows guest
 
 .DESCRIPTION
 This script manages the Salt minion on a Windows guest. The minion is a OneDir
-build hosted on https://repo.saltproject.io/salt/py3/onedir/. You can install
-the minion, remove it, check script dependencies, get the Salt minion
-installation status, and reset the Salt minion configuration.
+build hosted on https://packages.broadcom.com/artifactory/saltproject-generic/onedir.
+You can install the minion, remove it, check script dependencies, get the Salt
+minion installation status, and reset the Salt minion configuration.
 
 When this script is run without any parameters, the action is obtained from
 guestVars (if present). If no action is found, the script will exit with a
@@ -110,7 +110,7 @@ param(
     # repo.json file. This would contain a directory structure similar to that
     # found at the default location:
     #
-    # https://repo.saltproject.io/salt/py3/onedir
+    # https://packages.broadcom.com/artifactory/saltproject-generic/onedir
     #
     # The root of this directory preferably contains a file named `repo.json`
     # which contains the information about the installer versions available.
@@ -118,7 +118,7 @@ param(
     # requested version.
     #
     # This can handle most common protocols: http, https, ftp, unc, local
-    [String] $Source="https://repo.saltproject.io/salt/py3/onedir",
+    [String] $Source="https://packages.broadcom.com/artifactory/saltproject-generic/onedir",
 
     [Parameter(Mandatory=$false, ParameterSetName="Reconfig")]
     [Alias("n")]
@@ -350,20 +350,27 @@ $action_list = @(
 
 ################################# VARIABLES ####################################
 # Repository locations and names
-$salt_name = "salt"
-$base_url = $Source
-$default_source = "https://repo.saltproject.io/salt/py3/onedir"
-$pre_3006_source = "https://repo.saltproject.io/salt/vmware-tools-onedir"
+# An artifactory url will have "artifactory" in it
+$domain_name, $target_path = $Source -split "/artifactory/"
+# If $target_path is empty, this is an artifactory url
+if ( $target_path ) {
+    # Create $base_url and $api_url
+    $base_url = "$domain_name/artifactory/$target_path"
+    $api_url = "$domain_name/artifactory/api/storage/$target_path"
+} else {
+    # This is a non-artifactory url, there is no api
+    $base_url = $domain_name
+    $api_url = ""
+}
 
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
-$salt_dir = "$base_salt_install_location\$salt_name"
-$salt_bin = "$salt_dir\salt\salt.exe"  # Tiamat Builds
-$salt_minion_bin = "$salt_dir\salt-minion.exe"  # Relenv Builds
+$salt_dir = "$base_salt_install_location\Salt"
+$salt_minion_bin = "$salt_dir\salt-minion.exe"
 $ssm_bin = "$salt_dir\ssm.exe"
 
 $base_salt_config_location = "$env:ProgramData\Salt Project"
-$salt_root_dir = "$base_salt_config_location\$salt_name"
+$salt_root_dir = "$base_salt_config_location\Salt"
 $salt_config_dir = "$salt_root_dir\conf"
 $salt_config_name = "minion"
 $salt_config_file = "$salt_config_dir\$salt_config_name"
@@ -1728,37 +1735,6 @@ function Find-StandardSaltInstallation {
 }
 
 
-function Convert-PSObjectToHashtable {
-    param (
-        [Parameter(ValueFromPipeline)]
-        $InputObject
-    )
-    if ($null -eq $InputObject) { return $null }
-
-    $is_enum = $InputObject -is [System.Collections.IEnumerable]
-    $not_string = $InputObject -isnot [string]
-    if ($is_enum -and $not_string) {
-        $collection = @(
-            foreach ($object in $InputObject) {
-                Convert-PSObjectToHashtable $object
-            }
-        )
-
-        Write-Output -NoEnumerate $collection
-    } elseif ($InputObject -is [PSObject]) {
-        $hash = @{}
-
-        foreach ($property in $InputObject.PSObject.Properties) {
-            $hash[$property.Name] = Convert-PSObjectToHashtable $property.Value
-        }
-
-        $hash
-    } else {
-        $InputObject
-    }
-}
-
-
 function Get-MajorVersion {
     # Parses a version string and returns the major version
     #
@@ -1769,209 +1745,184 @@ function Get-MajorVersion {
         [Parameter(Mandatory=$true, Position=0)]
         [String] $Version
     )
-    if ( !($Version.Contains(".")) -and ($Version.ToLower() -ne "latest")) {
-        return $Version
-    }
-    try {
-        $parsed_version = [System.Version]::Parse($Version)
-        return $parsed_version.Major.ToString()
-    } catch {
-        # We might hit this if there is text in the minor version
-        $regex = [regex]"^(\d+)\.([\w\-]+)$"
-        $match = $regex.Match($Version)
-        if ( $match.Success ) {
-            return $match.Groups[1].Value
+    return ( $Version -split "\." )[0]
+}
+
+
+function Get-AvailableVersions {
+    # Get available versions from a remote location specified in the Source
+    # Parameter
+    Write-Log "Getting version information from Source" -Level debug
+    Write-Log "Source: $Source" -Level debug
+
+    $available_versions = [System.Collections.ArrayList]@()
+
+    if ( $Source.StartsWith("http") -or $Source.StartsWith("ftp") ) {
+        # We're dealing with HTTP, HTTPS, or FTP
+        $response = Invoke-WebRequest "$Source" -UseBasicParsing
+        try {
+            $response = Invoke-WebRequest "$Source" -UseBasicParsing
+        } catch {
+            Write-Log "Failed to get version information" -Level error
+            Set-FailedStatus
+            exit $STATUS_CODES["scriptFailed"]
         }
+
+        if ( $response.StatusCode -ne 200 ) {
+            Write-Log "There was an error getting version information" -Level error
+            Write-Log "Error: $($response.StatusCode)" -Level error
+            Set-FailedStatus
+            exit $STATUS_CODES["scriptFailed"]
+        }
+
+        $response.links | ForEach-Object {
+            if ( $_.href.Length -gt 8) {
+                Write-Log "The content at this location is unexpected" -Level error
+                Write-Log "Should be a list of directories where the" -Level error
+                Write-Log "name is a version of Salt" -Level error
+                Set-FailedStatus
+                exit $STATUS_CODES["scriptFailed"]
+            }
+        }
+
+        # Getting available versions from response
+        Write-Log "Getting available versions from response" -Level debug
+        $filtered = $response.Links | Where-Object -Property href -NE "../"
+        $filtered | Select-Object -Property href | ForEach-Object {
+            $available_versions.Add($_.href.Trim("/")) | Out-Null
+        }
+    } elseif ( $Source.StartsWith("\\") -or $Source -match "^[A-Za-z]:\\" ) {
+        # We're dealing with a local directory or SMB source
+        Get-ChildItem -Path $Source -Directory | ForEach-Object {
+            $available_versions.Add($_.Name) | Out-Null
+        }
+    } else {
+        Write-Log "Unknown Source Type" -Level error
+        $msg = "Must be one of HTTP, HTTPS, FTP, SMB Share, Local Directory"
+        Write-Log $msg -Level error
+        Set-FailedStatus
+        exit $STATUS_CODES["scriptFailed"]
     }
+
+    Write-Log "Available versions:" -Level debug
+    $available_versions | ForEach-Object {
+        Write-Log "- $_" -Level debug
+    }
+
+    # Get the latest version, should be the last in the list
+    Write-Log "Getting latest available version" -Level debug
+    $latest = $available_versions | Select-Object -Last 1
+    Write-Log "Latest available version: $latest" -Level debug
+
+    # Create a versions table
+    # This will have the latest version available, the latest version available
+    # for each major version, and every version available. This makes the
+    # version lookup logic easier. The contents of the versions table can be
+    # found in the log or by passing -LogLevel debug
+    Write-Log "Populating the versions table" -Level debug
+    $versions_table = [ordered]@{"latest"=$latest}
+    $available_versions | ForEach-Object {
+        $versions_table[$(Get-MajorVersion $_)] = $_
+        $versions_table[$_.ToLower()] = $_.ToLower()
+    }
+
+    Write-Log "Versions Table:" -Level debug
+    $versions_table | Sort-Object Name | Out-String | ForEach-Object {
+        Write-Log "$_" -Level debug
+    }
+
+    # Validate passed version
+    Write-Log "Looking up version: $MinionVersion" -Level debug
+    if ( $versions_table.Contains($MinionVersion.ToLower()) ) {
+        $MinionVersion = $versions_table[$MinionVersion.ToLower()]
+        Write-Log "Found version: $MinionVersion" -Level debug
+    } else {
+        Write-Log "Version $MinionVersion is not available" -Level error
+        Write-Log "Available versions are:" -Level error
+        $available_versions | ForEach-Object { Write-Log "- $_" -Level debug }
+        Set-FailedStatus
+        exit $STATUS_CODES["scriptFailed"]
+    }
+
+    return $versions_table
+}
+
+
+function Get-HashFromArtifactory {
+    # This function uses the artifactory API to get the SHA265 Hash for the file
+    # If Source is NOT artifactory, the sha will not be checked
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $SaltVersion,
+
+        [Parameter(Mandatory=$true)]
+        [String] $SaltFileName
+    )
+    #
+    if ( $api_url ) {
+        $full_url = "$api_url/$SaltVersion/$SaltFileName"
+        Write-Log "Querying Artifactory API for hash:" -Level debug
+        Write-Log $full_url
+        try {
+            $response = Invoke-RestMethod $full_url -UseBasicParsing
+            return $response.checksums.sha256
+        } catch {
+            Write-Log "Artifactory API Not available or file not" -Level debug
+            Write-Log "available at specified location" -Level debug
+            Write-Log "Hash will not be checked"
+            return ""
+        }
+        Write-Log "No hash found for this file: $SaltFileName" -Level debug
+        Write-Log "Hash will not be checked"
+        return ""
+    }
+    Write-Log "No artifactory API defined" -Level debug
+    Write-Log "Hash will not be checked"
     return ""
 }
 
 
 function Get-SaltPackageInfo {
+    # We don't get repo.json anymore, now we parse the html at the Source.
+    # Need to get the available versions and then check if hash is available
+    # using the artifactory api. We'll use it if available, otherwise we'll
+    # log that the hash isn't available and continue
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
         [String] $MinionVersion
     )
 
-    if ( $MinionVersion.ToLower() -ne "latest" ) {
-        # A specific version has been passed.
-        # Let's check if we're looking at the default location hosted by Salt
-        # If we are, we'll want to adjust for pre-3006 versions if passed
-        # If the user specified a Source, we just trust they have it set up for
-        # the version they are passing
-        $uri = [System.Uri]($base_url)
-        if ( $uri.AbsoluteUri -eq $default_source ) {
-            # Let's check for a pre 3006 version
-            $major_version = Get-MajorVersion -Version $MinionVersion
-            if ( $major_version -lt "3006" ) {
-                # This is an older version, use the older URL
-                $base_url = $pre_3006_source
-            } else {
-                # This is a new URL, and a version was passed, let's look in
-                # minor
-                if ( $MinionVersion.ToLower() -ne $major_version.ToLower() ) {
-                    $base_url = "$base_url/minor"
-                }
-            }
-        }
-    }
+    # Getting available versions from Source
+    $versions = Get-AvailableVersions
 
-    $enc = [System.Text.Encoding]::UTF8
-    try {
-        $response = Invoke-WebRequest -Uri "$base_url/repo.json" `
-                                      -UseBasicParsing
-        if ($response.Content.GetType().Name -eq "Byte[]") {
-            $psobj = $enc.GetString($response.Content) | ConvertFrom-Json
-        } else {
-            $psobj = $response.Content | ConvertFrom-Json
-        }
-        $hash = Convert-PSObjectToHashtable $psobj
-    } catch {
-        Write-Log "repo.json not found at: $base_url" -Level debug
-        $hash = @{}
-    }
-
+    # Make sure the passed version is available
     $salt_file_name = ""
+    $salt_sha256 = ""
     $salt_version = ""
-    $salt_sha512 = ""
-    $search_version = $MinionVersion.ToLower()
-    if ($hash.Contains($search_version)) {
-        foreach ($item in $hash.($search_version).Keys) {
-            if ($item.EndsWith(".zip")) {
-                if ($item.Contains("amd64")) {
-                    $salt_file_name = $hash.($search_version).($item).name
-                    $salt_version = $hash.($search_version).($item).version
-                    $salt_sha512 = $hash.($search_version).($item).SHA512
-                }
-            }
-        }
-    }
-
-    if ($salt_file_name -and $salt_version -and $salt_sha512) {
-        $salt_url = @($base_url, $salt_version, $salt_file_name) -join "/"
-        $major_version = Get-MajorVersion -Version $salt_version
-        if ( $major_version -ge "3006" ) {
-            if ( !($base_url.Contains("minor")) ) {
-                $salt_url = @(
-                    $base_url, "minor", $salt_version, $salt_file_name
-                ) -join "/"
-            }
-        }
-        Write-Log "Found installer: $salt_file_name" -Level debug
-        Write-Log "Found version: $salt_version" -Level debug
-        Write-Log "Found sha512: $salt_sha512" -Level debug
-        Write-Log "Found URL: $salt_url" -Level debug
-        return @{
-            url = $salt_url;
-            hash = $salt_sha512;
-            file_name = $salt_file_name;
-            version = $salt_version
-        }
+    $salt_url = ""
+    if ( $versions.Contains($MinionVersion.ToLower()) ) {
+        $salt_version = $versions[$MinionVersion.ToLower()]
+        # Since we only support 64 bit we don't need the arch
+        $salt_file_name = "salt-$salt_version-onedir-windows-amd64.zip"
+        $salt_url = "$base_url/$salt_version/$salt_file_name"
+        Write-Log "File Name: $salt_file_name" -Level debug
+        Write-Log "Salt Vers: $salt_version" -Level debug
+        Write-Log "Salt url : $salt_url" -Level debug
+        $salt_sha256 = Get-HashFromArtifactory -SaltVersion $salt_version `
+                                               -SaltFileName $salt_file_name
+        Write-Log "Salt hash: $salt_sha256" -Level debug
     } else {
-        # Since there's no repo.json, we need to look in the directory for the
-        # URL and HASH. The version can also be `latest` but expects a symlink
-        # named `latest` that points to the directory containing the latest
-        # version of Salt
-        $salt_file_name = $null
-        $salt_version = $null
-
-        # Fix URL
-        $major_version = Get-MajorVersion -Version $search_version
-        if ( $major_version -ge "3006" ) {
-            if ( !($base_url.Contains("minor")) ) {
-                $base_url = @($base_url, "minor") -join "/"
-            }
-        }
-
-        # Invoke-WebRequest will not work on a local file directory so we need
-        # to detect the URL scheme. Use Invoke-WebRequest to get the directory
-        # contents if URL scheme is http/https/ftp. Not tested with FTP
-        if ($base_url -match "^(http\:|https\:|ftp\:).*") {
-            $dir_url = @($base_url, $search_version) -join "/"
-            Write-Log "Looking for version in web directory: $dir_url" `
-                      -Level debug
-            try {
-                $dir_contents = Invoke-WebRequest -Uri $dir_url -UseBasicParsing
-            } catch {
-                Write-Log "Directory not found: $dir_url" -Level debug
-                return @{}
-            }
-            # Look for the zip file in the directory
-            foreach ($link in $dir_contents.Links) {
-                if ($link.href.EndsWith(".zip")) {
-                    if ($link.href.Contains("-amd64")) {
-                        $salt_file_name = $link.href
-                    }
-                }
-            }
-        }
-        # Get the directory contents if URL is Drive Letter or UNC
-        elseif ($base_url -match "^(\w\:|\\\\).*") {
-            $dir_url = "$base_url\$search_version"
-            Write-Log "Looking for version in local directory: $dir_url" `
-                      -Level debug
-            try {
-                $salt_file_name = Get-ChildItem -Path $dir_url -Filter "*.zip"
-            } catch {
-                Write-Log "Directory not found: $dir_url" -Level debug
-                return @{}
-            }
-            if ($salt_file_name.Length -gt 0) {
-                $salt_file_name = $salt_file_name[0].Name
-            }
-        } else {
-            Write-Log "Unknown source url type: $dir_url" -Level debug
-            return @{}
-        }
-        # Verify that we found a file name
-        if ($salt_file_name.Length -eq 0) {
-            Write-Log "Zip file not found in directory: $dir_url" -Level debug
-            return @{}
-        }
-        # Since we have a zip file, get the version and sha file from it
-        if ( $salt_file_name.Contains("onedir") ) {
-            $salt_version = (
-                $salt_file_name -split "-onedir-"
-            )[0].Split("-", 2)[1]
-        } else {
-            $salt_version = (
-                $salt_file_name -split "-windows-"
-            )[0].Split("-", 2)[1]
-        }
-        $sha_file_name = "salt-$($salt_version)_SHA512"
-        # Get the contents of the sha file
-        try {
-            # We can use Invoke-WebRequest as long as we're looking at a file
-            $response = Invoke-WebRequest -Uri "$dir_url/$sha_file_name" `
-                                          -UseBasicParsing
-        } catch {
-            Write-Log "Could not retrieve sha file: $dir_url/$sha_file_name" `
-                      -Level debug
-            return @{}
-        }
-        $salt_sha512 = $null
-        # Get the sha out of the sha file
-        ForEach ($line in $response.RawContent.Split([Environment]::NewLine)) {
-            if ($line.EndsWith(".zip")) {
-                $salt_sha512 = $line.Split()[0]
-            }
-        }
-        # Verify that a sha was retrieved
-        if ($null -eq $salt_sha512) {
-            Write-Log "Sha not found in file: $dir_url/$sha_file_name" `
-                      -Level debug
-            return @{}
-        }
-        Write-Log "Found installer: $salt_file_name" -Level debug
-        Write-Log "Found version: $salt_version" -Level debug
-        Write-Log "Found sha512: $salt_sha512" -Level debug
-        return @{
-            url = @($dir_url, $salt_file_name) -join "/";
-            hash = $salt_sha512;
-            file_name = $salt_file_name;
-            version = $salt_version
-        }
+        Write-Log "Version $MinionVersion is not available" -Level error
+        Set-FailedStatus
+        exit $STATUS_CODES["scriptFailed"]
+    }
+    return @{
+        url = $salt_url;
+        hash = $salt_sha256;
+        file_name = $salt_file_name;
+        version = $salt_version
     }
 }
 
@@ -2064,7 +2015,7 @@ function Get-SaltFromWeb {
     #
     # Error:
     #     Sets the failed status and exits with a scriptFailed exit code
-
+    #
     # Make sure the download directory exists
     [CmdletBinding()]
     param(
@@ -2074,7 +2025,7 @@ function Get-SaltFromWeb {
         [Parameter(Mandatory=$true)]
         [String] $Destination,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         [String] $Hash
     )
 
@@ -2082,144 +2033,22 @@ function Get-SaltFromWeb {
     Write-Log "Downloading Salt" -Level info
     Get-WebFile -Url $Url -OutFile $Destination
 
-    # Get the hash for the Salt file
-    $file_hash = (Get-FileHash -Path $Destination -Algorithm SHA512).Hash
+    # We only check the hash if we got a hash from Artifactory
+    if ( $Hash ) {
+        # Get the hash for the Salt file
+        $file_hash = (Get-FileHash -Path $Destination -Algorithm SHA256).Hash
 
-    Write-Log "Verifying hash" -Level info
-    if ($file_hash -like $Hash) {
-        Write-Log "Hash verified" -Level debug
-    } else {
-        Write-Log "Failed to verify hash:" -Level error
-        Write-Log "  - $file_hash" -Level error
-        Write-Log "  - $Hash" -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
+        Write-Log "Verifying hash" -Level info
+        if ($file_hash -like $Hash) {
+            Write-Log "Hash verified" -Level debug
+        } else {
+            Write-Log "Failed to verify hash:" -Level error
+            Write-Log "  - $file_hash" -Level error
+            Write-Log "  - $Hash" -Level error
+            Set-FailedStatus
+            exit $STATUS_CODES["scriptFailed"]
+        }
     }
-}
-
-
-function New-SaltCallScript {
-    # Create the salt-call.bat script for Tiamat builds
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)]
-    # The location to create the script
-        [String] $Path
-    )
-    $content = @(
-    ":: Copyright (c) 2021-2023 VMware, Inc. All rights reserved.",
-    "",
-    ":: Script for starting the Salt-Minion",
-    ":: Accepts all parameters that Salt-Minion Accepts",
-    "@ echo off",
-    "",
-    ":: Define Variables",
-    "Set SaltBin=%~dp0\salt\salt.exe",
-    "",
-    "net session >nul 2>&1",
-    "if %errorLevel%==0 (",
-    "    :: Launch Script",
-    "    `"%SaltBin%`" call %*",
-    ") else (",
-    "    echo ***** This script must be run as Administrator *****",
-    ")"
-    )
-    $file_content = $content -join "`r`n"
-    Set-Content -Path $Path -Value $file_content
-}
-
-
-function New-SaltMinionScript {
-    # Create the salt-minion.bat script for Tiamat builds
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)]
-        # The location to create the script
-        [String] $Path
-    )
-    $content = @(
-    ":: Copyright (c) 2021-2023 VMware, Inc. All rights reserved.",
-    "",
-    ":: Script for starting the Salt-Minion"
-    ":: Accepts all parameters that Salt-Minion Accepts",
-    "@ echo off",
-    "",
-    ":: Define Variables",
-    "Set SaltBin=%~dp0\salt\salt.exe",
-    "",
-    "net session >nul 2>&1",
-    'if %errorLevel%==0 (',
-    "    :: Launch Script",
-    "    `"%SaltBin%`" minion %*",
-    ") else (",
-    "    echo ***** This script must be run as Administrator *****",
-    ")"
-    )
-    $file_content = $content -join "`r`n"
-    Set-Content -Path $Path -Value $file_content
-}
-
-
-function Install-SaltMinion-Tiamat {
-    # Installs the Tiamat build of the Salt minion. Performs the following:
-    # - Copies the helper scripts into C:\ProgramFiles\Salt Project\Salt
-    # - Registers the salt-minion service
-    #
-    # Error:
-    #     Sets the failed status and exits with a scriptFailed exit code
-
-    # 1. Copy the helper scripts into Program Files
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        [String] $Version
-    )
-    Write-Log "Copying scripts ($Version)" -Level info
-    try {
-        Write-Log "Creating $salt_dir\salt-call.bat" -Level debug
-        New-SaltCallScript -Path "$salt_dir\salt-call.bat"
-    } catch {
-        Write-Log "Failed to create $salt_dir\salt-call.bat" -Level error
-        Write-Log $_ -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
-    }
-
-    try {
-        Write-Log "Creating $salt_dir\salt-minion.bat" -Level debug
-        New-SaltMinionScript -Path "$salt_dir\salt-minion.bat"
-    } catch {
-        Write-Log "Failed to create $salt_dir\salt-minion.bat" -Level error
-        Write-Log $_ -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
-    }
-
-    # 2. Register the salt-minion service
-    Write-Log "Registering the salt-minion service ($Version)" -Level info
-    & $ssm_bin install salt-minion "$salt_bin" `
-                "minion -c """"$salt_config_dir"""" -l quiet" *> $null
-    $description = "Salt Minion from VMware Tools ($Version)"
-    & $ssm_bin set salt-minion Description $description *> $null
-}
-
-
-function Install-SaltMinion-Relenv {
-    # Installs the Relenv build of the Salt minion. Performs the following:
-    # - Registers the salt-minion service
-
-    # 1. Register the salt-minion service
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        [String] $Version
-    )
-    Write-Log "Registering the salt-minion service ($Version)" -Level info
-    #
-    & $ssm_bin install salt-minion "$salt_minion_bin" `
-                "-c """"$salt_config_dir"""" -l quiet" *> $null
-    $description = "Salt Minion from VMware Tools ($Version)"
-    & $ssm_bin set salt-minion Description $description *> $null
 }
 
 
@@ -2227,8 +2056,7 @@ function Install-SaltMinion
 {
     # Installs the Salt minion. Performs the following:
     # - Expands the zipfile into C:\Program Files\Salt Project
-    # - Detects Relenv vs Tiamat build and calls the appropriate install
-    #   function
+    # - Registers and configures the salt-minion service
     #
     # Error:
     #     Sets the failed status and exits with a scriptFailed exit code
@@ -2248,21 +2076,12 @@ function Install-SaltMinion
     Write-Log "Removing zipfile: $Path" -Level debug
     Remove-Item -Path $Path
 
-    # 2. Determine if this is a Tiamat package or a Relenv package
-    #    - salt-minion.exe in the root = Relenv = post-3005
-    #    - salt\salt.exe in the root = Tiamat = pre-3006
-    if ( Test-Path -Path "$salt_minion_bin") {
-        Write-Log "Found post-3005 Package"
-        Install-SaltMinion-Relenv -Version $Version
-    }
-    elseif ( Test-Path -Path "$salt_bin" ) {
-        Write-Log "Found pre-3006 Package"
-        Install-SaltMinion-Tiamat -Version $Version
-    } else {
-        Write-Log "Unknown Package Type" -Level error
-        Set-FailedStatus
-        exit $STATUS_CODES["scriptFailed"]
-    }
+    # 2. Register the salt-minion service
+    Write-Log "Registering the salt-minion service ($Version)" -Level info
+    & $ssm_bin install salt-minion "$salt_minion_bin" `
+                "-c """"$salt_config_dir"""" -l quiet" *> $null
+    $description = "Salt Minion from VMware Tools ($Version)"
+    & $ssm_bin set salt-minion Description $description *> $null
 
     # Common service settings
     Write-Log "Configuring the salt-minion service" -Level info
@@ -2438,7 +2257,7 @@ function Install {
         New-Item -Path $base_salt_install_location -Type Directory | Out-Null
     }
 
-    # Get URL from repo.json
+    # Get URL from Source
     $info = Get-SaltPackageInfo -MinionVersion $MinionVersion
 
     if ($info.Count -eq 0) {
