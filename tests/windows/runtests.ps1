@@ -62,7 +62,12 @@ New-ItemProperty -Path $vmtools_base_reg -Name InstallPath -Value "$vmtools_base
 New-Item -Path "$vmtools_base_path" -ItemType directory -Force | Out-Null
 New-Item -Path "$vmtools_base_path\vmtoolsd.exe" -ItemType file -Force | Out-Null
 
+# These aren't getting picked up by the tests, probably because they are also
+# parameters for the script
+$Source = "https://packages.broadcom.com/artifactory/saltproject-generic/onedir"
 $MinionVersion = "latest"
+
+# This is a special action in the script that allow us to run tests on it
 $Action = "test"
 Import-Module .\windows\svtminion.ps1
 # Suppress error messages

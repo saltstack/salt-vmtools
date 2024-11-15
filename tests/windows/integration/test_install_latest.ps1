@@ -7,7 +7,7 @@ function setUpScript {
     Reset-Environment *> $null
     Write-Done
 
-    $MinionVersion = "3006.9"
+    $MinionVersion = "latest"
     Write-Host "Installing salt ($MinionVersion): " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     Install *> $null

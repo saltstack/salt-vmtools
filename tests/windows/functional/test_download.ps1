@@ -1,8 +1,7 @@
 # Copyright 2021-2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
-# We'll pin to 3005.1-4 since 3006.0rc3 is missing ssm.exe
-$info = Get-SaltPackageInfo -MinionVersion "3005.1-4"
+$info = Get-SaltPackageInfo -MinionVersion "3006.1"
 $zip_file = "$base_salt_install_location\$($info.file_name)"
 
 function setUpScript {
@@ -30,14 +29,14 @@ function test_Get-SaltFromWeb_verify_file_present {
 }
 
 function test_Get-SaltFromWeb_verify_hash_match {
-    $file_hash = (Get-FileHash -Path $zip_file -Algorithm SHA512).Hash
+    $file_hash = (Get-FileHash -Path $zip_file -Algorithm SHA256).Hash
     if ($file_hash -notlike $info.hash) { return 1 }
     return 0
 }
 
 # In 3005 we look for salt.exe, in 3006 we'll look for salt-minion.exe
 function test_Expand-ZipFile_salt_binary_present {
-    if (!(Test-Path -Path $salt_bin)) { return 1 }
+    if (!(Test-Path -Path $salt_minion_bin)) { return 1 }
     return 0
 }
 
