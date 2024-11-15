@@ -1178,7 +1178,7 @@ _fetch_salt_minion() {
                 _debug_log "$0:${FUNCNAME[0]} successfully found sha256 information on file '${salt_pkg_name}'"
             else
                 # sanity check for sha256 key not found
-                CURRENT_STATUS=${STATUS_CODES_ARY[dgm_info]}
+                CURRENT_STATUS=${STATUS_CODES_ARY[installing]}
                 _warning_log "$0:${FUNCNAME[0]} failed to find sha256 information for "\
                 "downloaded file '${salt_pkg_name}', error '${salt_pkg_sha256}'"
             fi
@@ -1188,7 +1188,7 @@ _fetch_salt_minion() {
             # Have sha256 information to check against
             calc_sha256sum=$(sha256sum "${salt_pkg_name}" --quiet)
             if [[ ${calc_sha256sum} -eq 0 ]]; then
-                CURRENT_STATUS=${STATUS_CODES_ARY[dgm_info]}
+                CURRENT_STATUS=${STATUS_CODES_ARY[installing]}
                 _warning_log "$0:${FUNCNAME[0]} failed to generate checksum for downloaded file '${salt_pkg_name}'"
             elif [[ "${calc_sha256sum}" != "${salt_pkg_sha256}" ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
