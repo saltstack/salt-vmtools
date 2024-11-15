@@ -126,7 +126,7 @@ param(
     #
     # The Source parameter supports common protocols such as HTTP, HTTPS, FTP,
     # UNC paths, and local file paths.
-    [String] $Source=@(
+    [String] $Source=(
         "https://packages.broadcom.com/artifactory/saltproject-generic/onedir"
     ),
 
