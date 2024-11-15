@@ -38,7 +38,7 @@ function test_Get-ConfigGuestVars {
     return $failed
 }
 
-function test-Get-ConfigCLI {
+function test_Get-ConfigCLI {
     $failed = 0
     $ConfigOptions = @("master=cli_master"; "id=cli_minion")
     $config = Get-ConfigCLI
@@ -47,8 +47,8 @@ function test-Get-ConfigCLI {
     return $failed
 }
 
-function test_Get-MinionConfig_tools.conf {
-    # tools.conf should superced guestVars
+function test_Get-MinionConfig_tools.conf_guestvars {
+    # tools.conf should supercede guestVars
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     function Read-IniContent { @{ salt_minion = @{ master = "tc_master" } } }
 
@@ -76,6 +76,7 @@ function test_Get-MinionConfig_guestVars {
 }
 
 function test_Get-MinionConfig_CLI {
+    # CLI should supercede guestvars and tools.conf
     $failed = 0
     # We have to try to mock getting guestVars
     function Get-GuestVars { "master=gv_master" }
