@@ -371,7 +371,7 @@ $action_list = @(
 # Repository locations and names
 # An artifactory url will have "artifactory" in it
 $domain_name, $target_path = $Source -split "/artifactory/"
-# If $target_path is empty, this is an artifactory url
+# If $target_path is not empty, this is an artifactory url
 if ( $target_path ) {
     # Create $base_url and $api_url
     $base_url = "$domain_name/artifactory/$target_path"
@@ -1772,15 +1772,15 @@ function Get-AvailableVersions {
     # Get available versions from a remote location specified in the Source
     # Parameter
     Write-Log "Getting version information from Source" -Level debug
-    Write-Log "Source: $Source" -Level debug
+    Write-Log "base_url: $base_url" -Level debug
 
     $available_versions = [System.Collections.ArrayList]@()
 
-    if ( $Source.StartsWith("http") -or $Source.StartsWith("ftp") ) {
+    if ( $base_url.StartsWith("http") -or $base_url.StartsWith("ftp") ) {
         # We're dealing with HTTP, HTTPS, or FTP
-        $response = Invoke-WebRequest "$Source" -UseBasicParsing
+        $response = Invoke-WebRequest "$base_url" -UseBasicParsing
         try {
-            $response = Invoke-WebRequest "$Source" -UseBasicParsing
+            $response = Invoke-WebRequest "$base_url" -UseBasicParsing
         } catch {
             Write-Log "Failed to get version information" -Level error
             Set-FailedStatus
@@ -1810,9 +1810,9 @@ function Get-AvailableVersions {
         $filtered | Select-Object -Property href | ForEach-Object {
             $available_versions.Add($_.href.Trim("/")) | Out-Null
         }
-    } elseif ( $Source.StartsWith("\\") -or $Source -match "^[A-Za-z]:\\" ) {
+    } elseif ( $base_url.StartsWith("\\") -or $base_url -match "^[A-Za-z]:\\" ) {
         # We're dealing with a local directory or SMB source
-        Get-ChildItem -Path $Source -Directory | ForEach-Object {
+        Get-ChildItem -Path $base_url -Directory | ForEach-Object {
             $available_versions.Add($_.Name) | Out-Null
         }
     } else {
@@ -2192,7 +2192,7 @@ function Remove-SaltMinion {
             "NoServiceFoundForGivenName" {
                 # We'll return here because we don't need to remove a service
                 # that isn't installed
-                Write-Log "salt-minion service not found" -Level warning
+                Write-Log "salt-minion service not found" -Level debug
             }
             Default {
                 Write-Log $_ -Level error
