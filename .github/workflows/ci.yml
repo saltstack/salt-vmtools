@@ -162,21 +162,6 @@ jobs:
       instances: '["3006", "3006-8", "3007", "3007-1"]'
 
 
-  ubuntu-2204:
-    name: Ubuntu 22.04
-    if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
-    uses: ./.github/workflows/test-linux.yml
-    needs:
-      - lint
-      - generate-actions-workflow
-    with:
-      distro-slug: ubuntu-2204
-      display-name: Ubuntu 22.04
-      container-slug: systemd-ubuntu-22.04
-      timeout: 20
-      instances: '["3006", "3006-8", "3007", "3007-1"]'
-
-
   set-pipeline-exit-status:
     # This step is just so we can make github require this step, to pass checks
     # on a pull request instead of requiring all
@@ -188,7 +173,6 @@ jobs:
       - windows-2022
       - photon-5
       - rockylinux-9
-      - ubuntu-2204
     if: always()
     steps:
 
