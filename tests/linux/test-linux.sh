@@ -3,6 +3,8 @@
 # Copyright 2021-2024 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
+# Testing assumes RedHat family
+
 oldpwd=$(pwd)
 mkdir -p /root/ || true
 ## echo "machine gitlab.com login gitlab-ci-token password ${CI_JOB_TOKEN}" >> ~/.netrc
@@ -10,13 +12,16 @@ id
 date
 yum makecache
 ls -alh
+sleep 1
 ls -alh linux/svtminion.sh
+sleep 1
 cd linux
 ./svtminion.sh --depend || { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; else echo "test failed, should be missing at least the vmtoolsd dependency, returned '${_retn}'"; exit 1; fi; }
 ls -alh /var/log/vmware-svtminion.sh-depend-*
 yum -y install open-vm-tools
-yum -y install curl
+yum -y install --allowerasing curl
 yum -y install wget
+yum -y install procps-ng
 ./svtminion.sh --depend --loglevel info || { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
 ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l
 if [[ 2 -eq $(ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l) ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi
