@@ -1,10 +1,10 @@
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2021-2024 VMware, Inc. All rights reserved.
 
 ---
-minimum_pre_commit_version: 1.12.0
+minimum_pre_commit_version: 1.15.2
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v4.5.0
     hooks:
       - id: check-merge-conflict
         description: Check for files that contain merge conflict strings.
@@ -28,10 +28,18 @@ repos:
         language_version: python3
       - id: check-yaml
       - id: check-json
+
   - repo: local
     hooks:
+      - id: generate-actions-workflow
+        name: Generate Github Actions Workflow
+        entry: .github/workflows/templates/generate.py
+        pass_filenames: false
+        files: '^.github/workflows/.*$'
+        language: script
+
       - id: shellcheck
-        name: shellcheck
-        entry: shellcheck -x
-        language: system
-        types: [shell]
+        name: Run ShellCheck against svtminion.sh
+        entry: koalaman/shellcheck-alpine:v0.7.0 shellcheck -s bash -f tty
+        files: 'svtminion\.sh'
+        language: docker_image
