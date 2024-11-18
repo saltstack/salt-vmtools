@@ -23,7 +23,7 @@ readonly SCRIPT_VERSION='SCRIPT_VERSION_REPLACE'
 
 # definitions
 
-CURL_DOWNLOAD_RETRY_COUNT=5
+## DGM CURL_DOWNLOAD_RETRY_COUNT=5
 
 ## Repository locations and naming
 readonly default_salt_url_version="latest"
@@ -227,6 +227,7 @@ _log() {
         "${log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${logdate}.log"
 }
 
+# shellcheck disable=SC2329
 _display() {
     if [[ ${VERBOSE_FLAG} -eq 1 ]]; then echo "$1"; fi
     _log "$*"
@@ -266,6 +267,7 @@ _debug_log() {
     fi
 }
 
+# shellcheck disable=SC2329
 _yesno() {
 read -r -p "Continue (y/n)?" choice
 case "$choice" in
@@ -334,6 +336,7 @@ esac
 # Results:
 #   Exits with hard-coded value 130
 #
+# shellcheck disable=SC2329
 
 _cleanup_int() {
     rm -rf "$WORK_DIR"
@@ -347,6 +350,7 @@ _cleanup_int() {
 #
 #   Cleanups any running process and areas on exit
 #
+# shellcheck disable=SC2329
 _cleanup_exit() {
     rm -rf "$WORK_DIR"
     _debug_log "$0:${FUNCNAME[0]} Deleted temp working directory $WORK_DIR"
@@ -867,48 +871,48 @@ _fetch_vmtools_salt_minion_conf() {
 }
 
 
-#
-# _curl_download
-#
-#   Retrieve file from specified url to specific file
-#
-# Results:
-#   Exits with 0 or error code
-#
-
-_curl_download() {
-    local file_name="$1"
-    local file_url="$2"
-    local download_retry_failed=1       # assume issues
-    local _retn=0
-
-    _info_log "$0:${FUNCNAME[0]} attempting download of file '${file_name}'"
-
-    for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
-    do
-        # ensure minimum version of TLS used is v1.2
-        curl -o "${file_name}" --tlsv1.2 -fsSL "${file_url}"
-        _retn=$?
-        if [[ ${_retn} -ne 0 ]]; then
-            _warning_log "$0:${FUNCNAME[0]} failed to download file "\
-                "'${file_name}' from '${file_url}' on '${i}' attempt, "\
-                "retcode '${_retn}'"
-        else
-            download_retry_failed=0
-            _debug_log "$0:${FUNCNAME[0]} successfully downloaded file "\
-                "'${file_name}' from '${file_url}' after '${i}' attempts"
-            break
-        fi
-    done
-    if [[ ${download_retry_failed} -ne 0 ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to download file '${file_name}' "\
-            "from '${file_url}' after '${CURL_DOWNLOAD_RETRY_COUNT}' attempts"
-    fi
-
-    _info_log "$0:${FUNCNAME[0]} successfully downloaded file "\
-        "'${file_name}' from '${file_url}'"
-    return 0
-}
+## DGM TBD to be removed
+## DGM # _curl_download
+## DGM #
+## DGM #   Retrieve file from specified url to specific file
+## DGM #
+## DGM # Results:
+## DGM #   Exits with 0 or error code
+## DGM #
+## DGM
+## DGM _curl_download() {
+## DGM     local file_name="$1"
+## DGM     local file_url="$2"
+## DGM     local download_retry_failed=1       # assume issues
+## DGM     local _retn=0
+## DGM
+## DGM     _info_log "$0:${FUNCNAME[0]} attempting download of file '${file_name}'"
+## DGM
+## DGM     for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
+## DGM     do
+## DGM         # ensure minimum version of TLS used is v1.2
+## DGM         curl -o "${file_name}" --tlsv1.2 -fsSL "${file_url}"
+## DGM         _retn=$?
+## DGM         if [[ ${_retn} -ne 0 ]]; then
+## DGM             _warning_log "$0:${FUNCNAME[0]} failed to download file "\
+## DGM                 "'${file_name}' from '${file_url}' on '${i}' attempt, "\
+## DGM                 "retcode '${_retn}'"
+## DGM         else
+## DGM             download_retry_failed=0
+## DGM             _debug_log "$0:${FUNCNAME[0]} successfully downloaded file "\
+## DGM                 "'${file_name}' from '${file_url}' after '${i}' attempts"
+## DGM             break
+## DGM         fi
+## DGM     done
+## DGM     if [[ ${download_retry_failed} -ne 0 ]]; then
+## DGM         _error_log "$0:${FUNCNAME[0]} failed to download file '${file_name}' "\
+## DGM             "from '${file_url}' after '${CURL_DOWNLOAD_RETRY_COUNT}' attempts"
+## DGM     fi
+## DGM
+## DGM     _info_log "$0:${FUNCNAME[0]} successfully downloaded file "\
+## DGM         "'${file_name}' from '${file_url}'"
+## DGM     return 0
+## DGM }
 
 ## DGM TBD to be removed
 ## #
@@ -1065,7 +1069,7 @@ _fetch_salt_minion() {
     # could check if already there but by always getting it
     # ensure we are not using stale versions
     local _retn=0
-    local download_retry_failed=1       # assume issues
+    ## DGM local download_retry_failed=1       # assume issues
 
     local salt_pkg_name=""
     local salt_url=""
