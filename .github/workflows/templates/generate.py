@@ -94,6 +94,9 @@ def generate_test_jobs():
             else TIMEOUT_DEFAULT
         )
 
+        for salt_version in SALT_VERSIONS:
+           instances.append(salt_version)
+
         if instances:
             needs.append(distro)
             test_jobs += TEMPLATE.format(

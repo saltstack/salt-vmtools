@@ -189,36 +189,36 @@ def main():
     )
 
     # Update Script Version for the bash script
-    bootstrap_script_path = REPO_ROOT / "bootstrap-salt.sh"
+    svtminion_script_path = REPO_ROOT / "linux/svtminion.sh"
     print(
-        f"* Updating {bootstrap_script_path.relative_to(REPO_ROOT)} ...",
+        f"* Updating {svtminion_script_path.relative_to(REPO_ROOT)} ...",
         file=sys.stderr,
         flush=True,
     )
-    bootstrap_script_path.write_text(
+    svtminion_script_path.write_text(
         re.sub(
             r'__ScriptVersion="(.*)"',
             f'__ScriptVersion="{options.release_tag.lstrip("v")}"',
-            bootstrap_script_path.read_text(),
+            svtminion_script_path.read_text(),
         )
     )
 
     # Update the Script Version for the powershell script
-    bootstrap_script_path = REPO_ROOT / "bootstrap-salt.ps1"
+    svtminion_script_path = REPO_ROOT / "windows/svtminion.ps1"
     print(
-        f"* Updating {bootstrap_script_path.relative_to(REPO_ROOT)} ...",
+        f"* Updating {svtminion_script_path.relative_to(REPO_ROOT)} ...",
         file=sys.stderr,
         flush=True,
     )
-    bootstrap_script_path.write_text(
+    svtminion_script_path.write_text(
         re.sub(
             r'\$__ScriptVersion = "(.*)"',
             f'$__ScriptVersion = "{options.release_tag.lstrip("v")}"',
-            bootstrap_script_path.read_text(),
+            svtminion_script_path.read_text(),
         )
     )
 
-    parser.exit(status=0, message="CHANGELOG.md and bootstrap-salt.sh updated\n")
+    parser.exit(status=0, message="CHANGELOG.md and svtminion.sh updated\n")
 
 
 if __name__ == "__main__":

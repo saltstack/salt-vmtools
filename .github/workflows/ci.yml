@@ -5,7 +5,7 @@ on:
 
 concurrency:
   # If changes are pushed to a PR, stop all running workflows before starting new ones
-  group: ${{ github.head_ref || (github.repository == 'saltstack/salt-bootstrap' && github.run_id || github.ref_name) }}
+  group: ${{ github.head_ref || (github.repository == 'saltstack/salt-vmtools' && github.run_id || github.ref_name) }}
   cancel-in-progress: true
 
 jobs:
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: ShellCheck
         run: |
-          shellcheck -s sh -f tty bootstrap-salt.sh
+          shellcheck -s bash -f tty linux/svtminion.sh
 
       - name: Set Exit Status
         if: always()
@@ -114,6 +114,7 @@ jobs:
           path: exitstatus/
 
 
+
   windows-2022:
     name: Windows 2022
     if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
@@ -127,7 +128,8 @@ jobs:
       container-slug: windows-2022
       timeout: 20
       runs-on: windows-2022
-      instances: '["stable-3006", "stable-3006-8", "stable-3007", "stable-3007-1", "latest"]'
+      instances: '["3006", "3006-8", "3007", "3007-1"]'
+
 
 
   photon-5:
@@ -142,7 +144,7 @@ jobs:
       display-name: Photon OS 5
       container-slug: systemd-photon-5
       timeout: 20
-      instances: '["stable-3006", "onedir-3006", "stable-3006-8", "latest", "default"]'
+      instances: '["3006", "3006-8", "3007", "3007-1"]'
 
 
   rockylinux-9:
@@ -157,7 +159,7 @@ jobs:
       display-name: Rocky Linux 9
       container-slug: systemd-rockylinux-9
       timeout: 20
-      instances: '["stable-3006", "onedir-3006", "stable-3006-8", "stable-3007", "onedir-3007", "stable-3007-1", "git-master", "latest", "default"]'
+      instances: '["3006", "3006-8", "3007", "3007-1"]'
 
 
   ubuntu-2204:
@@ -172,7 +174,8 @@ jobs:
       display-name: Ubuntu 22.04
       container-slug: systemd-ubuntu-22.04
       timeout: 20
-      instances: '["stable-3006", "onedir-3006", "stable-3006-8", "stable-3007", "onedir-3007", "stable-3007-1", "git-master", "latest", "default"]'
+      instances: '["3006", "3006-8", "3007", "3007-1"]'
+
 
   set-pipeline-exit-status:
     # This step is just so we can make github require this step, to pass checks

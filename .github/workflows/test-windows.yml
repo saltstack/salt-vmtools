@@ -58,7 +58,7 @@ jobs:
       - name: Get Version
         run: |
           # We need to get the version here and make it an environment variable
-          # It is used to install via bootstrap and in the test
+          # It is used to install via svtminion and in the test
           # The version is in the instance name
           $instance = "${{ matrix.instance }}"
           $version = $instance -split "-",2
@@ -67,11 +67,11 @@ jobs:
           }
           Write-Output "SaltVersion=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Bootstrap Salt
+      - name: VMTools Salt
         run: |
-          . .\bootstrap-salt.ps1 -RunService $false -Version $env:SaltVersion
+          . .\windows\svtminion.ps1 -RunService $false -Version $env:SaltVersion
 
-      - name: Test Bootstrap
+      - name: Test svtminion
         run: |
           pytest --cache-clear -v -s -ra --log-cli-level=debug tests/integration/
 

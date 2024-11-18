@@ -73,7 +73,7 @@ jobs:
       ##     echo "vt parms ,$vt_parms, vt_parms_ver ,$vt_parm_ver,"
       ##     echo "SaltVersion=$vt_parm_ver" >> $GITHUB_ENV
 
-      - name: Bootstrap Salt
+      - name: VMTools Salt
         run: |
           # sed 1st - becomes space, 2nd - becomes dot
           ## DGM needs cleanup
@@ -82,10 +82,9 @@ jobs:
           bt_arg1=$(echo "$bt_parms" | awk -F ' ' '{print $1}')
           bt_arg2=$(echo "$bt_parms" | awk -F ' ' '{print $2}')
           echo "bt parms ,$bt_parms, bt_arg1 ,$bt_arg1, bt_arg2 ,$bt_arg2,"
-          ## DGM sudo sh -x ./bootstrap-salt.sh "$bt_arg1" "$bt_arg2"
           bash -x ./linux/svtminion.sh "$bt_arg1" "$bt_arg2"
 
-      - name: Test Bootstrap
+      - name: Test VMTools
         run: |
           bash -x ./tests/linux/test-linux.sh
 
