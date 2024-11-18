@@ -28,10 +28,18 @@ repos:
         language_version: python3
       - id: check-yaml
       - id: check-json
+
   - repo: local
     hooks:
+      - id: generate-actions-workflow
+        name: Generate Github Actions Workflow
+        entry: .github/workflows/templates/generate.py
+        pass_filenames: false
+        files: '^.github/workflows/.*$'
+        language: script
+
       - id: shellcheck
-        name: shellcheck
-        entry: shellcheck -x
-        language: system
-        types: [shell]
+        name: Run ShellCheck against svtminion.sh
+        entry: koalaman/shellcheck-alpine:v0.7.0 shellcheck -s bash -f tty
+        files: 'svtminion\.sh'
+        language: docker_image
