@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2
 
 # Testing assumes RedHat family
+echo "DGM testing starts here - TBD remove once debugging is done"
 
 oldpwd=$(pwd)
 mkdir -p /root/ || true
