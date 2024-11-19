@@ -444,23 +444,30 @@ _get_desired_salt_version_fn() {
         "salt-minion to install, input directory $1"
 
     generic_versions_tmpdir="$1"
+
+    # DGM debugging
+    ls -alh ${generic_versions_tmpdir}
+
     curr_pwd=$(pwd)
     cd  ${generic_versions_tmpdir} || return 1
 
+    # DGM debugging
+    ls -alh ./.
+
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | grep -v 'index.html' | sort -V -u | tail -n 1)
+        _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
     elif [ "$(echo "$salt_url_version" | grep -E '^(3006|3007)$')" != "" ]; then
         # want major latest version of Salt
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
+        _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
     elif [ "$(echo "$salt_url_version" | grep -E '^([3-9][0-5]{2}[6-9](\.[0-9]*)?)')" != "" ]; then
         # Minor version Salt, want specific minor version
         _GENERIC_PKG_VERSION="$salt_url_version"
     else
         # default to latest version Salt
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | grep -v 'index.html' | sort -V -u | tail -n 1)
+        _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
     fi
     cd ${curr_pwd} || return 1
 
