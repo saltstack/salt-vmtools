@@ -437,7 +437,7 @@ _get_desired_salt_version_fn() {
             "specifying the location for directories containing versions Salt"
     fi
 
-    _info_log "$0:${FUNCNAME[0]} processing getting desired Salt version for "\
+    _info_log "$0:${FUNCNAME[0]} processing getting desired Salt version '$salt_url_version' for "\
         "salt-minion to install"
 
     generic_versions_tmpdir="$1"
@@ -446,18 +446,18 @@ _get_desired_salt_version_fn() {
 
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | sort -V -u | tail -n 1)
+        _GENERIC_PKG_VERSION=$(ls ./ | grep -v 'index.html' | sort -V -u | tail -n 1)
     elif [ "$(echo "$salt_url_version" | grep -E '^(3006|3007)$')" != "" ]; then
         # want major latest version of Salt
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
+        _GENERIC_PKG_VERSION=$(ls ./ | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
     elif [ "$(echo "$salt_url_version" | grep -E '^([3-9][0-5]{2}[6-9](\.[0-9]*)?)')" != "" ]; then
         # Minor version Salt, want specific minor version
         _GENERIC_PKG_VERSION="$salt_url_version"
     else
         # default to latest version Salt
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | sort -V -u | tail -n 1)
+        _GENERIC_PKG_VERSION=$(ls ./ | grep -v 'index.html' | sort -V -u | tail -n 1)
     fi
     cd ${curr_pwd} || return 1
 
@@ -1148,11 +1148,11 @@ _fetch_salt_minion() {
         curr_pwd=$(pwd)
         cd  ${generic_versions_tmpdir} || return 1
         # leverage the onedir directories since release Windows and Linux
-        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${bd_3006_base_url}/"
+        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${bd_3006_base_url}/onedir/"
         cd ${curr_pwd} || return 1
 
         # get desired specific version of Salt
-        _get_desired_salt_version_fn "${generic_versions_tmpdir}/onedir"
+        _get_desired_salt_version_fn "${generic_versions_tmpdir}/artifactory/saltproject-generic/onedir"
 
         # clean up temp dir
         rm -fR ${generic_versions_tmpdir}
