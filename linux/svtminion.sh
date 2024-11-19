@@ -466,7 +466,8 @@ _get_desired_salt_version_fn() {
         dgm_test1=$(echo "${dir_list}" | grep -v 'index.html' | /usr/bin/sort -V -u)
         echo "DGM dir test dgm_test1 ,${dgm_test1},"
         sleep 1
-        dgm_test2=$(echo "${dgm_test1}" | /usr/bin/tail -n 1)
+        ## dgm_test2=$(echo "${dgm_test1}" | /usr/bin/tail -n 1)
+        dgm_test2=$(/usr/bin/tail -n 1 <(echo "${dgm_test1}"))
         echo "DGM dir test dgm_test2 ,${dgm_test2},"
         sleep 1
 
