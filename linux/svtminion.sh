@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # Copyright 2021-2024 Broadcom Inc.
 # SPDX-License-Identifier: Apache-2
@@ -458,15 +458,17 @@ _get_desired_salt_version_fn() {
     _debug_log "$0:${FUNCNAME[0]} found contents of input directory '${dir_list}'"
     echo "DGM dir listing, ${dir_list}"
 
-
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
         ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
         ## _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | tail -n 1)
-        dgm_test1=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u)
+        sleep 1
+        dgm_test1=$(echo "${dir_list}" | grep -v 'index.html' | /usr/bin/sort -V -u)
         echo "DGM dir test dgm_test1 ,${dgm_test1},"
-        dgm_test2=$(echo "${dgm_test1}" | tail -n 1)
+        sleep 1
+        dgm_test2=$(echo "${dgm_test1}" | /usr/bin/tail -n 1)
         echo "DGM dir test dgm_test2 ,${dgm_test2},"
+        sleep 1
 
         _GENERIC_PKG_VERSION=${dgm_test2}
 
