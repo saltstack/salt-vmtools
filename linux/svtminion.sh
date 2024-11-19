@@ -462,7 +462,14 @@ _get_desired_salt_version_fn() {
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
         ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
-        _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | tail -n 1)
+        ## _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | tail -n 1)
+        dgm_test1=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u)
+        echo "DGM dir test dgm_test1 ,${dgm_test1},"
+        dgm_test2=$(echo "${dgm_test1}" | tail -n 1)
+        echo "DGM dir test dgm_test2 ,${dgm_test2},"
+
+        _GENERIC_PKG_VERSION=${dgm_test2}
+
     elif [ "$(echo "$salt_url_version" | grep -E '^(3006|3007)$')" != "" ]; then
         # want major latest version of Salt
         # shellcheck disable=SC2010,SC2012
