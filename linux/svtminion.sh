@@ -431,6 +431,9 @@ _set_log_level() {
 #   Returns with exit code
 #
 _get_desired_salt_version_fn() {
+    # DGM debug output
+    set -x
+    set -v
 
     if [[ "$#" -ne 1 ]]; then
         _error_log "$0:${FUNCNAME[0]} error expected one parameter "\
@@ -438,7 +441,7 @@ _get_desired_salt_version_fn() {
     fi
 
     _info_log "$0:${FUNCNAME[0]} processing getting desired Salt version '$salt_url_version' for "\
-        "salt-minion to install"
+        "salt-minion to install, input directory $1"
 
     generic_versions_tmpdir="$1"
     curr_pwd=$(pwd)
@@ -1087,8 +1090,7 @@ _fetch_salt_minion() {
 
     local salt_pkg_metadata=0
 
-    _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check "\
-        "its validity"
+    _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check its validity"
 
     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
     mkdir -p ${base_salt_location}
@@ -1143,12 +1145,14 @@ _fetch_salt_minion() {
         # assume use curl for local or remote URI
         # directory with onedir files and retrieve files from it
 
+        _debug_log "$0:${FUNCNAME[0]} using curl to download from url '${base_url}'"
+
         # get dir listing from url, sort and pick highest
         generic_versions_tmpdir=$(mktemp -d)
         curr_pwd=$(pwd)
         cd  ${generic_versions_tmpdir} || return 1
         # leverage the onedir directories since release Windows and Linux
-        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${bd_3006_base_url}/onedir/"
+        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${base_url}/onedir/"
         cd ${curr_pwd} || return 1
 
         # get desired specific version of Salt
@@ -1919,6 +1923,10 @@ _reconfig_fn () {
 #
 
 _install_fn () {
+    # DGM debug output
+    set -x
+    set -v
+
     # execute install of Salt minion
     local _retn=0
     local existing_chk=""
