@@ -39,7 +39,7 @@ readonly salt_name="salt"
 base_url=""
 
 # Broadcom infrastructure
-bd_3006_base_url="https://packages.broadcom.com/artifactory/saltproject-generic"
+bd_3006_base_url="https://packages.broadcom.com/artifactory/saltproject-generic/onedir"
 
 
 # Salt file and directory locations
@@ -458,34 +458,48 @@ _get_desired_salt_version_fn() {
     _debug_log "$0:${FUNCNAME[0]} found contents of input directory '${dir_list}'"
     echo "DGM dir listing, ${dir_list}"
 
+    # something werid is happening with tail, that does not fail in test programs
+    # getting failures inside tail, hence using loop
+
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
-        ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
-        ## _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | tail -n 1)
-        sleep 1
-        dgm_test1=$(echo "${dir_list}" | grep -v 'index.html' | /usr/bin/sort -V -u)
-        echo "DGM dir test dgm_test1 ,${dgm_test1},"
-        sleep 1
-        ## dgm_test2=$(echo "${dgm_test1}" | /usr/bin/tail -n 1)
-        ## dgm_test2=$(/usr/bin/tail -n 1 <(echo "${dgm_test1}"))
         # something werid is happening with tail, that does not fail in test programs
-        for idx in $dgm_test1
+        # getting failures inside tail
+        ## ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
+        ## ## _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | tail -n 1)
+        ## sleep 1
+        ## dgm_test1=$(echo "${dir_list}" | grep -v 'index.html' | /usr/bin/sort -V -u)
+        ## echo "DGM dir test dgm_test1 ,${dgm_test1},"
+        ## sleep 1
+        ## ## dgm_test2=$(echo "${dgm_test1}" | /usr/bin/tail -n 1)
+        ## ## dgm_test2=$(/usr/bin/tail -n 1 <(echo "${dgm_test1}"))
+        ## for idx in $dgm_test1
+        ## do
+        ##     dgm_test2="$idx"
+        ##     echo "loop idx $idx, dgm_test2 $dgm_test2"
+        ## done
+        ## echo "DGM last is $dgm_test2"
+
+        ## echo "DGM dir test dgm_test2 ,${dgm_test2},"
+        ## sleep 1
+        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
+        for idx in $test_dir
         do
-            dgm_test2="$idx"
-            echo "loop idx $idx, dgm_test2 $dgm_test2"
+            _GENERIC_PKG_VERSION="$idx"
         done
-        echo "DGM last is $dgm_test2"
-
-        echo "DGM dir test dgm_test2 ,${dgm_test2},"
-        sleep 1
-
-        _GENERIC_PKG_VERSION=${dgm_test2}
+        _debug_log "$0:${FUNCNAME[0]} latest found version '${_GENERIC_PKG_VERSION}'"
 
     elif [ "$(echo "$salt_url_version" | grep -E '^(3006|3007)$')" != "" ]; then
         # want major latest version of Salt
         # shellcheck disable=SC2010,SC2012
         ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
-        _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
+        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version")
+        for idx in $test_dir
+        do
+            _GENERIC_PKG_VERSION="$idx"
+        done
+        _debug_log "$0:${FUNCNAME[0]} input $salt_url_version found version '${_GENERIC_PKG_VERSION}'"
+
     elif [ "$(echo "$salt_url_version" | grep -E '^([3-9][0-5]{2}[6-9](\.[0-9]*)?)')" != "" ]; then
         # Minor version Salt, want specific minor version
         _GENERIC_PKG_VERSION="$salt_url_version"
@@ -493,7 +507,13 @@ _get_desired_salt_version_fn() {
         # default to latest version Salt
         # shellcheck disable=SC2010,SC2012
         ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
-        _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | tail -n 1)
+        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
+        for idx in $test_dir
+        do
+            _GENERIC_PKG_VERSION="$idx"
+        done
+        _debug_log "$0:${FUNCNAME[0]} default found version '${_GENERIC_PKG_VERSION}'"
+
     fi
     cd ${curr_pwd} || return 1
 
@@ -1185,7 +1205,7 @@ _fetch_salt_minion() {
         curr_pwd=$(pwd)
         cd  ${generic_versions_tmpdir} || return 1
         # leverage the onedir directories since release Windows and Linux
-        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${base_url}/onedir/"
+        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${base_url}/"
         cd ${curr_pwd} || return 1
 
         # get desired specific version of Salt
