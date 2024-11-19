@@ -467,7 +467,15 @@ _get_desired_salt_version_fn() {
         echo "DGM dir test dgm_test1 ,${dgm_test1},"
         sleep 1
         ## dgm_test2=$(echo "${dgm_test1}" | /usr/bin/tail -n 1)
-        dgm_test2=$(/usr/bin/tail -n 1 <(echo "${dgm_test1}"))
+        ## dgm_test2=$(/usr/bin/tail -n 1 <(echo "${dgm_test1}"))
+        # something werid is happening with tail, that does not fail in test programs
+        for idx in $dgm_test1
+        do
+            dgm_test2="$idx"
+            echo "loop idx $idx, dgm_test2 $dgm_test2"
+        done
+        echo "DGM last is $dgm_test2"
+
         echo "DGM dir test dgm_test2 ,${dgm_test2},"
         sleep 1
 
