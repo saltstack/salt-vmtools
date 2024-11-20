@@ -123,8 +123,8 @@ readonly onedir_post_3005_location="${salt_dir}/salt-minion"
 readonly onedir_pre_3006_location="${salt_dir}/run/run"
 
 declare -a list_of_onedir_locations_check
-## DGM TBD list_of_onedir_locations_check[0]="${onedir_pre_3006_location}"
-## DGM TBD list_of_onedir_locations_check[1]="${onedir_post_3005_location}"
+list_of_onedir_locations_check[0]="${onedir_pre_3006_location}"
+list_of_onedir_locations_check[1]="${onedir_post_3005_location}"
 
 ## VMware file and directory locations
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
