@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2
 
 # Testing assumes RedHat family
-echo "DGM testing starts here - TBD remove once debugging is done"
 
 oldpwd=$(pwd)
 mkdir -p /root/ || true
@@ -31,6 +30,9 @@ pgrep -f "svtminion.sh"
 ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should not be installed, returned '${_retn}'"; exit 1; fi; }
 ls -alh /var/log/vmware-svtminion.sh-status-*
 ./svtminion.sh --status && { echo "test failed- expecting 102 exit code, salt-minion should not be installed"; exit 1; }
+
+echo "DGM testing starts here - TBD remove once debugging is done"
+
 ./svtminion.sh --install master=192.168.0.5 --loglevel debug
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null

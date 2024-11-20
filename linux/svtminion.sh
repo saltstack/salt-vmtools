@@ -40,6 +40,7 @@ base_url=""
 
 # Broadcom infrastructure
 bd_3006_base_url="https://packages.broadcom.com/artifactory/saltproject-generic/onedir"
+bd_3006_chksum_base_url="https://packages.broadcom.com/artifactory/api/storage/saltproject-generic/onedir"
 
 
 # Salt file and directory locations
@@ -1211,7 +1212,7 @@ _fetch_salt_minion() {
             "'${salt_pkg_name}' failed to download, error '${_retn}'"
         fi
 
-        salt_pkg_metadata=$(curl "${bd_3006_base_url}/api/support/${salt_specific_version}/${salt_pkg_name}")
+        salt_pkg_metadata=$(curl "${bd_3006_chksum_base_url}/${salt_specific_version}/${salt_pkg_name}")
         salt_pkg_sha=$(echo "${salt_pkg_metadata}" | grep -w "sha256" | sort | uniq)
         if [[ -n "${salt_pkg_sha}" ]]; then
             # have package metadata to process
