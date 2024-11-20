@@ -115,13 +115,7 @@ sleep 1
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m "3003.3-1" # DGM FIX
-./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
-sleep 1
-cat /etc/salt/minion
-cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://repo.saltproject.io/salt/vmware-tools-onedir # DGM FIX
+./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m "3003.3-1"
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 sleep 1
 cat /etc/salt/minion
@@ -135,17 +129,17 @@ cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 sleep 1
-./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3006 # DGM FIX
+./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3006
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3006.9 # DGM FIX
+./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3006.9
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 sleep 1
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3007 # DGM FIX
+./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3007
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 sleep 1
 cat /etc/salt/minion
@@ -185,21 +179,21 @@ systemctl is-active salt-minion
 # test 3006-3007 and upgrade
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
 sleep 1
-./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 id="tup" --loglevel debug --minionversion 3006 # DGM FIX
+./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 id="tup" --loglevel debug --minionversion 3006
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 cat /etc/salt/minion | grep 'id:\ tup' 1>/dev/null
 ps -ef | grep salt
 systemctl is-active salt-minion
 if [[ $(/usr/bin/salt-call --local test.version --out=pprint | awk '{print $2}' | cut -d "'" -f 2 | awk -F "." '{print $1}') -eq 3006 ]]; then echo "test correct"; else echo "test failed, wrong major version for salt-minion"; exit 1; fi
-./svtminion.sh --source ${oldpwd}/tests/testarea --upgrade --install --loglevel debug --minionversion 3007 # DGM FIX
+./svtminion.sh --source ${oldpwd}/tests/testarea --upgrade --install --loglevel debug --minionversion 3007
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 cat /etc/salt/minion | grep 'id:\ tup' 1>/dev/null
 ps -ef | grep salt
 systemctl is-active salt-minion
 if [[ $(/usr/bin/salt-call --local test.version --out=pprint | awk '{print $2}' | cut -d "'" -f 2 | awk -F "." '{print $1}') -eq 3007 ]]; then echo "test correct"; else echo "test failed, wrong major version for salt-minion"; exit 1; fi
-./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug # DGM FIX
+./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
@@ -218,16 +212,23 @@ cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-bash -x ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m 3007.1 # DGM FIX
+bash -x ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source file:/${oldpwd}/tests/testarea -m 3007.1
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+
 # test with classic package installed
-rpm --import https://repo.saltproject.io/py3/redhat/8/x86_64/3005/SALTSTACK-GPG-KEY.pub # DGM FIX
-curl -fsSL https://repo.saltproject.io/py3/redhat/8/x86_64/3005.repo | tee /etc/yum.repos.d/salt.repo # DGM FIX
+## rpm --import https://repo.saltproject.io/py3/redhat/8/x86_64/3005/SALTSTACK-GPG-KEY.pub # DGM FIX
+## curl -fsSL https://repo.saltproject.io/py3/redhat/8/x86_64/3005.repo | tee /etc/yum.repos.d/salt.repo # DGM FIX
+# Use 3005 Redhat 9 for Rocky 9 container
+rpm --import ${oldpwd}/tests/classic/SALTSTACK-GPG-KEY2.pub
+cp -a ${oldpwd}/tests/classic/3005.repo /etc/yum.repos.d/salt.repo
+echo "baseurl=file:///${oldpwd}/testarea/classic" >> /etc/yum.repos.d/salt.repo
+echo "gpgkey=file:///${oldpwd}/testarea/classic/SALTSTACK-GPG-KEY2.pub" >> /etc/yum.repos.d/salt.repo
 yum makecache
 yum -y install salt-minion
+
 ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
 ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, classic salt-minion should be installed and external install detected, returned '${_retn}'"; exit 1; fi; }
 ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }

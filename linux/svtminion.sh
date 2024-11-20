@@ -1225,10 +1225,7 @@ _fetch_salt_minion() {
         if [[ ${salt_pkg_sha256_found} -eq 1 ]]; then
             # Have sha256 information to check against
             calc_sha256sum=$(sha256sum "${salt_pkg_name}" | awk -F ' ' '{print $1}')
-            if [[ ${calc_sha256sum} -eq 0 ]]; then
-                CURRENT_STATUS=${STATUS_CODES_ARY[installing]}
-                _warning_log "$0:${FUNCNAME[0]} failed to generate checksum for downloaded file '${salt_pkg_name}'"
-            elif [[ "${calc_sha256sum}" != "${salt_pkg_sha256}" ]]; then
+            if [[ "${calc_sha256sum}" != "${salt_pkg_sha256}" ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
                 _error_log "$0:${FUNCNAME[0]} generated checksum '${calc_sha256sum}' for downloaded file '${salt_pkg_name}' does not match that retrieved from repository '${salt_pkg_sha256}'"
             else
