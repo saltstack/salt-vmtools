@@ -466,22 +466,6 @@ _get_desired_salt_version_fn() {
         # something werid is happening with tail, that does not fail in test programs
         # getting failures inside tail
         ## ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
-        ## ## _GENERIC_PKG_VERSION=$(echo "${dir_list}" | grep -v 'index.html' | sort -V -u | tail -n 1)
-        ## sleep 1
-        ## dgm_test1=$(echo "${dir_list}" | grep -v 'index.html' | /usr/bin/sort -V -u)
-        ## echo "DGM dir test dgm_test1 ,${dgm_test1},"
-        ## sleep 1
-        ## ## dgm_test2=$(echo "${dgm_test1}" | /usr/bin/tail -n 1)
-        ## ## dgm_test2=$(/usr/bin/tail -n 1 <(echo "${dgm_test1}"))
-        ## for idx in $dgm_test1
-        ## do
-        ##     dgm_test2="$idx"
-        ##     echo "loop idx $idx, dgm_test2 $dgm_test2"
-        ## done
-        ## echo "DGM last is $dgm_test2"
-
-        ## echo "DGM dir test dgm_test2 ,${dgm_test2},"
-        ## sleep 1
         test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
         for idx in $test_dir
         do
@@ -1174,6 +1158,8 @@ _fetch_salt_minion() {
         fi
     fi
 
+    sys_arch="${MACHINE_ARCH}"
+
     if [[ ${local_file_flag} -eq 1 ]]; then
         # local absolute path
         # and allow for Linux handling multiple slashes
@@ -1188,7 +1174,6 @@ _fetch_salt_minion() {
         # get desired specific version of Salt
         _get_desired_salt_version_fn "${salt_url}"
         cd "${salt_url}" || return 1
-        sys_arch="${MACHINE_ARCH}"
         salt_pkg_name=$(ls "${salt_specific_version}/${salt_name}-${salt_specific_version}-onedir-linux-${sys_arch}.tar.xz")
         cd "${curr_dir}" || return 1
 
