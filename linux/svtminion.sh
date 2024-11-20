@@ -425,6 +425,8 @@ _set_log_level() {
 #           for example: currently major version 3006 implies 3006.9
 #               the latest version of Salt 3006.x
 #
+#       if an unsupported version is input, for example: 3004.2, it will default to installing the latest version
+#
 # Input:
 #       directory contains directory list of current available Salt versions, 3006.x - 3007.1
 #
@@ -445,27 +447,12 @@ _get_desired_salt_version_fn() {
         "salt-minion to install, input directory $1"
 
     generic_versions_tmpdir="$1"
-
-    # DGM debugging
-    ls -alh ${generic_versions_tmpdir}
-
     curr_pwd=$(pwd)
     cd  ${generic_versions_tmpdir} || return 1
 
-    # DGM debugging
-    ls -alh ./.
-
-    dir_list=$(ls ./.)
-    _debug_log "$0:${FUNCNAME[0]} found contents of input directory '${dir_list}'"
-    echo "DGM dir listing, ${dir_list}"
-
-    # something werid is happening with tail, that does not fail in test programs
-    # getting failures inside tail, hence using loop
-
+    # something werid is happening with tail, that does not fail in test programs getting failures inside tail hence use bash loop
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
-        # something werid is happening with tail, that does not fail in test programs
-        # getting failures inside tail
         ## ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
         test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
         for idx in $test_dir
@@ -487,6 +474,7 @@ _get_desired_salt_version_fn() {
 
     elif [ "$(echo "$salt_url_version" | grep -E '^([3-9][0-5]{2}[6-9](\.[0-9]*)?)')" != "" ]; then
         # Minor version Salt, want specific minor version
+        # if old style VMTools version 3004.2-1 is used, defaults to else and install latest
         _GENERIC_PKG_VERSION="$salt_url_version"
     else
         # default to latest version Salt
