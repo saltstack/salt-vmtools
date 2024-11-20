@@ -1204,8 +1204,10 @@ _fetch_salt_minion() {
         salt_pkg_sha=$(echo "${salt_pkg_metadata}" | grep -w "sha256" | sort | uniq)
         if [[ -n "${salt_pkg_sha}" ]]; then
             # have package metadata to process
-            salt_pkg_shakey=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $1}')
-            salt_pkg_sha256=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $2}'| awk -F '"' '{print $2}')
+            salt_pkg_shakey=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $1}' | awk -F '"' '{print $2}')
+            salt_pkg_sha256=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $2}' | awk -F '"' '{print $2}')
+
+            _debug_log "$0:${FUNCNAME[0]} found information for file '${salt_pkg_name}', shakey '${salt_pkg_shakey}', sha256value '${salt_pkg_sha256}'"
 
             if [[ "${salt_pkg_shakey}" = "sha256" ]]; then
                 # Found sha256
