@@ -97,8 +97,6 @@ ls -l /var/log/vmware-svtminion.sh-status-*
 ls -l /var/log/vmware-svtminion.sh-status-* | wc -l
 if [[ 5 -eq $(ls -l /var/log/vmware-svtminion.sh-status-* | wc -l) ]]; then echo "test correct"; else "test failed, should be only 5 status log files"; exit 1; fi
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-
-# DGM TBD no more rpeo.json - test source installs with repo.json
 ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
