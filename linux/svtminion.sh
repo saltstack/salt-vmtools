@@ -1163,11 +1163,12 @@ _fetch_salt_minion() {
         # get desired specific version of Salt
         _get_desired_salt_version_fn "${salt_url}"
         cd "${salt_url}" || return 1
-        salt_pkg_name=$(ls "${salt_specific_version}/${salt_name}-${salt_specific_version}-onedir-linux-${sys_arch}.tar.xz")
+        cd "${salt_specific_version}" || return 1
+        salt_pkg_name=$(ls "${salt_name}-${salt_specific_version}-onedir-linux-${sys_arch}.tar.xz")
         cd "${curr_dir}" || return 1
-
+        cp -a "${salt_url}/${salt_specific_version}/${salt_pkg_name}" ${salt_pkg_name}
         _debug_log "$0:${FUNCNAME[0]} successfully copied tarball from "\
-            "'${salt_url}' file '${salt_pkg_name}'"
+            "'${salt_url}/${salt_specific_version}' to file '${salt_pkg_name}'"
     else
         # assume use curl for local or remote URI
         # directory with onedir files and retrieve files from it
@@ -1223,7 +1224,7 @@ _fetch_salt_minion() {
 
         if [[ ${salt_pkg_sha256_found} -eq 1 ]]; then
             # Have sha256 information to check against
-            calc_sha256sum=$(sha256sum "${salt_pkg_name}" --quiet)
+            calc_sha256sum=$(sha256sum "${salt_pkg_name}")
             if [[ ${calc_sha256sum} -eq 0 ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installing]}
                 _warning_log "$0:${FUNCNAME[0]} failed to generate checksum for downloaded file '${salt_pkg_name}'"
