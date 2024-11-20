@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # Copyright 2021-2024 Broadcom Inc.
 # SPDX-License-Identifier: Apache-2
@@ -23,7 +23,7 @@ readonly SCRIPT_VERSION='SCRIPT_VERSION_REPLACE'
 
 # definitions
 
-CURL_DOWNLOAD_RETRY_COUNT=5
+## DGM CURL_DOWNLOAD_RETRY_COUNT=5
 
 ## Repository locations and naming
 readonly default_salt_url_version="latest"
@@ -39,7 +39,8 @@ readonly salt_name="salt"
 base_url=""
 
 # Broadcom infrastructure
-bd_3006_base_url="https://packages.broadcom.com/artifactory/saltproject-generic"
+bd_3006_base_url="https://packages.broadcom.com/artifactory/saltproject-generic/onedir"
+bd_3006_chksum_base_url="https://packages.broadcom.com/artifactory/api/storage/saltproject-generic/onedir"
 
 
 # Salt file and directory locations
@@ -122,8 +123,8 @@ readonly onedir_post_3005_location="${salt_dir}/salt-minion"
 readonly onedir_pre_3006_location="${salt_dir}/run/run"
 
 declare -a list_of_onedir_locations_check
-## DGM TBD list_of_onedir_locations_check[0]="${onedir_pre_3006_location}"
-## DGM TBD list_of_onedir_locations_check[1]="${onedir_post_3005_location}"
+list_of_onedir_locations_check[0]="${onedir_pre_3006_location}"
+list_of_onedir_locations_check[1]="${onedir_post_3005_location}"
 
 ## VMware file and directory locations
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
@@ -227,6 +228,7 @@ _log() {
         "${log_dir}/vmware-${SCRIPTNAME}-${LOG_ACTION}-${logdate}.log"
 }
 
+# shellcheck disable=SC2329
 _display() {
     if [[ ${VERBOSE_FLAG} -eq 1 ]]; then echo "$1"; fi
     _log "$*"
@@ -266,6 +268,7 @@ _debug_log() {
     fi
 }
 
+# shellcheck disable=SC2329
 _yesno() {
 read -r -p "Continue (y/n)?" choice
 case "$choice" in
@@ -334,6 +337,7 @@ esac
 # Results:
 #   Exits with hard-coded value 130
 #
+# shellcheck disable=SC2329
 
 _cleanup_int() {
     rm -rf "$WORK_DIR"
@@ -347,6 +351,7 @@ _cleanup_int() {
 #
 #   Cleanups any running process and areas on exit
 #
+# shellcheck disable=SC2329
 _cleanup_exit() {
     rm -rf "$WORK_DIR"
     _debug_log "$0:${FUNCNAME[0]} Deleted temp working directory $WORK_DIR"
@@ -420,6 +425,8 @@ _set_log_level() {
 #           for example: currently major version 3006 implies 3006.9
 #               the latest version of Salt 3006.x
 #
+#       if an unsupported version is input, for example: 3004.2, it will default to installing the latest version
+#
 # Input:
 #       directory contains directory list of current available Salt versions, 3006.x - 3007.1
 #
@@ -427,33 +434,59 @@ _set_log_level() {
 #   Returns with exit code
 #
 _get_desired_salt_version_fn() {
+    # DGM debug output
+    set -x
+    set -v
 
     if [[ "$#" -ne 1 ]]; then
         _error_log "$0:${FUNCNAME[0]} error expected one parameter "\
             "specifying the location for directories containing versions Salt"
     fi
 
-    _info_log "$0:${FUNCNAME[0]} processing getting desired Salt version for "\
-        "salt-minion to install"
+    _info_log "$0:${FUNCNAME[0]} processing getting desired Salt version '$salt_url_version' for "\
+        "salt-minion to install, input directory $1"
 
     generic_versions_tmpdir="$1"
     curr_pwd=$(pwd)
     cd  ${generic_versions_tmpdir} || return 1
 
+    # something werid is happening with tail, that does not fail in test programs getting failures inside tail hence use bash loop
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | sort -V -u | tail -n 1)
+        ## ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
+        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
+        for idx in $test_dir
+        do
+            _GENERIC_PKG_VERSION="$idx"
+        done
+        _debug_log "$0:${FUNCNAME[0]} latest found version '${_GENERIC_PKG_VERSION}'"
+
     elif [ "$(echo "$salt_url_version" | grep -E '^(3006|3007)$')" != "" ]; then
         # want major latest version of Salt
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
+        ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
+        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version")
+        for idx in $test_dir
+        do
+            _GENERIC_PKG_VERSION="$idx"
+        done
+        _debug_log "$0:${FUNCNAME[0]} input $salt_url_version found version '${_GENERIC_PKG_VERSION}'"
+
     elif [ "$(echo "$salt_url_version" | grep -E '^([3-9][0-5]{2}[6-9](\.[0-9]*)?)')" != "" ]; then
         # Minor version Salt, want specific minor version
+        # if old style VMTools version 3004.2-1 is used, defaults to else and install latest
         _GENERIC_PKG_VERSION="$salt_url_version"
     else
         # default to latest version Salt
         # shellcheck disable=SC2010,SC2012
-        _GENERIC_PKG_VERSION=$(ls ./ | sort -V -u | tail -n 1)
+        ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
+        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
+        for idx in $test_dir
+        do
+            _GENERIC_PKG_VERSION="$idx"
+        done
+        _debug_log "$0:${FUNCNAME[0]} default found version '${_GENERIC_PKG_VERSION}'"
+
     fi
     cd ${curr_pwd} || return 1
 
@@ -867,48 +900,48 @@ _fetch_vmtools_salt_minion_conf() {
 }
 
 
-#
-# _curl_download
-#
-#   Retrieve file from specified url to specific file
-#
-# Results:
-#   Exits with 0 or error code
-#
-
-_curl_download() {
-    local file_name="$1"
-    local file_url="$2"
-    local download_retry_failed=1       # assume issues
-    local _retn=0
-
-    _info_log "$0:${FUNCNAME[0]} attempting download of file '${file_name}'"
-
-    for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
-    do
-        # ensure minimum version of TLS used is v1.2
-        curl -o "${file_name}" --tlsv1.2 -fsSL "${file_url}"
-        _retn=$?
-        if [[ ${_retn} -ne 0 ]]; then
-            _warning_log "$0:${FUNCNAME[0]} failed to download file "\
-                "'${file_name}' from '${file_url}' on '${i}' attempt, "\
-                "retcode '${_retn}'"
-        else
-            download_retry_failed=0
-            _debug_log "$0:${FUNCNAME[0]} successfully downloaded file "\
-                "'${file_name}' from '${file_url}' after '${i}' attempts"
-            break
-        fi
-    done
-    if [[ ${download_retry_failed} -ne 0 ]]; then
-        _error_log "$0:${FUNCNAME[0]} failed to download file '${file_name}' "\
-            "from '${file_url}' after '${CURL_DOWNLOAD_RETRY_COUNT}' attempts"
-    fi
-
-    _info_log "$0:${FUNCNAME[0]} successfully downloaded file "\
-        "'${file_name}' from '${file_url}'"
-    return 0
-}
+## DGM TBD to be removed
+## DGM # _curl_download
+## DGM #
+## DGM #   Retrieve file from specified url to specific file
+## DGM #
+## DGM # Results:
+## DGM #   Exits with 0 or error code
+## DGM #
+## DGM
+## DGM _curl_download() {
+## DGM     local file_name="$1"
+## DGM     local file_url="$2"
+## DGM     local download_retry_failed=1       # assume issues
+## DGM     local _retn=0
+## DGM
+## DGM     _info_log "$0:${FUNCNAME[0]} attempting download of file '${file_name}'"
+## DGM
+## DGM     for ((i=0; i<CURL_DOWNLOAD_RETRY_COUNT; i++))
+## DGM     do
+## DGM         # ensure minimum version of TLS used is v1.2
+## DGM         curl -o "${file_name}" --tlsv1.2 -fsSL "${file_url}"
+## DGM         _retn=$?
+## DGM         if [[ ${_retn} -ne 0 ]]; then
+## DGM             _warning_log "$0:${FUNCNAME[0]} failed to download file "\
+## DGM                 "'${file_name}' from '${file_url}' on '${i}' attempt, "\
+## DGM                 "retcode '${_retn}'"
+## DGM         else
+## DGM             download_retry_failed=0
+## DGM             _debug_log "$0:${FUNCNAME[0]} successfully downloaded file "\
+## DGM                 "'${file_name}' from '${file_url}' after '${i}' attempts"
+## DGM             break
+## DGM         fi
+## DGM     done
+## DGM     if [[ ${download_retry_failed} -ne 0 ]]; then
+## DGM         _error_log "$0:${FUNCNAME[0]} failed to download file '${file_name}' "\
+## DGM             "from '${file_url}' after '${CURL_DOWNLOAD_RETRY_COUNT}' attempts"
+## DGM     fi
+## DGM
+## DGM     _info_log "$0:${FUNCNAME[0]} successfully downloaded file "\
+## DGM         "'${file_name}' from '${file_url}'"
+## DGM     return 0
+## DGM }
 
 ## DGM TBD to be removed
 ## #
@@ -1065,7 +1098,7 @@ _fetch_salt_minion() {
     # could check if already there but by always getting it
     # ensure we are not using stale versions
     local _retn=0
-    local download_retry_failed=1       # assume issues
+    ## DGM local download_retry_failed=1       # assume issues
 
     local salt_pkg_name=""
     local salt_url=""
@@ -1083,8 +1116,7 @@ _fetch_salt_minion() {
 
     local salt_pkg_metadata=0
 
-    _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check "\
-        "its validity"
+    _debug_log "$0:${FUNCNAME[0]} retrieve the salt-minion and check its validity"
 
     CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
     mkdir -p ${base_salt_location}
@@ -1115,6 +1147,8 @@ _fetch_salt_minion() {
         fi
     fi
 
+    sys_arch="${MACHINE_ARCH}"
+
     if [[ ${local_file_flag} -eq 1 ]]; then
         # local absolute path
         # and allow for Linux handling multiple slashes
@@ -1129,7 +1163,6 @@ _fetch_salt_minion() {
         # get desired specific version of Salt
         _get_desired_salt_version_fn "${salt_url}"
         cd "${salt_url}" || return 1
-        sys_arch="${MACHINE_ARCH}"
         salt_pkg_name=$(ls "${salt_specific_version}/${salt_name}-${salt_specific_version}-onedir-linux-${sys_arch}.tar.xz")
         cd "${curr_dir}" || return 1
 
@@ -1139,16 +1172,18 @@ _fetch_salt_minion() {
         # assume use curl for local or remote URI
         # directory with onedir files and retrieve files from it
 
+        _debug_log "$0:${FUNCNAME[0]} using curl to download from url '${base_url}'"
+
         # get dir listing from url, sort and pick highest
         generic_versions_tmpdir=$(mktemp -d)
         curr_pwd=$(pwd)
         cd  ${generic_versions_tmpdir} || return 1
         # leverage the onedir directories since release Windows and Linux
-        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "https://${_REPO_URL}/saltproject-generic/"
+        wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${base_url}/"
         cd ${curr_pwd} || return 1
 
         # get desired specific version of Salt
-        _get_desired_salt_version_fn "${generic_versions_tmpdir}/onedir"
+        _get_desired_salt_version_fn "${generic_versions_tmpdir}/artifactory/saltproject-generic/onedir"
 
         # clean up temp dir
         rm -fR ${generic_versions_tmpdir}
@@ -1165,7 +1200,7 @@ _fetch_salt_minion() {
             "'${salt_pkg_name}' failed to download, error '${_retn}'"
         fi
 
-        salt_pkg_metadata=$(curl "https://${_REPO_URL}/saltproject-generic/api/support/${salt_specific_version}/${salt_pkg_name}")
+        salt_pkg_metadata=$(curl "${bd_3006_chksum_base_url}/${salt_specific_version}/${salt_pkg_name}")
         salt_pkg_sha=$(echo "${salt_pkg_metadata}" | grep -w "sha256" | sort | uniq)
         if [[ -n "${salt_pkg_sha}" ]]; then
             # have package metadata to process
@@ -1915,6 +1950,10 @@ _reconfig_fn () {
 #
 
 _install_fn () {
+    # DGM debug output
+    set -x
+    set -v
+
     # execute install of Salt minion
     local _retn=0
     local existing_chk=""

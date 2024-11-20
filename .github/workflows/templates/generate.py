@@ -6,10 +6,10 @@ import pathlib
 
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
+##    "ubuntu-2204",
 LINUX_DISTROS = [
     "photon-5",
     "rockylinux-9",
-    "ubuntu-2204",
 ]
 
 WINDOWS = [
@@ -43,17 +43,17 @@ VERSION_DISPLAY_NAMES = {
 
 LATEST_PKG_BLACKLIST = []
 
+##    "ubuntu-2204": "Ubuntu 22.04",
 DISTRO_DISPLAY_NAMES = {
     "photon-5": "Photon OS 5",
     "rockylinux-9": "Rocky Linux 9",
-    "ubuntu-2204": "Ubuntu 22.04",
     "windows-2022": "Windows 2022",
 }
 
+##    "ubuntu-2204": "systemd-ubuntu-22.04",
 CONTAINER_SLUG_NAMES = {
     "photon-5": "systemd-photon-5",
     "rockylinux-9": "systemd-rockylinux-9",
-    "ubuntu-2204": "systemd-ubuntu-22.04",
     "windows-2022": "windows-2022",
 }
 
@@ -93,6 +93,9 @@ def generate_test_jobs():
             if distro in TIMEOUT_OVERRIDES
             else TIMEOUT_DEFAULT
         )
+
+        for salt_version in SALT_VERSIONS:
+           instances.append(salt_version)
 
         if instances:
             needs.append(distro)
