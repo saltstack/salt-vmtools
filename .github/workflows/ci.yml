@@ -132,21 +132,6 @@ jobs:
 
 
 
-  photon-5:
-    name: Photon OS 5
-    if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
-    uses: ./.github/workflows/test-linux.yml
-    needs:
-      - lint
-      - generate-actions-workflow
-    with:
-      distro-slug: photon-5
-      display-name: Photon OS 5
-      container-slug: systemd-photon-5
-      timeout: 20
-      instances: '["3006", "3006-8", "3007", "3007-1"]'
-
-
   rockylinux-9:
     name: Rocky Linux 9
     if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
@@ -171,7 +156,6 @@ jobs:
       - lint
       - generate-actions-workflow
       - windows-2022
-      - photon-5
       - rockylinux-9
     if: always()
     steps:
