@@ -1,0 +1,11 @@
+[salt-repo]
+name=Salt repo for RHEL/CentOS 9 PY3
+## baseurl=https://repo.saltproject.io/salt/py3/redhat/9/x86_64/3005
+## baseurl=file:///testarea/classic
+skip_if_unavailable=True
+priority=10
+enabled=1
+enabled_metadata=1
+gpgcheck=1
+## gpgkey=https://repo.saltproject.io/salt/py3/redhat/9/x86_64/3005/SALTSTACK-GPG-KEY2.pub
+## gpgkey=file:///testarea/classic/SALTSTACK-GPG-KEY2.pub

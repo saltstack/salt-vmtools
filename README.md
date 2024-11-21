@@ -1,15 +1,14 @@
 # salt-vm-tools
 
-The VMTools salt integration script installs, removes, or checks the status of a Salt minion
-(`salt-minion`) in a VMware controlled Virtual Machine environment.
+The VMTools salt integration script installs, removes, or checks the status of
+a Salt minion (`salt-minion`) in a VMware controlled Virtual Machine environment.
 
 This script operates as a BASH script in Linux environments and a PowerShell
 script in Windows environments.
 
-The Salt minion is a [Tiamat](https://gitlab.com/saltstack/pop/tiamat) based
-Python 3 Salt minion leveraging [PyInstaller's](https://www.pyinstaller.org/)
-onedir option internally. The Salt minion is fully self-contained and requires
-no additional dependencies.
+The Salt minion is a Onedir architecture based Python 3 Salt minion leveraging
+relenv (https://github.com/saltstack/relenv) onedir option internally.
+The Salt minion is fully self-contained and requires no additional dependencies.
 
 The script can install, remove, and check the status of an installed Salt minion
 either using a direct command line option or via VMware's use of Guest Variables,
