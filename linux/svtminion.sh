@@ -447,10 +447,6 @@ _get_desired_salt_version_fn() {
         "salt-minion to install, input directory $1"
 
     generic_versions_tmpdir="$1"
-
-    echo "DGM _get_desired_salt_version_fn generic_versions_tmpdir listing"
-    ls -alh "${generic_versions_tmpdir}"
-
     curr_pwd=$(pwd)
     cd  ${generic_versions_tmpdir} || return 1
 
@@ -1186,13 +1182,6 @@ _fetch_salt_minion() {
         # leverage the onedir directories since release Windows and Linux
         wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${base_url}/"
         cd ${curr_pwd} || return 1
-
-        echo "DGM _ifetch_salt_minon generic_versions_tmpdir listing"
-        ls -alh "${generic_versions_tmpdir}"
-
-        ls -alh "${generic_versions_tmpdir}/artifactory/saltproject-generic"
-
-        ls -alh "${generic_versions_tmpdir}/artifactory/saltproject-generic/onedir"
 
         # get desired specific version of Salt
         _get_desired_salt_version_fn "${generic_versions_tmpdir}/artifactory/saltproject-generic/onedir"

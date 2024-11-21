@@ -146,14 +146,14 @@ cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ## wait for RC with 3008
 ## ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-## ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/saltproject-generic/onedir
+## ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/artifactory/saltproject-generic/onedir
 ## ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 ## sleep 1
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
 # test stop and start
-./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/saltproject-generic/onedir
+./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/artifactory/saltproject-generic/onedir
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 sleep 1
 cat /etc/salt/minion
@@ -202,7 +202,7 @@ cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/saltproject-generic/onedir
+./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/artifactory/saltproject-generic/onedir
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
