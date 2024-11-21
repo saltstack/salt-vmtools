@@ -31,11 +31,6 @@ salt_url_version="${default_salt_url_version}"
 salt_specific_version=""
 
 readonly salt_name="salt"
-# DGM TBD to be replaced
-## DGM readonly repo_json_file="repo.json"
-## DGM pre_3006_base_url="https://repo.saltproject.io/salt/vmware-tools-onedir"
-## DGM # Release
-## DGM post_3005_base_url="https://repo.saltproject.io/salt/py3/onedir"
 base_url=""
 
 # Broadcom infrastructure
@@ -211,10 +206,6 @@ LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 
 SOURCE_FLAG=0
 SOURCE_PARAMS=""
-
-# Flag for pre_3006 and post_3005, 0 => pre_3006, 1 => post_3005
-## DGM TBD POST_3005_FLAG=0
-## DGM TBD POST_3005_MAJOR_VER_FLAG=0
 
 
 # helper functions
@@ -425,10 +416,12 @@ _set_log_level() {
 #           for example: currently major version 3006 implies 3006.9
 #               the latest version of Salt 3006.x
 #
-#       if an unsupported version is input, for example: 3004.2, it will default to installing the latest version
+#       if an unsupported version is input, for example: 3004.2
+#       it will default to installing the latest version
 #
 # Input:
-#       directory contains directory list of current available Salt versions, 3006.x - 3007.1
+#       directory contains directory list of current available
+#           Salt versions, 3006.x - 3007.1
 #
 # Results:
 #   Returns with exit code
@@ -443,17 +436,18 @@ _get_desired_salt_version_fn() {
             "specifying the location for directories containing versions Salt"
     fi
 
-    _info_log "$0:${FUNCNAME[0]} processing getting desired Salt version '$salt_url_version' for "\
-        "salt-minion to install, input directory $1"
+    _info_log "$0:${FUNCNAME[0]} processing getting desired Salt version "\
+        "'$salt_url_version' for salt-minion to install, input directory $1"
 
     generic_versions_tmpdir="$1"
     curr_pwd=$(pwd)
     cd  ${generic_versions_tmpdir} || return 1
 
-    # something werid is happening with tail, that does not fail in test programs getting failures inside tail hence use bash loop
+    # something werid is happening with tail, that does not fail in test
+    # programs getting failures inside tail hence use bash loop
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
-        ## ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
+        ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
         test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
         for idx in $test_dir
         do
@@ -470,11 +464,13 @@ _get_desired_salt_version_fn() {
         do
             _GENERIC_PKG_VERSION="$idx"
         done
-        _debug_log "$0:${FUNCNAME[0]} input $salt_url_version found version '${_GENERIC_PKG_VERSION}'"
+        _debug_log "$0:${FUNCNAME[0]} input $salt_url_version found "\
+            "version '${_GENERIC_PKG_VERSION}'"
 
     elif [ "$(echo "$salt_url_version" | grep -E '^([3-9][0-5]{2}[6-9](\.[0-9]*)?)')" != "" ]; then
         # Minor version Salt, want specific minor version
-        # if old style VMTools version 3004.2-1 is used, defaults to else and install latest
+        # if old style VMTools version 3004.2-1 is used
+        # defaults to else and install latest
         _GENERIC_PKG_VERSION="$salt_url_version"
     else
         # default to latest version Salt
@@ -509,7 +505,8 @@ _get_desired_salt_version_fn() {
 #           for example: 3006.8
 #
 # Results:
-#   Sets salt_url_version to latest or specified input Salt version, 3007, 3006, 3006.x
+#   Sets salt_url_version to latest or specified input
+#       Salt version, 3007, 3006, 3006.x
 #   Returns with exit code
 #
 
@@ -542,55 +539,6 @@ _set_install_minion_version_fn() {
 
     return 0
 }
-
-## DGM TBD this to be removed
-#
-# _set_post_3005_flags_from_version
-#
-#   Sets the POST_3005_FLAG and POST_3005_MAJOR_VER_FLAG
-#       from the version currently present in salt_url_version
-#
-#   Will also set base_url if not already defined by --source option
-#
-# Results:
-#   Returns with exit code
-#
-## DGM _set_post_3005_flags_from_version() {
-## DGM     _info_log "$0:${FUNCNAME[0]} setting POST_3005_FLAG and "\
-## DGM         "POST_3005_MAJOR_VER_FLAG from Salt version '${salt_url_version}'"
-## DGM
-## DGM     if [[ "latest" = "${salt_url_version}" ]]; then
-## DGM         POST_3005_FLAG=1
-## DGM         POST_3005_MAJOR_VER_FLAG=1
-## DGM         base_url="${post_3005_base_url}"
-## DGM         # done, already have url for latest & major versions
-## DGM         _debug_log "$0:${FUNCNAME[0]} post-3005 install, using latest "\
-## DGM             "base_url '${base_url}'"
-## DGM     else
-## DGM         ver_chk=$(echo "${salt_url_version}" | cut -d '.' -f 1)
-## DGM         if [[ ${ver_chk} -ge 3006 ]]; then
-## DGM             POST_3005_FLAG=1
-## DGM             ver_chk_major=$(echo "${salt_url_version}" | cut -d '.' -f 1)
-## DGM             ver_chk_minor=$(echo "${salt_url_version}" | cut -d '.' -f 2)
-## DGM             _debug_log "$0:${FUNCNAME[0]} post-3005 install, checking "\
-## DGM                 "for major version only '${ver_chk_major}', minor "\
-## DGM                 "'${ver_chk_minor}'"
-## DGM             if [[ "${ver_chk_major}" = "${ver_chk_minor}" ]]; then
-## DGM                 POST_3005_MAJOR_VER_FLAG=1
-## DGM                 base_url="${post_3005_base_url}"
-## DGM             else
-## DGM                 base_url="${post_3005_base_url}/minor"
-## DGM             fi
-## DGM             _debug_log "$0:${FUNCNAME[0]} post-3005 install, for "\
-## DGM                 "'${salt_url_version}' using base_url '${base_url}'"
-## DGM         else
-## DGM             # install pre-3006, use older url
-## DGM             base_url="${pre_3006_base_url}"
-## DGM             _debug_log "$0:${FUNCNAME[0]} pre-3006 install, for "\
-## DGM                 "'${salt_url_version}' using base_url '${base_url}'"
-## DGM         fi
-## DGM     fi
-## DGM }
 
 
 #
@@ -943,135 +891,6 @@ _fetch_vmtools_salt_minion_conf() {
 ## DGM     return 0
 ## DGM }
 
-## DGM TBD to be removed
-## #
-## # _parse_json_specd_ver
-## #
-## #   Retrieve the salt-minion from Salt repository
-## #
-## # Results:
-## #   Echos string containing colon separated version, name and sha512
-## #   from parsed input repo json file
-## #   Echos empty '' if 'salt_url_version' is not found in repo json file
-## #
-## #   Note: salt_url_version defaults to 'latest' unless set to a specific
-## #       Salt minion version, for example: 3004.1-1
-## #
-##
-##  _parse_json_specd_ver() {
-##     local file_name="$1"
-##     local file_value=""
-##     local blk_count=0
-##     local specd_ver_blk_count=0
-##     local specd_ver_flag=0
-##     local found_specd_ver_linux=0
-##
-##     local var1=""
-##     local var2=""
-##     local machine_arch_chk="${MACHINE_ARCH}"
-##     declare -A rdict
-##
-##     _info_log "$0:${FUNCNAME[0]} parsing of repo json file '${file_name}'"
-##
-##     if [[ ${POST_3005_FLAG} -eq 0 ]]; then
-##         machine_arch_chk="amd64"    # pre_3006 used amd64
-##     fi
-##
-##     file_value=$(<"${file_name}")
-##
-##     # limit 80 cols
-##     var1=$(echo "${file_value}" | sed 's/,/,\n/g' | sed 's/{/\n{\n/g')
-##     var2=$(echo "${var1}" | sed 's/}/\n}\n/g' | sed 's/,//g' | sed 's/"//g')
-##
-##     while IFS= read -r line
-##     do
-##         _debug_log "$0:${FUNCNAME[0]} parsing line '${line}'"
-##         if [[ -z "${line}" ]]; then
-##             continue
-##         fi
-##         if [[ "${line}" = "{" ]]; then
-##             (( blk_count++ ))
-##         elif [[ "${line}" = "}" ]]; then
-##             # examine directory just read in
-##             if [[  ${specd_ver_flag} -eq 1 ]]; then
-##                 if [[ "${rdict['os']}" = "linux" \
-##                     && "${rdict['arch']}" = "${machine_arch_chk}" ]]; then
-##                     # have linux values for specd_ver
-##                     _debug_log "$0:${FUNCNAME[0]} parsed following linux for "\
-##                     "specified version '${salt_url_version}' from repo json "\
-##                     "file '${file_name}', os ${rdict['os']}, version "\
-##                     "${rdict['version']}, name ${rdict['name']}, sha512 "\
-##                     "${rdict['SHA512']}"
-##                     found_specd_ver_linux=1
-##                     break
-##                 fi
-##             fi
-##
-##             if [[ ${blk_count} -eq ${specd_ver_blk_count} ]]; then
-##                 specd_ver_flag=0
-##                 ## break
-##             fi
-##             (( blk_count-- ))
-##         else
-##             if [[ ${POST_3005_FLAG} -eq 1 \
-##                 && ${POST_3005_MAJOR_VER_FLAG} -eq 1 ]]; then
-##                 # doing major version check
-##                 line_major_key=$(echo "${line}" | cut -d ':' -f 1 | cut -d '-' -f 2 | cut -d '.' -f 1 |xargs)
-##                 line_key=$(echo "${line}" | cut -d ':' -f 1 | xargs)
-##                 line_value=$(echo "${line}" | cut -d ':' -f 2 | xargs)
-##                 _debug_log "$0:${FUNCNAME[0]} check line_major_key "\
-##                     "'${line_major_key}' again salt_url_version "\
-##                     "'${salt_url_version}', line_key '${line_key}', "\
-##                     "line_value '${line_value}'"
-##                 if [[ "${line_major_key}" = "${salt_url_version}" ]]; then
-##                     # blk_count encountered 'specd_ver', closing brace check
-##                     specd_ver_flag=1
-##                     specd_ver_blk_count=${blk_count}
-##                     (( specd_ver_blk_count++ ))
-##                     _debug_log "$0:${FUNCNAME[0]} found specd version, "\
-##                         "version '${salt_url_version}' and line_major_key "\
-##                         "'${line_major_key}', line_key '${line_key}' "\
-##                         "specd_ver_blk_count '${specd_ver_blk_count}'"
-##                 else
-##                     rdict["${line_key}"]="${line_value}"
-##                     _debug_log "$0:${FUNCNAME[0]} updated dictionary for "\
-##                         "major version with line_key '${line_key}' and "\
-##                         "line_value '${line_value}'"
-##                 fi
-##             else
-##                 line_key=$(echo "${line}" | cut -d ':' -f 1 | xargs)
-##                 line_value=$(echo "${line}" | cut -d ':' -f 2 | xargs)
-##                 _debug_log "$0:${FUNCNAME[0]} check line_key '${line_key}' "\
-##                     "again salt_url_version '${salt_url_version}', "\
-##                     "line_value '${line_value}'"
-##                 if [[ "${line_key}" = "${salt_url_version}" ]]; then
-##                     # blk_count encountered 'specd_ver', closing brace check
-##                     specd_ver_flag=1
-##                     specd_ver_blk_count=${blk_count}
-##                     (( specd_ver_blk_count++ ))
-##                     _debug_log "$0:${FUNCNAME[0]} found specd version, "\
-##                         "version '${salt_url_version}' and line_key "\
-##                         "'${line_key}' and specd_ver_blk_count "\
-##                         "'${specd_ver_blk_count}'"
-##                 else
-##                     rdict["${line_key}"]="${line_value}"
-##                     _debug_log "$0:${FUNCNAME[0]} updated dictionary with "\
-##                     "line_key '${line_key}' and line_value '${line_value}'"
-##                 fi
-##             fi
-##         fi
-##     done <<< "${var2}"
-##
-##     if [[ ${found_specd_ver_linux} -eq 1 ]]; then
-##         echo "${rdict['version']}:${rdict['name']}:${rdict['SHA512']}"
-##     else
-##         _error_log "$0:${FUNCNAME[0]} unable to parse version, name and "\
-##         "sha512 from repo json file '${file_name}'"
-##         # echo ""
-##     fi
-##     return 0
-## }
-
 
 #
 # _fetch_salt_minion
@@ -1153,7 +972,6 @@ _fetch_salt_minion() {
         # local absolute path
         # and allow for Linux handling multiple slashes
 
-        ## DGM TBD need to adjust
         # use defaults
         # directory with onedir files and retrieve files from it
         salt_url="${local_base_url}"
@@ -1208,17 +1026,21 @@ _fetch_salt_minion() {
             salt_pkg_shakey=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $1}' | awk -F '"' '{print $2}')
             salt_pkg_sha256=$(echo "${salt_pkg_sha}" | awk -F ':' '{print $2}' | awk -F '"' '{print $2}')
 
-            _debug_log "$0:${FUNCNAME[0]} found information for file '${salt_pkg_name}', shakey '${salt_pkg_shakey}', sha256value '${salt_pkg_sha256}'"
+            _debug_log "$0:${FUNCNAME[0]} found information for file "\
+                "'${salt_pkg_name}', shakey '${salt_pkg_shakey}', "\
+                "sha256value '${salt_pkg_sha256}'"
 
             if [[ "${salt_pkg_shakey}" = "sha256" ]]; then
                 # Found sha256
                 salt_pkg_sha256_found=1
-                _debug_log "$0:${FUNCNAME[0]} successfully found sha256 information on file '${salt_pkg_name}'"
+                _debug_log "$0:${FUNCNAME[0]} successfully found sha256 "\
+                    "information on file '${salt_pkg_name}'"
             else
                 # sanity check for sha256 key not found
                 CURRENT_STATUS=${STATUS_CODES_ARY[installing]}
-                _warning_log "$0:${FUNCNAME[0]} failed to find sha256 information for "\
-                "downloaded file '${salt_pkg_name}', error '${salt_pkg_sha256}'"
+                _warning_log "$0:${FUNCNAME[0]} failed to find sha256 "\
+                    "information for downloaded file '${salt_pkg_name}', "\
+                    "error '${salt_pkg_sha256}'"
             fi
         fi
 
@@ -1227,9 +1049,12 @@ _fetch_salt_minion() {
             calc_sha256sum=$(sha256sum "${salt_pkg_name}" | awk -F ' ' '{print $1}')
             if [[ "${calc_sha256sum}" != "${salt_pkg_sha256}" ]]; then
                 CURRENT_STATUS=${STATUS_CODES_ARY[installFailed]}
-                _error_log "$0:${FUNCNAME[0]} generated checksum '${calc_sha256sum}' for downloaded file '${salt_pkg_name}' does not match that retrieved from repository '${salt_pkg_sha256}'"
+                _error_log "$0:${FUNCNAME[0]} generated checksum "\
+                "'${calc_sha256sum}' for downloaded file '${salt_pkg_name}' "\
+                "does not match that retrieved from repository '${salt_pkg_sha256}'"
             else
-                _debug_log "$0:${FUNCNAME[0]} downloaded file '${salt_pkg_name}' matched checksum retrieved from repository"
+                _debug_log "$0:${FUNCNAME[0]} downloaded file "\
+                    "'${salt_pkg_name}' matched checksum retrieved from repository"
             fi
         fi
     fi
