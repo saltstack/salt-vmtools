@@ -41,9 +41,11 @@ jobs:
       - name: Check Branch
         run: |
           echo "Trying to run the release workflow from branch ${{ github.ref_name }}"
-          if [ "${{ github.ref_name }}" != "main" ]; then
+          ## DGM if [ "${{ github.ref_name }}" != "main" ]; then
+          if [ "${{ github.ref_name }}" != "fix_cut_release" ]; then
               echo "Running the release workflow from the ${{ github.ref_name }} branch is not allowed"
-              echo "Allowed branches: main"
+              ## DGM echo "Allowed branches: main"
+              echo "Allowed branches: fix_cut_release"
               exit 1
           else
               echo "Allowed to release from branch ${{ github.ref_name }}"
@@ -62,21 +64,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ## DGM ref: main
+          ref: fix_cut_release
           repository: ${{ github.repository }}
           ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
-      - name: Install Requirements
-        run: |
-          python3 -m pip install -r requirements/release.txt
-          pre-commit install --install-hooks
+      ## - name: Install Requirements
+      ##   run: |
+      ##     python3 -m pip install -r requirements/release.txt
+      ##     pre-commit install --install-hooks
 
       - name: Configure Git
         shell: bash
         run: |
           git config --global --add safe.directory "$(pwd)"
           git config --global user.name "Salt Project Packaging"
-          git config --global user.email saltproject-packaging@vmware.com
+          git config --global user.email saltproject.pdl@broadcom.com
           git config --global commit.gpgsign false
 
       - name: Update Repository
@@ -93,15 +96,18 @@ jobs:
 
       - name: Commit Changes
         run: |
-          git commit -am "Update main branch for the ${{ steps.update-repo.outputs.release-version }} release" || \
-            git commit -am "Update main branch for the ${{ steps.update-repo.outputs.release-version }} release"
+          ## DGM git commit -am "Update main branch for the ${{ steps.update-repo.outputs.release-version }} release" || \
+          ## DGM   git commit -am "Update main branch for the ${{ steps.update-repo.outputs.release-version }} release"
+          git commit -am "Update fix_cut_release branch for the ${{ steps.update-repo.outputs.release-version }} release" || \
+            git commit -am "Update fix_cut_release branch for the ${{ steps.update-repo.outputs.release-version }} release"
 
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
         with:
           ssh: true
           atomic: true
-          branch: main
+          ## DGM branch: main
+          branch: fix_cut_release
           repository: ${{ github.repository }}
 
       - name: Upload Release Details

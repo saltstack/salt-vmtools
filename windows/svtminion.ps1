@@ -287,9 +287,9 @@ if ($help) {
 }
 
 # This value is populated via CICD during build
-$script_version = "SCRIPT_VERSION_REPLACE"
+$SCRIPT_VERSION = "SCRIPT_VERSION_REPLACE"
 if ($Version) {
-    Write-Host $script_version
+    Write-Host $SCRIPT_VERSION
     exit 0
 }
 
@@ -457,7 +457,7 @@ $guestvars_salt_desired_state = "$guestvars_salt.desiredstate"
 
 
 function Get-Version {
-    return $script_version
+    return $SCRIPT_VERSION
 }
 
 
