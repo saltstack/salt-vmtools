@@ -242,7 +242,7 @@ jobs:
       - name: Get vmtools-salt.sh on main branch sha256sum
         run: |
           echo "SH=$(sha256sum vmtools-salt.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
-          echo "BS_VERSION=$(sh vmtools-salt.sh -v | awk '{ print $4 }')" >> "$GITHUB_ENV"
+          echo "VMTS_VERSION=$(sh vmtools-salt.sh -v | awk '{ print $4 }')" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4
         with:
@@ -260,7 +260,7 @@ jobs:
 
       - name: Update Latest Release on README
         run: |
-          python3 .github/workflows/scripts/update-release-shasum.py ${{ env.BS_VERSION }} ${{ env.SH }}
+          python3 .github/workflows/scripts/update-release-shasum.py ${{ env.VMTS_VERSION }} ${{ env.SH }}
 
       - name: Show Changes
         run: |
@@ -269,8 +269,8 @@ jobs:
 
       - name: Commit Changes
         run: |
-          git commit -am "Update README.rst with ${{ env.BS_VERSION }} release sha256sum" || \
-            git commit -am "Update README.rst with ${{ env.BS_VERSION }} release sha256sum"
+          git commit -am "Update README.rst with ${{ env.VMTS_VERSION }} release sha256sum" || \
+            git commit -am "Update README.rst with ${{ env.VMTS_VERSION }} release sha256sum"
 
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
