@@ -5,7 +5,7 @@ import subprocess
 
 THIS_FILE = pathlib.Path(__file__).resolve()
 CODE_ROOT = THIS_FILE.parent.parent.parent.parent
-README_PATH = CODE_ROOT / "README.rst"
+README_PATH = CODE_ROOT / "README.md"
 
 
 def main(version, sha256sum):
