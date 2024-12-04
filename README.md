@@ -98,6 +98,7 @@ script action cannot be obtained from `tools.conf`.
 
 Any input passed to the script on the command line will take precedence over:
 
+- 2024.12.04: ``e7f4d7b242bd495c63e7b3240631411fbe65ac966ff2c1ef93399ceda9b5719f``
 - The action and config options set in guestVars
 - Anything configured in `tools.conf` with the same name.
 
