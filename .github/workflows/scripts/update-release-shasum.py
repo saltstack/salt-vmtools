@@ -5,7 +5,7 @@ import subprocess
 
 THIS_FILE = pathlib.Path(__file__).resolve()
 CODE_ROOT = THIS_FILE.parent.parent.parent.parent
-README_PATH = CODE_ROOT / "README.rst"
+README_PATH = CODE_ROOT / "README.md"
 
 
 def main(version, sha256sum):
@@ -31,7 +31,7 @@ def main(version, sha256sum):
                 continue
 
             out_contents += line
-            if line.startswith(".. _sha256sums:"):
+            if line.startswith("## _sha256sums"):
                 found_anchor = True
     if in_contents != out_contents:
         README_PATH.write_text(out_contents)

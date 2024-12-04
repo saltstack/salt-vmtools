@@ -76,7 +76,7 @@ jobs:
         run: |
           git config --global --add safe.directory "$(pwd)"
           git config --global user.name "Salt Project Packaging"
-          git config --global user.email saltproject-packaging@vmware.com
+          git config --global user.email saltproject.pdl@broadcom.com
           git config --global commit.gpgsign false
 
       - name: Update Repository
@@ -117,7 +117,7 @@ jobs:
   ##   name: Merge develop into stable
   ##   runs-on: ubuntu-latest
   ##   needs:
-  ##     - update-develop
+  ##     - update-main
   ##   environment: release
   ##   permissions:
   ##     contents: write  # To be able to publish the release
@@ -134,7 +134,7 @@ jobs:
   ##       run: |
   ##         git config --global --add safe.directory "$(pwd)"
   ##         git config --global user.name "Salt Project Packaging"
-  ##         git config --global user.email saltproject-packaging@vmware.com
+  ##         git config --global user.email saltproject.pdl@broadcom.com
   ##         git config --global commit.gpgsign false
 
   ##     - name: Download Release Details
@@ -187,7 +187,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ## ref: stable
+          ref: main
           repository: ${{ github.repository }}
           ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
@@ -207,7 +207,7 @@ jobs:
           name: ${{ env.CUT_RELEASE_VERSION }}
           tag_name: ${{ env.CUT_RELEASE_VERSION }}
           body_path: .cut_release_changes
-          target_commitish: stable
+          target_commitish: main
           draft: false
           prerelease: false
           generate_release_notes: false
@@ -222,60 +222,79 @@ jobs:
           name: release-details
           failOnError: false
 
-  ## update-develop-checksums:
-  ##   name: Update Release Checksums on Develop
-  ##   runs-on: ubuntu-latest
-  ##   needs:
-  ##     - publish-release
-  ##   environment: release
-  ##   permissions:
-  ##     contents: write  # For action peter-evans/create-pull-request
-  ##     pull-requests: write  # For action peter-evans/create-pull-request
+  update-main-checksums:
+    name: Update Release Checksums on Main
+    runs-on: ubuntu-latest
+    needs:
+      - publish-release
+    environment: release
+    permissions:
+      contents: write  # For action peter-evans/create-pull-request
+      pull-requests: write  # For action peter-evans/create-pull-request
 
-  ##   steps:
-  ##     - uses: actions/checkout@v4
-  ##       with:
-  ##         ref: stable
-  ##         repository: ${{ github.repository }}
-  ##         ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          repository: ${{ github.repository }}
+          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
-  ##     ## - name: Get vmtools-salt.sh on stable branch sha256sum
-  ##     ##   run: |
-  ##     ##     echo "SH=$(sha256sum vmtools-salt.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
-  ##     ##     echo "BS_VERSION=$(sh vmtools-salt.sh -v | awk '{ print $4 }')" >> "$GITHUB_ENV"
+      - name: Get vmtools-salt.sh on main branch sha256sum
+        run: |
+          echo "SH=$(sha256sum vmtools-salt.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
+          echo "VMTS_VERSION=$(sh vmtools-salt.sh -v | awk '{ print $4 }')" >> "$GITHUB_ENV"
 
-  ##     - uses: actions/checkout@v4
-  ##       with:
-  ##         ref: develop
-  ##         repository: ${{ github.repository }}
-  ##         ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          repository: ${{ github.repository }}
+          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
-  ##     - name: Configure Git
-  ##       shell: bash
-  ##       run: |
-  ##         git config --global --add safe.directory "$(pwd)"
-  ##         git config --global user.name "Salt Project Packaging"
-  ##         git config --global user.email saltproject-packaging@vmware.com
-  ##         git config --global commit.gpgsign false
+      - name: Configure Git
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$(pwd)"
+          git config --global user.name "Salt Project Packaging"
+          git config --global user.email saltproject.pdl@broadcom.com
+          git config --global commit.gpgsign false
 
-  ##     - name: Update Latest Release on README
-  ##       run: |
-  ##         python3 .github/workflows/scripts/update-release-shasum.py ${{ env.BS_VERSION }} ${{ env.SH }}
+      - name: Update Latest Release on README
+        run: |
+          python3 .github/workflows/scripts/update-release-shasum.py ${{ env.VMTS_VERSION }} ${{ env.SH }}
 
-  ##     - name: Show Changes
-  ##       run: |
-  ##         git status
-  ##         git diff
+      - name: Show Changes
+        run: |
+          git status
+          git diff
 
-  ##     - name: Commit Changes
-  ##       run: |
-  ##         git commit -am "Update README.rst with ${{ env.BS_VERSION }} release sha256sum" || \
-  ##           git commit -am "Update README.rst with ${{ env.BS_VERSION }} release sha256sum"
+      - name: Commit Changes
+        run: |
+          git commit -am "Update README.rst with ${{ env.VMTS_VERSION }} release sha256sum" || \
+            git commit -am "Update README.rst with ${{ env.VMTS_VERSION }} release sha256sum"
 
-  ##     - name: Push Changes
-  ##       uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
-  ##       with:
-  ##         ssh: true
-  ##         atomic: true
-  ##         branch: develop
-  ##         repository: ${{ github.repository }}
+      - name: Push Changes
+        uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
+        with:
+          ssh: true
+          atomic: true
+          branch: main
+          repository: ${{ github.repository }}
+
+      - name: Update vmtools-salt.sh sha256sum's
+        run: |
+          sha256sum vmtools-salt.sh | awk '{ print $1 }' > vmtools-salt.sh.sha256
+          sha256sum vmtools-salt.ps1 | awk '{ print $1 }' > vmtools-salt.ps1.sha256
+          git commit -a -m "Update sha256 checksums" || git commit -a -m "Update sha256 checksums"
+
+      - name: Push Changes
+        uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
+        with:
+          ssh: true
+          tags: true
+          atomic: true
+          branch: main
+          repository: ${{ github.repository }}
+
+      - name: Tag The ${{ needs.update-main.outputs.release-version }} Release
+        run: |
+          git tag --no-sign -m "Release ${{ needs.update-main.outputs.release-version }}" -a ${{ needs.update-main.outputs.release-version }}

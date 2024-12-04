@@ -1,0 +1,2 @@
+pre-commit
+python-tools-scripts >= 0.18.6

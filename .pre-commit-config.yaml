@@ -29,6 +29,14 @@ repos:
       - id: check-yaml
       - id: check-json
 
+  - repo: https://github.com/jazzband/pip-tools
+    rev: 7.3.0
+    hooks:
+      - id: pip-compile
+        files: ^requirements/release\.(in|txt)$
+        args:
+          - requirements/release.in
+
   - repo: local
     hooks:
       - id: generate-actions-workflow
