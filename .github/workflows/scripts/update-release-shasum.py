@@ -31,7 +31,7 @@ def main(version, sha256sum):
                 continue
 
             out_contents += line
-            if line.startswith(".. _sha256sums:"):
+            if line.startswith("## _sha256sums"):
                 found_anchor = True
     if in_contents != out_contents:
         README_PATH.write_text(out_contents)

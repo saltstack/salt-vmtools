@@ -15,11 +15,11 @@ either using a direct command line option or via VMware's use of Guest Variables
 commonly referred to as guestVars.
 
 In every two-step installation example, you would be well-served to **verify against the SHA256
-sum** of the downloaded ``svtminion.sh`` file.
+sum** of the downloaded `svtminion.sh` file.
 
-.. _sha256sums:
+## _sha256sums
 
-The SHA256 sum of the ``svtminion.sh`` file, per release, is:
+The SHA256 sum of the `svtminion.sh` file, per release, is:
 
 
 If you're looking for a *one-liner* to install Salt Minion, please read below.
