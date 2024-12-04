@@ -114,7 +114,7 @@ def get_generated_changelog(options):
         json={
             "tag_name": options.release_tag,
             "previous_tag_name": options.previous_tag,
-            "target_commitish": "develop",
+            "target_commitish": "main",
         },
     )
     if response.status_code == 200:
