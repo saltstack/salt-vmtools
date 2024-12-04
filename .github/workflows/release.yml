@@ -255,7 +255,7 @@ jobs:
       - name: Get linux/svtminion.sh on main branch sha256sum
         run: |
           echo "SH=$(sha256sum linux/svtminion.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
-          echo "VMTS_VERSION=$(sh linux/svtminion.sh --version | awk '{ print $4 }')" >> "$GITHUB_ENV"
+          echo "VMTS_VERSION=$(bash linux/svtminion.sh --version | awk '{ print $1 }')" >> "$GITHUB_ENV"
           echo "DGM  SH ,${SH}, and VMTS_VERSION ,${VMTS_VERSION},"
 
       - uses: actions/checkout@v4
