@@ -1,3 +1,22 @@
+# v2024.12.04
+
+## What's Changed
+* Update pre-commit t  generate actions workflow by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/5
+* Update Linux tests to work on GitHub by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/6
+* Added linux pakcages for x86_64 for 3006.8, 3006.9 and 3007.1 by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/8
+* Remove testing on Photon 5 and final cleanup by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/9
+* Migrate tests from gitlab by @twangboy in https://github.com/saltstack/salt-vmtools/pull/7
+* Updating GitHub actions to cut a release by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/10
+* Updating cut-release for errors found during cut-release by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/11
+* Migrated CHANGELOG to CHANGLOG.md by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/12
+* Changed branch develop to main by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/13
+* Changes pushes to repo to not use ssh by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/14
+
+## New Contributors
+* @twangboy made their first contribution in https://github.com/saltstack/salt-vmtools/pull/7
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/1.6...v2024.12.04
+
 # Release 1.7
 
 ## What's Changed
