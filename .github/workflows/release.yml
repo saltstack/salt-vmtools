@@ -99,7 +99,7 @@ jobs:
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
         with:
-          ssh: true
+          ## ssh: true
           atomic: true
           branch: main
           repository: ${{ github.repository }}
@@ -189,7 +189,7 @@ jobs:
         with:
           ref: main
           repository: ${{ github.repository }}
-          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+          ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
       - name: Download Release Details
         uses: actions/download-artifact@v4
@@ -237,7 +237,7 @@ jobs:
         with:
           ref: main
           repository: ${{ github.repository }}
-          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+          ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
       - name: Get vmtools-salt.sh on main branch sha256sum
         run: |
@@ -248,7 +248,7 @@ jobs:
         with:
           ref: main
           repository: ${{ github.repository }}
-          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+          ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
       - name: Configure Git
         shell: bash
@@ -275,7 +275,7 @@ jobs:
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
         with:
-          ssh: true
+          ## ssh: true
           atomic: true
           branch: main
           repository: ${{ github.repository }}
@@ -289,7 +289,7 @@ jobs:
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
         with:
-          ssh: true
+          ## ssh: true
           tags: true
           atomic: true
           branch: main
