@@ -25,13 +25,13 @@ def main(version, sha256sum):
                 if not line.startswith("-"):
                     out_contents += line
                     continue
-                out_contents += "- {}: ``{}``\n".format(version, sha256sum)
+                out_contents += f"- {version}: `{sha256sum}`\n"
                 out_contents += line
                 updated_version = True
                 continue
 
             out_contents += line
-            if line.startswith("## _sha256sums"):
+            if line.startswith("## _sha256sums:"):
                 found_anchor = True
     if in_contents != out_contents:
         README_PATH.write_text(out_contents)

@@ -298,7 +298,10 @@ jobs:
         run: |
           sha256sum linux/svtminion.sh | awk '{ print $1 }' > svtminion.sh.sha256
           sha256sum windows/svtminion.ps1 | awk '{ print $1 }' > svtminion.ps1.sha256
-          git commit -a -m "Update sha256 checksums" || git commit -a -m "Update sha256 checksums"
+          ls -alh
+          git add svtminion.sh.sha256
+          git add svtminion.ps1.sha256
+          git commit -am "Update sha256 checksums" || git commit -am "Update sha256 checksums"
 
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
