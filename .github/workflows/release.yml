@@ -191,6 +191,14 @@ jobs:
           repository: ${{ github.repository }}
           ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
+      - name: Configure Git
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$(pwd)"
+          git config --global user.name "Salt Project Packaging"
+          git config --global user.email saltproject.pdl@broadcom.com
+          git config --global commit.gpgsign false
+
       - name: Download Release Details
         uses: actions/download-artifact@v4
         with:
