@@ -197,8 +197,8 @@ def main():
     )
     svtminion_script_path.write_text(
         re.sub(
-            r'SCRIPT_VERSION="(.*)"',
-            f'SCRIPT_VERSION="{options.release_tag.lstrip("v")}"',
+            r'readonly SCRIPT_VERSION="(.*)"',
+            f'readonly SCRIPT_VERSION="{options.release_tag.lstrip("v")}"',
             svtminion_script_path.read_text(),
         )
     )
@@ -212,8 +212,8 @@ def main():
     )
     svtminion_script_path.write_text(
         re.sub(
-            r'\$SCRIPT_VERSION= "(.*)"',
-            f'$SCRIPT_VERSION= "{options.release_tag.lstrip("v")}"',
+            r'\$SCRIPT_VERSION = "(.*)"',
+            f'$SCRIPT_VERSION = "{options.release_tag.lstrip("v")}"',
             svtminion_script_path.read_text(),
         )
     )
