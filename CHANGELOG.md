@@ -8,6 +8,10 @@
 
 # v2024.12.04
 
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2024.12.04...v2024.12.04
+
+# v2024.12.04
+
 ## What's Changed
 * Update pre-commit t  generate actions workflow by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/5
 * Update Linux tests to work on GitHub by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/6
