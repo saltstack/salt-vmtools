@@ -1,0 +1,42 @@
+# Release 1.7
+
+## What's Changed
+
+- Added support to stop, start, reconfig and upgrade and installed salt-minion
+- Updated tests to exercise stop, start, reconfig and upgrade functionality
+
+# Release 1.6
+
+## What's Changed
+
+- Added support for salt user and group on Linux for Salt 3006 and later
+- Create expected directories on Windows and fix mis-spelling on Windows
+
+# Release 1.5
+
+## What's Changed
+
+- Support for Salt 3006 and later on Linux and Windows
+- Return 106 'external install', if find existing non-onedir installation on Linux and Windows
+- Updated the copyright and license in generated Linux systemd salt-minion.service file
+
+# Release 1.4
+
+## What's Changed
+
+- Detect arch using pointer size instead of WMIC
+- Fix path to log location on Windows
+- Update copyright, copying permission and pre-commit
+- Fix Windows Script not Starting
+
+# Release 1.3
+
+## What's Changed
+
+- Added ability to install from private repository, locally or via the net
+
+# Release 1.2
+
+## What's Changed
+
+- Windows   Detect arch using pointer size instead of WMIC
