@@ -50,7 +50,7 @@ jobs:
           fi
 
   update-main:
-    name: Update CHANGELOG.md and vmtools svtminion.sh svtminion.ps1
+    name: Update CHANGELOG.md and linux/svtminion.sh windows/svtminion.ps1
     runs-on: ubuntu-latest
     permissions:
       contents: write  # To be able to publish the release
@@ -161,10 +161,10 @@ jobs:
   ##       run: |
   ##         git tag --no-sign -m "Release ${{ needs.update-develop.outputs.release-version }}" -a ${{ needs.update-develop.outputs.release-version }}
 
-  ##     ## - name: Update vmtools-salt.sh sha256sum's
+  ##     ## - name: Update svtminion.sh sha256sum's
   ##     ##   run: |
-  ##     ##     sha256sum vmtools-salt.sh | awk '{ print $1 }' > vmtools-salt.sh.sha256
-  ##     ##     sha256sum vmtools-salt.ps1 | awk '{ print $1 }' > vmtools-salt.ps1.sha256
+  ##     ##     sha256sum svtminion.sh | awk '{ print $1 }' > svtminion.sh.sha256
+  ##     ##     sha256sum svtminion.ps1 | awk '{ print $1 }' > svtminion.ps1.sha256
   ##     ##     git commit -a -m "Update sha256 checksums" || git commit -a -m "Update sha256 checksums"
 
   ##     ## - name: Push Changes
@@ -252,10 +252,10 @@ jobs:
           repository: ${{ github.repository }}
           ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
-      - name: Get vmtools-salt.sh on main branch sha256sum
+      - name: Get linux/svtminion.sh on main branch sha256sum
         run: |
-          echo "SH=$(sha256sum linux/vmtools-salt.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
-          echo "VMTS_VERSION=$(sh linux/vmtools-salt.sh --version | awk '{ print $4 }')" >> "$GITHUB_ENV"
+          echo "SH=$(sha256sum linux/svtminion.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
+          echo "VMTS_VERSION=$(sh linux/svtminion.sh --version | awk '{ print $4 }')" >> "$GITHUB_ENV"
           echo "DGM  SH ,${SH}, and VMTS_VERSION ,${VMTS_VERSION},"
 
       - uses: actions/checkout@v4
@@ -294,7 +294,7 @@ jobs:
           branch: main
           repository: ${{ github.repository }}
 
-      - name: Update vmtools-salt.sh sha256sum's
+      - name: Update linux/svtminion.sh sha256sum's
         run: |
           sha256sum linux/svtminion.sh | awk '{ print $1 }' > svtminion.sh.sha256
           sha256sum windows/svtminion.ps1 | awk '{ print $1 }' > svtminion.ps1.sha256
