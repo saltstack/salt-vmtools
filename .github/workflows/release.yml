@@ -113,69 +113,6 @@ jobs:
             .cut_release_changes
           include-hidden-files: true
 
-  ## merge-develop-into-stable:
-  ##   name: Merge develop into stable
-  ##   runs-on: ubuntu-latest
-  ##   needs:
-  ##     - update-main
-  ##   environment: release
-  ##   permissions:
-  ##     contents: write  # To be able to publish the release
-  ##   steps:
-  ##     - uses: actions/checkout@v4
-  ##       with:
-  ##         ref: stable
-  ##         repository: ${{ github.repository }}
-  ##         ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
-  ##         fetch-depth: 0
-
-  ##     - name: Configure Git
-  ##       shell: bash
-  ##       run: |
-  ##         git config --global --add safe.directory "$(pwd)"
-  ##         git config --global user.name "Salt Project Packaging"
-  ##         git config --global user.email saltproject.pdl@broadcom.com
-  ##         git config --global commit.gpgsign false
-
-  ##     - name: Download Release Details
-  ##       uses: actions/download-artifact@v4
-  ##       with:
-  ##         name: release-details
-
-  ##     - name: Merge develop into stable
-  ##       run: |
-  ##         git merge --no-ff -m "Merge develop into stable for ${{ needs.update-develop.outputs.release-version }} release" origin/develop || touch .git-conflicts
-  ##         if [ -f .git-conflicts ]
-  ##         then
-  ##           git diff
-  ##           for f in $(git status | grep 'both modified' | awk '{ print $3 }')
-  ##           do
-  ##             git checkout --theirs "$f"
-  ##             pre-commit run -av --files "$f"
-  ##             git add "$f"
-  ##           done
-  ##           git commit -a -m "Merge develop into stable for ${{ needs.update-develop.outputs.release-version }} release(auto resolving conflicts to the develop version)"
-  ##         fi
-
-  ##     - name: Tag The ${{ needs.update-develop.outputs.release-version }} Release
-  ##       run: |
-  ##         git tag --no-sign -m "Release ${{ needs.update-develop.outputs.release-version }}" -a ${{ needs.update-develop.outputs.release-version }}
-
-  ##     ## - name: Update svtminion.sh sha256sum's
-  ##     ##   run: |
-  ##     ##     sha256sum svtminion.sh | awk '{ print $1 }' > svtminion.sh.sha256
-  ##     ##     sha256sum svtminion.ps1 | awk '{ print $1 }' > svtminion.ps1.sha256
-  ##     ##     git commit -a -m "Update sha256 checksums" || git commit -a -m "Update sha256 checksums"
-
-  ##     ## - name: Push Changes
-  ##     ##   uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
-  ##     ##   with:
-  ##     ##     ssh: true
-  ##     ##     tags: true
-  ##     ##     atomic: true
-  ##     ##     branch: stable
-  ##     ##     repository: ${{ github.repository }}
-
   publish-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -211,7 +148,6 @@ jobs:
 
       - name: Tag The ${{ needs.update-main.outputs.release-version }} Release
         run: |
-          ## DGM git tag --no-sign -m "Release ${{ needs.update-main.outputs.release-version }}" -a ${{ needs.update-main.outputs.release-version }}
           git tag -f --no-sign -m "Release ${{ needs.update-main.outputs.release-version }}" -a ${{ needs.update-main.outputs.release-version }}
 
       - name: Create Github Release
@@ -256,7 +192,6 @@ jobs:
         run: |
           echo "SH=$(sha256sum linux/svtminion.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
           echo "VMTS_VERSION=$(bash linux/svtminion.sh --version | awk '{ print $1 }')" >> "$GITHUB_ENV"
-          echo "DGM  SH ,${SH}, and VMTS_VERSION ,${VMTS_VERSION},"
 
       - uses: actions/checkout@v4
         with:

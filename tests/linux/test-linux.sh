@@ -219,8 +219,6 @@ cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
 
 # test with classic package installed
-## rpm --import https://repo.saltproject.io/py3/redhat/8/x86_64/3005/SALTSTACK-GPG-KEY.pub # DGM FIX
-## curl -fsSL https://repo.saltproject.io/py3/redhat/8/x86_64/3005.repo | tee /etc/yum.repos.d/salt.repo # DGM FIX
 # Use 3005 Redhat 9 for Rocky 9 container
 rpm --import ${oldpwd}/tests/classic/SALTSTACK-GPG-KEY2.pub
 cp -a ${oldpwd}/tests/classic/3005.repo /etc/yum.repos.d/salt.repo

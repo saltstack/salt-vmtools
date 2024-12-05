@@ -46,42 +46,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      ## - name: Install Python Dependencies with pip breakage
-      ##   if: ${{ ( inputs.distro-slug == 'debian-11' ) || ( inputs.distro-slug == 'debian-12' ) || ( inputs.distro-slug == 'debian-13' ) || ( inputs.distro-slug == 'ubuntu-2404' ) }}
-      ##   run: |
-      ##     echo "DGM pip test for distro-slug ${{ inputs.distro-slug }}"
-      ##     echo "DGM doing break-system-packages for distro-slug ${{ inputs.distro-slug }}"
-      ##     python3 -m pip install --break-system-packages -r tests/requirements.txt
-
-      ## - name: Install Python Dependencies without pip breakage
-      ##   if: ${{ ( inputs.distro-slug != 'debian-11' ) && ( inputs.distro-slug != 'debian-12' ) && ( inputs.distro-slug != 'debian-13' ) && ( inputs.distro-slug != 'ubuntu-2404' ) }}
-      ##   run: |
-      ##     echo "DGM pip test for distro-slug ${{ inputs.distro-slug }}"
-      ##     echo "DGM plain pip for distro-slug ${{ inputs.distro-slug }}"
-      ##     python3 -m pip install -r tests/requirements.txt
-
-      ## - name: Get Version
-      ##   run: |
-      ##     # We need to get the version here and make it an environment variable
-      ##     # It is used to install via bootstrap and in the test
-      ##     # The version is in the instance name
-      ##     # sed 1st - becomes space, 2nd - becomes dot
-      ##     ## DGM needs cleanup
-      ##     echo "matrix instance ,${{ matrix.instance }},"
-      ##     vt_parms=$(echo "${{ matrix.instance }}" | sed 's/-/ /' | sed 's/-/./')
-      ##     vt_parm_ver=$(echo "$vt_parms" | awk -F ' ' '{print $2}')
-      ##     echo "vt parms ,$vt_parms, vt_parms_ver ,$vt_parm_ver,"
-      ##     echo "SaltVersion=$vt_parm_ver" >> $GITHUB_ENV
-
       - name: VMTools Salt
         run: |
           # sed 1st - becomes space, 2nd - becomes dot
-          ## DGM needs cleanup
-          echo "matrix instance ,${{ matrix.instance }},"
           bt_parms=$(echo "${{ matrix.instance }}" | sed 's/-/ /' | sed 's/-/./')
           bt_arg1=$(echo "$bt_parms" | awk -F ' ' '{print $1}')
           bt_arg2=$(echo "$bt_parms" | awk -F ' ' '{print $2}')
-          echo "bt parms ,$bt_parms, bt_arg1 ,$bt_arg1, bt_arg2 ,$bt_arg2,"
           bash -x ./linux/svtminion.sh "$bt_arg1" "$bt_arg2"
 
       - name: Test VMTools
