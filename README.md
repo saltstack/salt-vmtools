@@ -21,7 +21,6 @@ sum** of the downloaded `svtminion.sh` file.
 
 The SHA256 sum of the `svtminion.sh` file, per release, is:
 
-- 2024.12.05: `dc6c2438d94a535067c871f8d84960ddbf4b77f204f6d9e91fd3baa021b93270`
 - 2024.12.04: `e7f4d7b242bd495c63e7b3240631411fbe65ac966ff2c1ef93399ceda9b5719f`
 
 If you're looking for a *one-liner* to install Salt Minion, please read below.
