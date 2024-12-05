@@ -1,5 +1,9 @@
 # v2024.12.05
 
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2024.12.05...v2024.12.05
+
+# v2024.12.05
+
 ## What's Changed
 * Corrected paths to scripts and moved location tag occurs by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/15
 * Added git user etc before tagging by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/16
