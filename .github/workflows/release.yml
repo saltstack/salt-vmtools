@@ -99,7 +99,7 @@ jobs:
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
         with:
-          ## ssh: true
+          ssh: true
           atomic: true
           branch: main
           repository: ${{ github.repository }}
@@ -126,7 +126,7 @@ jobs:
         with:
           ref: main
           repository: ${{ github.repository }}
-          ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
       - name: Configure Git
         shell: bash
@@ -146,6 +146,24 @@ jobs:
           CUT_RELEASE_VERSION=$(cat .cut_release_version)
           echo "CUT_RELEASE_VERSION=${CUT_RELEASE_VERSION}" >> "$GITHUB_ENV"
 
+      - name: Update linux/svtminion.sh sha256sum's
+        run: |
+          sha256sum linux/svtminion.sh | awk '{ print $1 }' > svtminion.sh.sha256
+          sha256sum windows/svtminion.ps1 | awk '{ print $1 }' > svtminion.ps1.sha256
+          ls -alh
+          git add svtminion.sh.sha256
+          git add svtminion.ps1.sha256
+          git commit -am "Update sha256 checksums" || git commit -am "Update sha256 checksums"
+
+      - name: Push Changes
+        uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
+        with:
+          ssh: true
+          tags: true
+          atomic: true
+          branch: main
+          repository: ${{ github.repository }}
+
       - name: Tag The ${{ needs.update-main.outputs.release-version }} Release
         run: |
           git tag -f --no-sign -m "Release ${{ needs.update-main.outputs.release-version }}" -a ${{ needs.update-main.outputs.release-version }}
@@ -163,6 +181,8 @@ jobs:
           files: |
             linux/svtminion.sh
             windows/svtminion.ps1
+            svtminion.sh.sha256
+            svtminion.ps1.sha256
             LICENSE
 
       - name: Delete Release Details Artifact
@@ -186,7 +206,7 @@ jobs:
         with:
           ref: main
           repository: ${{ github.repository }}
-          ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
       - name: Get linux/svtminion.sh on main branch sha256sum
         run: |
@@ -197,7 +217,7 @@ jobs:
         with:
           ref: main
           repository: ${{ github.repository }}
-          ## ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
+          ssh-key: ${{ secrets.SALT_VMTOOLS_RELEASE_KEY }}
 
       - name: Configure Git
         shell: bash
@@ -224,25 +244,7 @@ jobs:
       - name: Push Changes
         uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
         with:
-          ## ssh: true
-          atomic: true
-          branch: main
-          repository: ${{ github.repository }}
-
-      - name: Update linux/svtminion.sh sha256sum's
-        run: |
-          sha256sum linux/svtminion.sh | awk '{ print $1 }' > svtminion.sh.sha256
-          sha256sum windows/svtminion.ps1 | awk '{ print $1 }' > svtminion.ps1.sha256
-          ls -alh
-          git add svtminion.sh.sha256
-          git add svtminion.ps1.sha256
-          git commit -am "Update sha256 checksums" || git commit -am "Update sha256 checksums"
-
-      - name: Push Changes
-        uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
-        with:
-          ## ssh: true
-          tags: true
+          ssh: true
           atomic: true
           branch: main
           repository: ${{ github.repository }}
