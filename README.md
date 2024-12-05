@@ -26,14 +26,14 @@ The SHA256 sum of the `svtminion.sh` file, per release, is:
 
 If you're looking for a *one-liner* to install Salt Minion, please read below.
 
+The latest versions of the svtminion scripts for Linux and Windows from the following
+https://github.com/saltstack/salt-vmtools/releases/latest/download/svtminion.sh and
+https://github.com/saltstack/salt-vmtools/releases/latest/download/svtminion.ps1
+
 There are also .sha256 files for verifying against in the repo for the main branch.
 You can also get the correct sha256 sum for the tagged release from
 https://github.com/saltstack/salt-vmtools/releases/latest/download/svtminion.sh.sha256 and
 https://github.com/saltstack/salt-vmtools/releases/latest/download/svtminion.ps1.sha256
-
-The latest versions of the svtminion scripts for Linux and Windows from the following
-https://github.com/saltstack/salt-vmtools/releases/latest/download/svtminion.sh and
-https://github.com/saltstack/salt-vmtools/releases/latest/download/svtminion.ps1
 
 
 ## Configuration options
