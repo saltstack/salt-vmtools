@@ -154,15 +154,6 @@ jobs:
           git add svtminion.ps1.sha256
           git commit -am "Update sha256 checksums" || git commit -am "Update sha256 checksums"
 
-      - name: Push Changes
-        uses: ad-m/github-push-action@b87afee92c6e70ea888be6203a3e9426fda49839
-        with:
-          ssh: true
-          tags: true
-          atomic: true
-          branch: main
-          repository: ${{ github.repository }}
-
       - name: Tag The ${{ needs.update-main.outputs.release-version }} Release
         run: |
           git tag -f --no-sign -m "Release ${{ needs.update-main.outputs.release-version }}" -a ${{ needs.update-main.outputs.release-version }}
