@@ -37,7 +37,7 @@ installation status as follows:
 - 104 - Removing
 - 105 - Removal failed
 - 106 - External installation detected
-- 107 - Installed but stopped
+- 107 - Installed but stopped (future support, returns 100 for now)
 
 NOTE: This script must be executed with Administrator privileges.
 
@@ -199,7 +199,7 @@ param(
     # 104 - Removing
     # 105 - Removal failed
     # 106 - External installation detected
-    # 107 - Installed but stopped
+    # 107 - Installed but stopped (future support, returns 100 for now)
     #
     # Exits with the `scriptFailed` exit code (126) under the following
     # conditions:
@@ -615,7 +615,10 @@ function Get-Status {
             $current_status = $STATUS_CODES["notInstalled"]
         } elseif ( $service_status -ne "Running" ) {
             Write-Log "Service not running" -Level debug
-            $current_status = $STATUS_CODES["installedStopped"]
+            # VM Tools currently doesn't support this. We'll add this back
+            # once they do. So, until then, we just return installed
+            #$current_status = $STATUS_CODES["installedStopped"]
+            $current_status = $STATUS_CODES["installed"]
         }
     }
 
