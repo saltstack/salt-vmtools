@@ -148,7 +148,7 @@ declare -a m_cfg_values
 #  100 + 4 => removing
 #  100 + 5 => removeFailed
 #  100 + 6 => externalInstall
-#  100 + 7 => installedStopped
+#  100 + 7 => installedStopped (future support, returns 100 for now)
 #  126 => scriptFailed
 #  130 => scriptTerminated
 declare -A STATUS_CODES_ARY
@@ -159,7 +159,8 @@ STATUS_CODES_ARY[installFailed]=103
 STATUS_CODES_ARY[removing]=104
 STATUS_CODES_ARY[removeFailed]=105
 STATUS_CODES_ARY[externalInstall]=106
-STATUS_CODES_ARY[installedStopped]=107
+# VM Tools doesn't support 107. For now we return 100
+STATUS_CODES_ARY[installedStopped]=100
 STATUS_CODES_ARY[scriptFailed]=126
 STATUS_CODES_ARY[scriptTerminated]=130
 
@@ -1328,7 +1329,7 @@ _create_pre_3006_helper_scripts() {
 #       4 => removing
 #       5 => removeFailed
 #       6 => externalInstall
-#       7 => installedStopped
+#       7 => installedStopped (future support, returns 100 for now)
 #       126 => scriptFailed
 #
 # Side Effects:
@@ -1410,7 +1411,7 @@ _status_fn() {
 #       4 => removing
 #       5 => removeFailed
 #       6 => externalInstall
-#       7 => installedStopped
+#       7 => installedStopped (future support, returns 100 for now)
 #       126 => scriptFailed
 #
 # Side Effects:
@@ -1500,7 +1501,7 @@ _stop_fn() {
 #       4 => removing
 #       5 => removeFailed
 #       6 => externalInstall
-#       7 => installedStopped
+#       7 => installedStopped (future support, returns 100 for now)
 #       126 => scriptFailed
 #
 # Side Effects:
