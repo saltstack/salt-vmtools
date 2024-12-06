@@ -309,7 +309,9 @@ $STATUS_CODES = @{
     "removing" = 104;
     "removeFailed" = 105;
     "externalInstall" = 106;
-    "installedStopped" = 107;
+    # VM Tools currently doesn't support 107. We'll add this back
+    # once they do. So, until then, we just return 100
+    "installedStopped" = 100;
     "scriptFailed" = 126;
     "scriptTerminated" = 130;
     100 = "installed";
@@ -615,10 +617,7 @@ function Get-Status {
             $current_status = $STATUS_CODES["notInstalled"]
         } elseif ( $service_status -ne "Running" ) {
             Write-Log "Service not running" -Level debug
-            # VM Tools currently doesn't support this. We'll add this back
-            # once they do. So, until then, we just return installed
-            #$current_status = $STATUS_CODES["installedStopped"]
-            $current_status = $STATUS_CODES["installed"]
+            $current_status = $STATUS_CODES["installedStopped"]
         }
     }
 

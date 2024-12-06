@@ -319,7 +319,8 @@ test-salt-vmtools-linux:
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - sudo -u root ps -ef | grep salt
     - systemctl is-active salt-minion
-    - sudo -u root ./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 107 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
+    # VM Tools doesn't support 107 for now... until then we return 100
+    - sudo -u root ./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
     - sudo -u root ps -ef | grep salt
     - systemctl is-active salt-minion || { echo "test correct"; }
     - sudo -u root ps -ef | grep salt
@@ -606,7 +607,8 @@ test-tags-salt-vmtools-linux:
     - cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
     - sudo -u root ps -ef | grep salt
     - sudo -u root systemctl is-active salt-minion
-    - sudo -u root ./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 107 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
+    # VM Tools doesn't support 107 for now... until then we return 100
+    - sudo -u root ./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
     - sudo -u root ps -ef | grep salt
     - systemctl is-active salt-minion || { echo "test correct"; }
     - sudo -u root ps -ef | grep salt
