@@ -327,7 +327,7 @@ or `Get-Help svtminion.ps1`:
         - 104 - Removing
         - 105 - Removal failed
         - 106 - External installation detected
-        - 107 - Installed but stopped
+        - 107 - Installed but stopped (future support, returns 100 for now)
 
         NOTE: This script must be executed with Administrator privileges.
 
@@ -440,7 +440,7 @@ or `Get-Help svtminion.ps1`:
             104 - Removing
             105 - Removal failed
             106 - External installation detected
-            107 - Installed but stopped
+            107 - Installed but stopped (future support, returns 100 for now)
 
             Exits with the `scriptFailed` exit code (126) under the following
             conditions:
