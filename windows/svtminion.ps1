@@ -287,7 +287,7 @@ if ($help) {
 }
 
 # This value is populated via CICD during build
-$SCRIPT_VERSION = "2024.12.05"
+$SCRIPT_VERSION = "SCRIPT_VERSION_REPLACE"
 if ($Version) {
     Write-Host $SCRIPT_VERSION
     exit 0

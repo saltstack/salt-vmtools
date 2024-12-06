@@ -45,7 +45,9 @@ function test_Get-Status_installedStopped {
                      -Value $reg_value
     function Get-ServiceStatus { return "Stopped" }
     $result = Get-Status
-    if ($result -eq $STATUS_CODES["installedStopped"]) { return 0 }
+    # We'll set this back once VM Tools adds support for this code
+    #if ($result -eq $STATUS_CODES["installedStopped"]) { return 0 }
+    if ($result -eq $STATUS_CODES["installed"]) { return 0 }
     return 1
 }
 
