@@ -28,7 +28,7 @@ The script returns the following exit codes to indicate its status:
 - 126 - `scriptFailed`
 - 130 - `scriptTerminated`
 
-If the `-Status` option is passed, the exit code signals the Salt minion’s
+If the `-Status` option is passed, the exit code signals the Salt minion's
 installation status as follows:
 - 100 - Installed (and running)
 - 101 - Installing
