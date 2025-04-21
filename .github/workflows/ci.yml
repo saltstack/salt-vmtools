@@ -128,7 +128,7 @@ jobs:
       container-slug: windows-2022
       timeout: 20
       runs-on: windows-2022
-      instances: '["3006", "3006-8", "3007", "3007-1"]'
+      instances: '["3006", "3006-10", "3007", "3007-1"]'
 
 
 
@@ -144,7 +144,7 @@ jobs:
       display-name: Rocky Linux 9
       container-slug: systemd-rockylinux-9
       timeout: 20
-      instances: '["3006", "3006-8", "3007", "3007-1"]'
+      instances: '["3006", "3006-10", "3007", "3007-1"]'
 
 
   set-pipeline-exit-status:
