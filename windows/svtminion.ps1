@@ -37,7 +37,7 @@ installation status as follows:
 - 104 - Removing
 - 105 - Removal failed
 - 106 - External installation detected
-- 107 - Installed but stopped
+- 107 - Installed but stopped (future support, returns 100 for now)
 
 NOTE: This script must be executed with Administrator privileges.
 
@@ -199,7 +199,7 @@ param(
     # 104 - Removing
     # 105 - Removal failed
     # 106 - External installation detected
-    # 107 - Installed but stopped
+    # 107 - Installed but stopped (future support, returns 100 for now)
     #
     # Exits with the `scriptFailed` exit code (126) under the following
     # conditions:
@@ -287,7 +287,7 @@ if ($help) {
 }
 
 # This value is populated via CICD during build
-$SCRIPT_VERSION = "2024.12.05"
+$SCRIPT_VERSION = "SCRIPT_VERSION_REPLACE"
 if ($Version) {
     Write-Host $SCRIPT_VERSION
     exit 0
@@ -309,7 +309,9 @@ $STATUS_CODES = @{
     "removing" = 104;
     "removeFailed" = 105;
     "externalInstall" = 106;
-    "installedStopped" = 107;
+    # VM Tools currently doesn't support 107. We'll add this back
+    # once they do. So, until then, we just return 100
+    "installedStopped" = 100;
     "scriptFailed" = 126;
     "scriptTerminated" = 130;
     100 = "installed";

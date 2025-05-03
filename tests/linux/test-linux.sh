@@ -160,7 +160,8 @@ cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ps -ef | grep salt
 systemctl is-active salt-minion
-./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 107 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
+## VM Tools doesn't support 107 for now... until then we return 100
+./svtminion.sh --stop --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be stopped, returned '${_retn}'"; exit 1; fi; }
 ps -ef | grep salt
 systemctl is-active salt-minion || { echo "test correct"; }
 ps -ef | grep salt
