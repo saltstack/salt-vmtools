@@ -33,7 +33,7 @@ nodeenv==1.9.1
 platformdirs==4.3.6
     # via virtualenv
 pre-commit==4.0.1
-    # via -r requirements/release.in
+    # via -r release.in
 pydantic==2.10.3
     # via python-tools-scripts
 pydantic-core==2.27.1
@@ -41,7 +41,7 @@ pydantic-core==2.27.1
 pygments==2.18.0
     # via rich
 python-tools-scripts==0.20.5
-    # via -r requirements/release.in
+    # via -r release.in
 pyyaml==6.0.2
     # via pre-commit
 requests==2.32.3
@@ -54,7 +54,7 @@ typing-extensions==4.12.2
     #   pydantic-core
     #   python-tools-scripts
     #   rich
-urllib3==2.2.3
+urllib3==2.5.0
     # via requests
 virtualenv==20.28.0
     # via pre-commit
