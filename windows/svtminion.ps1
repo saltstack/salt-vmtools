@@ -287,7 +287,7 @@ if ($help) {
 }
 
 # This value is populated via CICD during build
-$SCRIPT_VERSION = "2024.12.05"
+$SCRIPT_VERSION = "SCRIPT_VERSION_REPLACE"
 if ($Version) {
     Write-Host $SCRIPT_VERSION
     exit 0
@@ -1828,25 +1828,36 @@ function Get-AvailableVersions {
         Write-Log "- $_" -Level debug
     }
 
-    # Get the latest version, should be the last in the list
-    Write-Log "Getting latest available version" -Level debug
-    $latest = $available_versions | Select-Object -Last 1
-    Write-Log "Latest available version: $latest" -Level debug
-
     # Create a versions table
     # This will have the latest version available, the latest version available
     # for each major version, and every version available. This makes the
     # version lookup logic easier. The contents of the versions table can be
     # found in the log or by passing -LogLevel debug
     Write-Log "Populating the versions table" -Level debug
-    $versions_table = [ordered]@{"latest"=$latest}
+    $versions_table = [ordered]@{}
     $available_versions | ForEach-Object {
-        $versions_table[$(Get-MajorVersion $_)] = $_
+        $major_version = $(Get-MajorVersion $_)
+        if ( $versions_table.Keys -contains $major_version ) {
+            if ( [System.Version]$_ -gt [System.Version]$versions_table[$major_version] ) {
+                $versions_table[$major_version] = $_
+            }
+        } else {
+            $versions_table[$major_version] = $_
+        }
+
+        if ( $versions_table -contains "latest" ) {
+            if ( [System.Version]$_ -gt [System.Version]$versions_table["latest"] ) {
+                $versions_table["latest"] = $_
+            }
+        } else {
+            $versions_table["latest"] = $_
+        }
+
         $versions_table[$_.ToLower()] = $_.ToLower()
     }
 
     Write-Log "Versions Table:" -Level debug
-    $versions_table | Sort-Object Name | Out-String | ForEach-Object {
+    $versions_table.GetEnumerator() | Sort-Object Name | Out-String | ForEach-Object {
         Write-Log "$_" -Level debug
     }
 

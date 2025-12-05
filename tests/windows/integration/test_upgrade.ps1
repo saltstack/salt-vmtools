@@ -1,19 +1,22 @@
 # Copyright 2021-2024 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
+$start_ver = "3006.0"
+$upgrade_ver = "3006.1"
+
 function setUpScript {
 
     Write-Host "Resetting environment: " -NoNewline
     Reset-Environment *> $null
     Write-Done
 
-    $MinionVersion = "3006.0"
+    $MinionVersion = $start_ver
     Write-Host "Installing salt ($MinionVersion): " -NoNewline
     function Get-GuestVars { "master=existing_master id=existing_minion" }
     Install *> $null
     Write-Done
 
-    $MinionVersion = "3006.1"
+    $MinionVersion = $upgrade_ver
     $Upgrade = $true
     Write-Host "Upgrading salt ($MinionVersion): " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
@@ -91,5 +94,17 @@ function test_salt_call {
     $result = & "$salt_dir\salt-call" --local test.ping
     if (!($result -like "local:*")) { $failed = 1 }
     if (!($result -like "*True")) { $failed = 1 }
+    return $failed
+}
+
+function test_version {
+    $failed = 0
+    $result = & "$salt_dir\salt-call" --version
+    if (!($result -like "*$upgrade_ver*")) {
+        Write-Host ""
+        Write-Host $result
+        Write-Host $upgrade_ver
+        $failed = 1
+    }
     return $failed
 }
