@@ -1,13 +1,15 @@
 # Copyright 2021-2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2
 
+$test_version = "3006"
+
 function setUpScript {
 
     Write-Host "Resetting environment: " -NoNewline
     Reset-Environment *> $null
     Write-Done
 
-    $MinionVersion = "3006.9"
+    $MinionVersion = $test_version
     Write-Host "Installing salt ($MinionVersion): " -NoNewline
     function Get-GuestVars { "master=gv_master id=gv_minion" }
     Install *> $null
@@ -89,5 +91,21 @@ function test_salt_call {
     $result = & "$salt_dir\salt-call" --local test.ping
     if (!($result -like "local:*")) { $failed = 1 }
     if (!($result -like "*True")) { $failed = 1 }
+    return $failed
+}
+
+function test_version {
+    # This is kind of using the script itself to test the script... maybe need
+    # to get the latest version a different way
+    $versions = Get-AvailableVersions
+    $expected_version = $versions[$test_version]
+    $failed = 0
+    $result = & "$salt_dir\salt-call" --version
+    if (!($result -like "*$expected_version*")) {
+        Write-Host ""
+        Write-Host $result
+        Write-Host $test_version
+        $failed = 1
+    }
     return $failed
 }
