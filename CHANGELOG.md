@@ -1,3 +1,28 @@
+# v2025.12.08
+
+## What's Changed
+* Clean up files after initial release and re-enable use of ssh and key by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/20
+* Updated .gitignore to ignore .cut_* files by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/21
+* Removed unneeded push by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/22
+* Attempting to allow multiple releases in a day with same sha256sums by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/23
+* Removed checksum for 2024 12 05, to allow program to run by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/24
+* Update README for better textual flow on locations of latest for down… by @dmurphy18 in https://github.com/saltstack/salt-vmtools/pull/25
+* Replace utf-8 apostrophe character by @twangboy in https://github.com/saltstack/salt-vmtools/pull/27
+* Update changed-files action to 46.0.5 by @twangboy in https://github.com/saltstack/salt-vmtools/pull/28
+* Test against 3006.10 by @twangboy in https://github.com/saltstack/salt-vmtools/pull/29
+* Upgrade CI to test latest 3006.15 and 3007.7 by @scriptautomate-bc in https://github.com/saltstack/salt-vmtools/pull/33
+* Handle double-digit minor versions properly on  Windows by @twangboy in https://github.com/saltstack/salt-vmtools/pull/35
+* Bump urllib3 from 2.2.3 to 2.6.0 in /requirements by @dependabot[bot] in https://github.com/saltstack/salt-vmtools/pull/36
+* Bump requests from 2.32.3 to 2.32.4 in /requirements by @dependabot[bot] in https://github.com/saltstack/salt-vmtools/pull/30
+* Update actions/checkout to v6 by @twangboy in https://github.com/saltstack/salt-vmtools/pull/37
+* Update the rest of the checkout actions to v6 by @twangboy in https://github.com/saltstack/salt-vmtools/pull/38
+
+## New Contributors
+* @scriptautomate-bc made their first contribution in https://github.com/saltstack/salt-vmtools/pull/33
+* @dependabot[bot] made their first contribution in https://github.com/saltstack/salt-vmtools/pull/36
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2024.12.05...v2025.12.08
+
 # v2024.12.05
 
 **Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2024.12.05...v2024.12.05
