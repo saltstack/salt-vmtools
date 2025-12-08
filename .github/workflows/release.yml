@@ -122,7 +122,7 @@ jobs:
     permissions:
       contents: write  # To be able to publish the release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           repository: ${{ github.repository }}
@@ -192,7 +192,7 @@ jobs:
       pull-requests: write  # For action peter-evans/create-pull-request
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           repository: ${{ github.repository }}
@@ -203,7 +203,7 @@ jobs:
           echo "SH=$(sha256sum linux/svtminion.sh | awk '{ print $1 }')" >> "$GITHUB_ENV"
           echo "VMTS_VERSION=$(bash linux/svtminion.sh --version | awk '{ print $1 }')" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           repository: ${{ github.repository }}
