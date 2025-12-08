@@ -60,7 +60,7 @@ jobs:
     outputs:
       release-version: ${{ steps.update-repo.outputs.release-version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           repository: ${{ github.repository }}
