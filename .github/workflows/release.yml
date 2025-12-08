@@ -148,8 +148,8 @@ jobs:
 
       - name: Update linux/svtminion.sh sha256sum's
         run: |
-          sha256sum linux/svtminion.sh | awk '{ print $1 }' > svtminion.sh.sha256
-          sha256sum windows/svtminion.ps1 | awk '{ print $1 }' > svtminion.ps1.sha256
+          sha256sum linux/svtminion.sh > svtminion.sh.sha256
+          sha256sum windows/svtminion.ps1 > svtminion.ps1.sha256
           git add svtminion.sh.sha256
           git add svtminion.ps1.sha256
           git commit --allow-empty -am "Update sha256 checksums" || git commit --allow-empty -am "Update sha256 checksums"

@@ -14,4 +14,4 @@ order.
 Name                        Nick                    Email
 ==========================  =====================   ============================
 David Murphy                david                   david-dm.murphy@broadcom.com
-Shane Lee                   twangboy                share.lee@broadcom.com
+Shane Lee                   twangboy                shane.lee@broadcom.com

@@ -16,23 +16,21 @@ def main(version, sha256sum):
     out_contents = ""
     found_anchor = False
     updated_version = False
-    if version not in in_contents:
-        for line in in_contents.splitlines(True):
-            if updated_version:
-                out_contents += line
-                continue
-            if found_anchor:
-                if not line.startswith("-"):
-                    out_contents += line
-                    continue
-                out_contents += f"- {version}: `{sha256sum}`\n"
-                out_contents += line
-                updated_version = True
-                continue
-
+    for line in in_contents.splitlines(True):
+        if updated_version:
             out_contents += line
-            if line.startswith("## _sha256sums:"):
-                found_anchor = True
+            continue
+        if found_anchor:
+            if not line.startswith("-"):
+                out_contents += line
+                continue
+            out_contents += f"- {version}: `{sha256sum}`\n"
+            out_contents += line
+            updated_version = True
+            continue
+        if line.startswith("## _sha256sums:"):
+            found_anchor = True
+        out_contents += line
     if in_contents != out_contents:
         README_PATH.write_text(out_contents)
 
