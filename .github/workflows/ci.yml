@@ -16,7 +16,7 @@ jobs:
     outputs:
       run-tests: ${{ steps.set-output.outputs.run-tests }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -58,7 +58,7 @@ jobs:
 
     if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -95,7 +95,7 @@ jobs:
     container: koalaman/shellcheck-alpine:latest
     if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: ShellCheck
         run: |
           shellcheck -s bash -f tty linux/svtminion.sh
