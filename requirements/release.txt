@@ -44,7 +44,7 @@ python-tools-scripts==0.20.5
     # via -r release.in
 pyyaml==6.0.2
     # via pre-commit
-requests==2.32.3
+requests==2.32.4
     # via python-tools-scripts
 rich==13.9.4
     # via python-tools-scripts
