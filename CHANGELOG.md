@@ -1,3 +1,11 @@
+# v2025.12.09
+
+## What's Changed
+* Format the shasum files correctly by @twangboy in https://github.com/saltstack/salt-vmtools/pull/39
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2025.12.08...v2025.12.09
+
 # v2025.12.08
 
 ## What's Changed
