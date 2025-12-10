@@ -1,3 +1,13 @@
+# v2025.12.10
+
+## What's Changed
+* Remove sha256 files from the repo root by @twangboy in https://github.com/saltstack/salt-vmtools/pull/40
+* Remove .gitlab-ci.yml and ChangeLog by @twangboy in https://github.com/saltstack/salt-vmtools/pull/41
+* Migrate to new method for setting output for changed files by @twangboy in https://github.com/saltstack/salt-vmtools/pull/42
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2025.12.09...v2025.12.10
+
 # v2025.12.09
 
 **Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2025.12.09...v2025.12.09
