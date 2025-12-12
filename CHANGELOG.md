@@ -1,3 +1,7 @@
+# v2025.12.12
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2025.12.10...v2025.12.12
+
 # v2025.12.10
 
 ## What's Changed
