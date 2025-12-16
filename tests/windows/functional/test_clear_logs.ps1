@@ -1,4 +1,4 @@
-# Copyright 2021-2023 VMware, Inc.
+# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2
 $target_dir = "$script_log_dir\spongebob"
 $target_file = "$script_log_dir\squarepants.txt"
