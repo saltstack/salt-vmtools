@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2021-2025 Broadcom Inc.
+# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2
 
 ## Salt VMware Tools Integration script
@@ -89,7 +89,7 @@ call
 "
 
 readonly salt_minion_service_wrapper=\
-"# Copyright 2021-2024 VMware, Inc.
+"# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2
 
 [Unit]
@@ -1287,7 +1287,7 @@ _create_pre_3006_helper_scripts() {
 
         echo "#!/usr/bin/env bash
 
-# Copyright (c) 2021 VMware, Inc. All rights reserved.
+# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
 " > "${abs_filepath}" || {
             _error_log "$0:${FUNCNAME[0]} failed to create helper file "\
                 "'salt-${idx}' in directory /usr/bin, retcode '$?'";

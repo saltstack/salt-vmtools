@@ -1,4 +1,4 @@
-# Copyright 2021-2023 VMware, Inc.
+# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2
 
 $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
