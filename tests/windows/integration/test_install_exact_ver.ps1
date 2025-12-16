@@ -1,4 +1,4 @@
-# Copyright 2021-2023 VMware, Inc.
+# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2
 
 $test_version = "3006.9"
