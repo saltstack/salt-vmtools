@@ -287,7 +287,7 @@ if ($help) {
 }
 
 # This value is populated via CICD during build
-$SCRIPT_VERSION = "2025.12.12"
+$SCRIPT_VERSION = "SCRIPT_VERSION_REPLACE"
 if ($Version) {
     Write-Host $SCRIPT_VERSION
     exit 0
@@ -1129,7 +1129,7 @@ function _parse_config {
             Write-Log "Found config: $key_value" -Level debug
             $key, $value = $key_value -split "="
             if ($value) {
-                $config_options[$key.ToLower()] = $value.ToLower()
+                $config_options[$key] = $value
             } else {
                 Write-Log "No config value specified: $key_value" -Level warning
             }
