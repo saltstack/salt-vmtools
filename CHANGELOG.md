@@ -1,3 +1,12 @@
+# v2026.01.08
+
+## What's Changed
+* Update Copyrights to use Broadcom by @twangboy in https://github.com/saltstack/salt-vmtools/pull/43
+* Preserve Case of minion config settings by @twangboy in https://github.com/saltstack/salt-vmtools/pull/47
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2025.12.12...v2026.01.08
+
 # v2025.12.12
 
 **Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2025.12.10...v2025.12.12
