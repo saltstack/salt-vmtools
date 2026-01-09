@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 $info = Get-SaltPackageInfo -MinionVersion "3006.1"
 $zip_file = "$base_salt_install_location\$($info.file_name)"
 

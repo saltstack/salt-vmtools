@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 function setUpScript {
     # We need to create a tools.conf file with some settings
     Write-Host "Creating tools.conf: " -NoNewline

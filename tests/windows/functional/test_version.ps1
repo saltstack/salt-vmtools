@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 function test_Version {
     $test_version = Get-Version
     if ( $env:CI_COMMIT_TAG ) {

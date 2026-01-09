@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 $hash_dir= "$env:Temp\HashDir"
 $hash_file = "$env:Temp\HashFile.txt"
 

@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 $target_file = "$env:Temp\mr.krabbs"
 $target_dir = "$env:Temp\spongebob"
 $test_file = "$env:Temp\flying.dutchman"

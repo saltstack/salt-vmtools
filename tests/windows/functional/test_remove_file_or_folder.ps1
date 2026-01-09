@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 $target_dir = "$env:Temp\TargetDir"
 $target_file = "$env:Temp\TargetFile.txt"
 $path_dir = "$env:Temp\RemoveDir"

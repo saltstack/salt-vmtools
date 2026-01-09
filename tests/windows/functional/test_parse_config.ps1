@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 function test__parse_config_normal {
     $result = _parse_config -KeyValues "master=test id=test_min"
     if ($result["master"] -ne "test") { return 1 }
