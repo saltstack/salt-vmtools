@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 function test_Get-RandomizedId_random_id {
     $random_id = Get-RandomizedMinionId
     if ($random_id -match "^minion_[\w\d]{5}$") { return 0 } else { return 1 }

@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 function setUp {
     Remove-Item -Path "C:\salt\bin\python.exe" -Force -ErrorAction SilentlyContinue
     New-Item -Path "HKLM:\SOFTWARE\Salt Project" -ErrorAction SilentlyContinue | Out-Null

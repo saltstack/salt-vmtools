@@ -1,6 +1,3 @@
-# Copyright (c) 2021-2025 Broadcom Inc. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2
-
 function setUp {
     Write-Host "Ensuring reg key present: " -NoNewline
     New-ItemProperty -Path $vmtools_base_reg `
