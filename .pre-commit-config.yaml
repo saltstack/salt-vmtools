@@ -1,7 +1,7 @@
 minimum_pre_commit_version: 1.15.2
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: check-merge-conflict
         description: Check for files that contain merge conflict strings.
@@ -27,7 +27,7 @@ repos:
       - id: check-json
 
   - repo: https://github.com/jazzband/pip-tools
-    rev: 7.3.0
+    rev: v7.5.2
     hooks:
       - id: pip-compile
         files: ^requirements/release\.(in|txt)$

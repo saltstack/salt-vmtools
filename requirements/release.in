@@ -1,2 +1,4 @@
-pre-commit
-python-tools-scripts >= 0.18.6
+pre-commit >= 4.5.1
+python-tools-scripts >= 0.20.5
+filelock>=3.20.1
+urllib3>=2.6.3
