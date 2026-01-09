@@ -1,3 +1,12 @@
+# v2026.01.09
+
+## What's Changed
+* Update copyrights for 2026, remove unnecessary copyrights by @twangboy in https://github.com/saltstack/salt-vmtools/pull/48
+* Update dependencies by @twangboy in https://github.com/saltstack/salt-vmtools/pull/49
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.01.08...v2026.01.09
+
 # v2026.01.08
 
 ## What's Changed
