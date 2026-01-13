@@ -16,9 +16,9 @@ charset-normalizer==3.4.0
     # via requests
 distlib==0.3.9
     # via virtualenv
-filelock==3.20.2
+filelock==3.20.3
     # via
-    #   -r requirements/release.in
+    #   -r release.in
     #   python-tools-scripts
     #   virtualenv
 identify==2.6.3
@@ -34,7 +34,7 @@ nodeenv==1.9.1
 platformdirs==4.3.6
     # via virtualenv
 pre-commit==4.5.1
-    # via -r requirements/release.in
+    # via -r release.in
 pydantic==2.10.3
     # via python-tools-scripts
 pydantic-core==2.27.1
@@ -42,7 +42,7 @@ pydantic-core==2.27.1
 pygments==2.18.0
     # via rich
 python-tools-scripts==0.20.5
-    # via -r requirements/release.in
+    # via -r release.in
 pyyaml==6.0.2
     # via pre-commit
 requests==2.32.4
@@ -55,7 +55,7 @@ typing-extensions==4.12.2
     #   pydantic-core
 urllib3==2.6.3
     # via
-    #   -r requirements/release.in
+    #   -r release.in
     #   requests
 virtualenv==20.28.0
     # via pre-commit
