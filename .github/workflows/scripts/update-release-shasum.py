@@ -9,6 +9,8 @@ README_PATH = CODE_ROOT / "README.md"
 
 
 def main(version, sha256sum):
+    # Normalize version tags like "v2026.03.16" to "2026.03.16"
+    version = version.lstrip("v")
     in_contents = README_PATH.read_text()
     if version in in_contents:
         print(f"README file already contains an entry for version {version}")
