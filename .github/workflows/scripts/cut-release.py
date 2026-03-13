@@ -188,37 +188,7 @@ def main():
         + changelog_file.read_text()
     )
 
-    # Update Script Version for the bash script
-    svtminion_script_path = REPO_ROOT / "linux/svtminion.sh"
-    print(
-        f"* Updating {svtminion_script_path.relative_to(REPO_ROOT)} ...",
-        file=sys.stderr,
-        flush=True,
-    )
-    svtminion_script_path.write_text(
-        re.sub(
-            r'readonly SCRIPT_VERSION="(.*)"',
-            f'readonly SCRIPT_VERSION="{options.release_tag.lstrip("v")}"',
-            svtminion_script_path.read_text(),
-        )
-    )
-
-    # Update the Script Version for the powershell script
-    svtminion_script_path = REPO_ROOT / "windows/svtminion.ps1"
-    print(
-        f"* Updating {svtminion_script_path.relative_to(REPO_ROOT)} ...",
-        file=sys.stderr,
-        flush=True,
-    )
-    svtminion_script_path.write_text(
-        re.sub(
-            r'\$SCRIPT_VERSION = "(.*)"',
-            f'$SCRIPT_VERSION = "{options.release_tag.lstrip("v")}"',
-            svtminion_script_path.read_text(),
-        )
-    )
-
-    parser.exit(status=0, message="CHANGELOG.md and svtminion.sh updated\n")
+    parser.exit(status=0, message="CHANGELOG.md and release metadata updated\n")
 
 
 if __name__ == "__main__":
