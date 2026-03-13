@@ -1,3 +1,12 @@
+# v2026.03.13
+
+## What's Changed
+* Update virtualenv and filelock by @twangboy in https://github.com/saltstack/salt-vmtools/pull/54
+* Remove support for SHA1 and MD5 by @twangboy in https://github.com/saltstack/salt-vmtools/pull/53
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.01.09...v2026.03.13
+
 # v2026.01.09
 
 ## What's Changed
