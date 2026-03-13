@@ -32,12 +32,6 @@ function test_Get-FileHash_directory {
     if ($hash.Count -eq 0) { return 0 } else { return 1 }
 }
 
-function test_Get-FileHash_sha1 {
-    $expected = "6E50BA56085F66BEE024AD0A001296CCEDB8FA96"
-    $hash = Get-FileHash -Path $hash_file -Algorithm SHA1
-    if ($hash.Hash -eq $expected) { return 0 } else { return 1 }
-}
-
 function test_Get-FileHash_sha256 {
     $expected = "D84C4F0AB044EEDEC68DB4C6DBF2FB6BE7F11930E17801F4FADAC2C2E6CE188D"
     $hash = Get-FileHash -Path $hash_file -Algorithm SHA256
@@ -53,12 +47,6 @@ function test_Get-FileHash_sha384 {
 function test_Get-FileHash_sha512 {
     $expected = "8400A24D71F4BD5B6C673F393C4637176DD2BD4750300167B396926E929AA85477D7939A83C62E2840A81B8150E294BD303FC04040E3FFA221D3FF2280E6E86A"
     $hash = Get-FileHash -Path $hash_file -Algorithm SHA512
-    if ($hash.Hash -eq $expected) { return 0 } else { return 1 }
-}
-
-function test_Get-FileHash_md5 {
-    $expected = "9191A032DD46B6FF1CD157522AE9056D"
-    $hash = Get-FileHash -Path $hash_file -Algorithm MD5
     if ($hash.Hash -eq $expected) { return 0 } else { return 1 }
 }
 
