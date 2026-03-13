@@ -1,4 +1,5 @@
 pre-commit >= 4.5.1
 python-tools-scripts >= 0.20.5
-filelock>=3.20.1
+filelock>=3.20.3
 urllib3>=2.6.3
+virtualenv>=20.36.1
