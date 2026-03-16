@@ -1,3 +1,7 @@
+# v2026.03.16
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.03.13...v2026.03.16
+
 # v2026.03.13
 
 ## What's Changed
