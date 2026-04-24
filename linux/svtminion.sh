@@ -302,6 +302,9 @@ esac
      echo "                     silent error warning debug info"
      echo "                     default loglevel is warning"
      echo "  -m, --minionversion install salt-minion version, default[latest]"
+     echo "                     'latest' and four-digit major (e.g. 3006) pick"
+     echo "                     newest GA onedir only; prerelease dirs need"
+     echo "                     the exact directory name (e.g. 3008.0rc1)"
      echo "  -n, --reconfig  salt-minion restarts after reading updated config"
      echo "  -q, --stop      stop salt-minion"
      echo "  -p, --start     start salt-minion (restarts salt-minion)"
@@ -402,27 +405,41 @@ _set_log_level() {
 
 
 #
+# _salt_onedir_dir_is_ga
+#
+#   True (status 0) if the onedir directory name is GA numeric CalVer only
+#       (digits and dots). Prerelease names (e.g. 3008.0rc1) are not GA.
+#
+# Results:
+#   0 if GA, 1 otherwise
+#
+_salt_onedir_dir_is_ga() {
+    local _ga_re='^[0-9]+\.[0-9]+(\.[0-9]+)*$'
+    [[ -n "$1" && "$1" =~ ${_ga_re} ]]
+}
+
+
+#
 # _get_desired_salt_version_fn
 #
 #   Get the appropriate desirted salt version based on salt_url_version,
-#       latest or specified input Salt version, 3007, 3006, 3006.x, 3007.1
+#       latest or specified input Salt version, 3008, 3006.10, 3008.0rc1
 #       and set salt_specific_version accordinly
 #
-#   Note: typically Salt version includes the release number in addition to
-#         version number or 'latest' for the most recent release
-#
-#           for example: currently major version 3006 implies 3006.9
-#               the latest version of Salt 3006.x
+#   Note: 'latest' and four-digit major (e.g. 3006) choose the newest GA
+#         onedir only (sort -V among dirs matching ^[0-9]+\\.[0-9]+(\\.[0-9]+)*$).
+#         Prerelease directories must be requested by exact name (directory
+#         match or legacy CalVer pattern).
 #
 #       if an unsupported version is input, for example: 3004.2
-#       it will default to installing the latest version
+#       it will default to installing the latest GA version
 #
 # Input:
 #       directory contains directory list of current available
-#           Salt versions, 3006.x - 3007.1
+#           Salt versions, e.g. 3006.x, 3007.1, 3008.0rc1
 #
 # Results:
-#   Returns with exit code
+#   Returns with exit code (1 if no GA match for latest/major/default)
 #
 _get_desired_salt_version_fn() {
 
@@ -440,46 +457,79 @@ _get_desired_salt_version_fn() {
 
     # something werid is happening with tail, that does not fail in test
     # programs getting failures inside tail hence use bash loop
+    _GENERIC_PKG_VERSION=""
     if [ "$salt_url_version" = "latest" ]; then
         # shellcheck disable=SC2010,SC2012
-        ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
         test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
         for idx in $test_dir
         do
-            _GENERIC_PKG_VERSION="$idx"
+            if _salt_onedir_dir_is_ga "$idx"; then
+                _GENERIC_PKG_VERSION="$idx"
+            fi
         done
-        _debug_log "$0:${FUNCNAME[0]} latest found version '${_GENERIC_PKG_VERSION}'"
+        if [[ -z "${_GENERIC_PKG_VERSION}" ]]; then
+            cd "${curr_pwd}" || return 1
+            _error_log "$0:${FUNCNAME[0]} no GA onedir version directories "\
+                "found for 'latest' at '${generic_versions_tmpdir}'"
+            return 1
+        fi
+        _debug_log "$0:${FUNCNAME[0]} latest found GA version "\
+            "'${_GENERIC_PKG_VERSION}'"
 
-    elif [ "$(echo "$salt_url_version" | grep -E '^(3006|3007)$')" != "" ]; then
-        # want major latest version of Salt
+    elif [[ "${salt_url_version}" =~ ^[0-9]{4}$ ]]; then
+        # want newest GA in this major series (3006, 3007, 3008, ...)
         # shellcheck disable=SC2010,SC2012
-        ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version" | tail -n 1)
-        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u | grep -E "$salt_url_version")
+        test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u \
+            | grep -E "^${salt_url_version}\\.")
         for idx in $test_dir
         do
-            _GENERIC_PKG_VERSION="$idx"
+            if _salt_onedir_dir_is_ga "$idx"; then
+                _GENERIC_PKG_VERSION="$idx"
+            fi
         done
-        _debug_log "$0:${FUNCNAME[0]} input $salt_url_version found "\
-            "version '${_GENERIC_PKG_VERSION}'"
+        if [[ -z "${_GENERIC_PKG_VERSION}" ]]; then
+            cd "${curr_pwd}" || return 1
+            _error_log "$0:${FUNCNAME[0]} no GA onedir version found for "\
+                "major series '${salt_url_version}' at "\
+                "'${generic_versions_tmpdir}'"
+            return 1
+        fi
+        _debug_log "$0:${FUNCNAME[0]} input ${salt_url_version} found "\
+            "GA version '${_GENERIC_PKG_VERSION}'"
+
+    elif [[ -d "./${salt_url_version}" ]]; then
+        _GENERIC_PKG_VERSION="${salt_url_version}"
+        _debug_log "$0:${FUNCNAME[0]} exact directory match "\
+            "'${_GENERIC_PKG_VERSION}'"
 
     elif [ "$(echo "$salt_url_version" | grep -E '^([3-9][0-5]{2}[6-9](\.[0-9]*)?)')" != "" ]; then
-        # Minor version Salt, want specific minor version
+        # Minor version Salt, want specific minor version (incl. prerelease tags)
         # if old style VMTools version 3004.2-1 is used
-        # defaults to else and install latest
+        # defaults to else and install latest GA
         _GENERIC_PKG_VERSION="$salt_url_version"
+        _debug_log "$0:${FUNCNAME[0]} explicit version "\
+            "'${_GENERIC_PKG_VERSION}'"
     else
-        # default to latest version Salt
+        # default to latest GA version Salt
         # shellcheck disable=SC2010,SC2012
-        ## _GENERIC_PKG_VERSION=$(ls ./. | grep -v 'index.html' | sort -V -u | tail -n 1)
         test_dir=$(ls ./. | grep -v 'index.html' | sort -V -u)
         for idx in $test_dir
         do
-            _GENERIC_PKG_VERSION="$idx"
+            if _salt_onedir_dir_is_ga "$idx"; then
+                _GENERIC_PKG_VERSION="$idx"
+            fi
         done
-        _debug_log "$0:${FUNCNAME[0]} default found version '${_GENERIC_PKG_VERSION}'"
+        if [[ -z "${_GENERIC_PKG_VERSION}" ]]; then
+            cd "${curr_pwd}" || return 1
+            _error_log "$0:${FUNCNAME[0]} no GA onedir version directories "\
+                "found for default latest at '${generic_versions_tmpdir}'"
+            return 1
+        fi
+        _debug_log "$0:${FUNCNAME[0]} default found GA version "\
+            "'${_GENERIC_PKG_VERSION}'"
 
     fi
-    cd ${curr_pwd} || return 1
+    cd "${curr_pwd}" || return 1
 
     # set specific version of Salt to use
     salt_specific_version="${_GENERIC_PKG_VERSION}"
@@ -926,7 +976,7 @@ _fetch_salt_minion() {
         _debug_log "$0:${FUNCNAME[0]} current directory ${curr_dir}"
 
         # get desired specific version of Salt
-        _get_desired_salt_version_fn "${salt_url}"
+        _get_desired_salt_version_fn "${salt_url}" || return 1
         cd "${salt_url}" || return 1
         cd "${salt_specific_version}" || return 1
         salt_pkg_name=$(ls "${salt_name}-${salt_specific_version}-onedir-linux-${sys_arch}.tar.xz")
@@ -949,7 +999,12 @@ _fetch_salt_minion() {
         cd ${curr_pwd} || return 1
 
         # get desired specific version of Salt
-        _get_desired_salt_version_fn "${generic_versions_tmpdir}/artifactory/saltproject-generic/onedir"
+        if ! _get_desired_salt_version_fn \
+            "${generic_versions_tmpdir}/artifactory/saltproject-generic/onedir"
+        then
+            rm -fR "${generic_versions_tmpdir}"
+            return 1
+        fi
 
         # clean up temp dir
         rm -fR ${generic_versions_tmpdir}

@@ -136,6 +136,34 @@ sleep 1
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+# GA vs RC (testarea includes 3008.0rc1 Linux onedir): default latest must be
+# max GA (3007.1), not the RC; major 3008 has no GA yet; exact 3008.0rc1 installs RC.
+./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -ne 100 ]]; then echo "test failed, salt-minion should be installed (latest GA), returned '${_retn}'"; exit 1; fi; }
+_salt_ver_out=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
+if echo "${_salt_ver_out}" | grep -q "3007.1" && ! echo "${_salt_ver_out}" | grep -qi "rc"; then
+    echo "test correct: default latest from testarea is GA 3007.1 not RC"
+else
+    echo "test failed: expected GA 3007.1 without rc in test.version, got '${_salt_ver_out}'"
+    exit 1
+fi
+./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+
+./svtminion.sh --source ${oldpwd}/tests/testarea --minionversion 3008 --install master=192.168.0.5 --loglevel debug
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct: no GA for major 3008, minion not installed"; else echo "test failed, expected status 102 after install with -m 3008 and no GA, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --remove || true
+
+./svtminion.sh --source ${oldpwd}/tests/testarea --minionversion 3008.0rc1 --install master=192.168.0.5 --loglevel debug
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -ne 100 ]]; then echo "test failed, salt-minion should be installed (3008.0rc1), returned '${_retn}'"; exit 1; fi; }
+_salt_ver_rc=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
+if echo "${_salt_ver_rc}" | grep -qi "3008.0rc1"; then
+    echo "test correct: exact RC 3008.0rc1 installed"
+else
+    echo "test failed: expected 3008.0rc1 in test.version, got '${_salt_ver_rc}'"
+    exit 1
+fi
+./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+
 ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3007
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 sleep 1
