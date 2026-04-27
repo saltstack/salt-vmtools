@@ -75,7 +75,7 @@ function test_Get-SaltPackageInfo_local_major_version{
     $base_url = "$($pwd.Path)\tests\testarea"
     $MinionVersion = "3006"
     $test = Get-SaltPackageInfo -MinionVersion $MinionVersion
-    if ( $test.version -ne "3006.10" ) { $failed = 1 }
+    if ( $test.version -ne "3006.9" ) { $failed = 1 }
     $exp_name = "salt-$($test.version)-onedir-windows-amd64.zip"
     $exp_url = "$base_url/$($test.version)/$exp_name"
     $failed = 0
@@ -86,8 +86,8 @@ function test_Get-SaltPackageInfo_local_major_version{
     return $failed
 }
 
-# testarea includes 3006.10 (GA) and 3006.10rc1 (prerelease). Global "latest"
-# stays 3007.1; major "3006" picks GA 3006.10; exact "3006.10rc1" picks the RC dir.
+# testarea has GA 3006.9 (highest 3006.x); prerelease 3006.9rc1 is separate. Global
+# "latest" stays 3007.1; major "3006" picks GA 3006.9; exact "3006.9rc1" picks the RC dir.
 function test_Get-SaltPackageInfo_local_latest_unchanged_when_rc_not_highest_ga {
     $base_url = "$($pwd.Path)\tests\testarea"
     $MinionVersion = "latest"
@@ -107,7 +107,7 @@ function test_Get-SaltPackageInfo_local_major_3006_resolves_to_ga_not_rc {
     $MinionVersion = "3006"
     $test = Get-SaltPackageInfo -MinionVersion $MinionVersion
     $failed = 0
-    if ( $test.version -ne "3006.10" ) { $failed = 1 }
+    if ( $test.version -ne "3006.9" ) { $failed = 1 }
     $exp_name = "salt-$($test.version)-onedir-windows-amd64.zip"
     $exp_url = "$base_url/$($test.version)/$exp_name"
     if ( $test.file_name -ne $exp_name ) { $failed = 1 }
@@ -118,10 +118,10 @@ function test_Get-SaltPackageInfo_local_major_3006_resolves_to_ga_not_rc {
 
 function test_Get-SaltPackageInfo_local_exact_rc_version {
     $base_url = "$($pwd.Path)\tests\testarea"
-    $MinionVersion = "3006.10rc1"
+    $MinionVersion = "3006.9rc1"
     $test = Get-SaltPackageInfo -MinionVersion $MinionVersion
     $failed = 0
-    if ( $test.version -ne "3006.10rc1" ) { $failed = 1 }
+    if ( $test.version -ne "3006.9rc1" ) { $failed = 1 }
     $exp_name = "salt-$($test.version)-onedir-windows-amd64.zip"
     $exp_url = "$base_url/$($test.version)/$exp_name"
     if ( $test.file_name -ne $exp_name ) { $failed = 1 }

@@ -403,7 +403,6 @@ _set_log_level() {
 }
 
 
-
 #
 # _salt_onedir_dir_is_ga
 #
@@ -423,7 +422,7 @@ _salt_onedir_dir_is_ga() {
 # _get_desired_salt_version_fn
 #
 #   Get the appropriate desirted salt version based on salt_url_version,
-#       latest or specified input Salt version, 3008, 3006.10, 3008.0rc1
+#       latest or specified input Salt version, 3008, 3006.9, 3008.0rc1
 #       and set salt_specific_version accordinly
 #
 #   Note: 'latest' and four-digit major (e.g. 3006) choose the newest GA
