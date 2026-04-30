@@ -997,9 +997,13 @@ _fetch_salt_minion() {
         wget -r -np -nH --exclude-directories=windows,relenv,macos -x -l 1 "${base_url}/"
         cd ${curr_pwd} || return 1
 
+        url_path=$(printf '%s\n' "$base_url" | sed -E 's|https?://[^/]+/?||')
+        url_path=${url_path%/}   
+        local_path="${generic_versions_tmpdir}/${url_path}"
+
         # get desired specific version of Salt
         if ! _get_desired_salt_version_fn \
-            "${generic_versions_tmpdir}/artifactory/saltproject-generic/onedir"
+            "${local_path}"
         then
             rm -fR "${generic_versions_tmpdir}"
             return 1
