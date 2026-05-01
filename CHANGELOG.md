@@ -1,3 +1,17 @@
+# v2026.05.01
+
+## What's Changed
+* Fix node.js 20 warning by updating actions by @twangboy in https://github.com/saltstack/salt-vmtools/pull/55
+* Handle rc releases in the Windows Script by @twangboy in https://github.com/saltstack/salt-vmtools/pull/58
+* fix(linux): GA-only latest/major version pick; exact RC dirs; integration tests by @twangboy in https://github.com/saltstack/salt-vmtools/pull/59
+* Fix failing Linux tests by @twangboy in https://github.com/saltstack/salt-vmtools/pull/60
+* fix resolve local path dynamically from base_url by @saifeldinhesham in https://github.com/saltstack/salt-vmtools/pull/63
+
+## New Contributors
+* @saifeldinhesham made their first contribution in https://github.com/saltstack/salt-vmtools/pull/63
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.03.13...v2026.05.01
+
 # v2026.03.16
 
 **Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.03.13...v2026.03.16
