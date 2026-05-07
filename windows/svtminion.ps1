@@ -1131,6 +1131,10 @@ function _parse_config {
         if ($key_value -like "*=*") {
             Write-Log "Found config: $key_value" -Level debug
             $key, $value = $key_value -split "="
+            if ($key -match '[\x00-\x1f\x7f]' -or $value -match '[\x00-\x1f\x7f]') {
+                Write-Log "Config option with control characters ignored: $key_value" -Level warning
+                continue
+            }
             if ($value) {
                 $config_options[$key] = $value
             } else {
@@ -1662,6 +1666,104 @@ function Get-RandomizedMinionId {
     $rand_chars = $chars | Get-Random -Count $Length
     $rand_string = -join ($rand_chars | ForEach-Object {[char]$_})
     return -join ($Prefix, "_", $rand_string)
+}
+
+
+function Test-SourceParameter {
+    # Validates the Source parameter. Returns $true if valid, $false otherwise.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [AllowEmptyString()]
+        [String] $Source
+    )
+
+    if ([String]::IsNullOrWhiteSpace($Source)) {
+        $msg = "Invalid Source: must not be empty"
+        Write-Log $msg -Level error
+        Write-Host $msg -ForegroundColor Red
+        return $false
+    }
+
+    if ($Source -match '[\x00-\x1f\x7f]') {
+        $msg = "Invalid Source: contains control characters"
+        Write-Log $msg -Level error
+        Write-Host $msg -ForegroundColor Red
+        return $false
+    }
+
+    if ($Source -match '[`;&|<>]') {
+        $msg = "Invalid Source: contains disallowed characters"
+        Write-Log $msg -Level error
+        Write-Host $msg -ForegroundColor Red
+        return $false
+    }
+
+    if ($Source -match '^(https?|ftp)://') {
+        if ($Source -match '\s') {
+            $msg = "Invalid Source: URL must not contain whitespace"
+            Write-Log $msg -Level error
+            Write-Host $msg -ForegroundColor Red
+            return $false
+        }
+        $uri = $null
+        if (-not [System.Uri]::TryCreate(
+                $Source, [System.UriKind]::Absolute, [ref]$uri)) {
+            $msg = "Invalid Source: not a valid URL"
+            Write-Log $msg -Level error
+            Write-Host $msg -ForegroundColor Red
+            return $false
+        }
+        if ([String]::IsNullOrEmpty($uri.Host)) {
+            $msg = "Invalid Source: URL has no host"
+            Write-Log $msg -Level error
+            Write-Host $msg -ForegroundColor Red
+            return $false
+        }
+    } elseif ($Source -match '^\\\\') {
+        if ($Source -notmatch '^\\\\[^\\/:*?"<>|]+\\[^\\/:*?"<>|]+') {
+            $msg = "Invalid Source: invalid UNC path"
+            Write-Log $msg -Level error
+            Write-Host $msg -ForegroundColor Red
+            return $false
+        }
+    } elseif ($Source -match '^[A-Za-z]:\\') {
+        # Local path - format already confirmed by prefix match
+    } else {
+        $msg = "Invalid Source: must start with http://, https://, " +
+               "ftp://, \\ (UNC), or a drive letter"
+        Write-Log $msg -Level error
+        Write-Host $msg -ForegroundColor Red
+        return $false
+    }
+
+    return $true
+}
+
+
+function Test-MinionVersionParameter {
+    # Validates the MinionVersion parameter. Returns $true if valid, $false
+    # otherwise.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [AllowEmptyString()]
+        [String] $MinionVersion
+    )
+
+    # Valid: "latest", 4-digit major (3006), major.minor (3006.2),
+    # multi-part (3006.24), rc suffix (3008.0rc1)
+    if ($MinionVersion -notmatch '^(latest|\d{4}(\.\d+(\.\d+)*(rc\d+)?)?)$') {
+        $msg = "Invalid MinionVersion: $MinionVersion"
+        Write-Log $msg -Level error
+        Write-Host $msg -ForegroundColor Red
+        $msg = "Must be 'latest', a major version (e.g. 3006), " +
+               "or a full version (e.g. 3006.2, 3008.0rc1)"
+        Write-Host $msg -ForegroundColor Yellow
+        return $false
+    }
+
+    return $true
 }
 
 
@@ -2642,6 +2744,13 @@ function Main {
 # Allow importing for testing
 if (($Action) -and ($Action.ToLower() -eq "test")) {
     exit $STATUS_CODES["scriptSuccess"]
+}
+
+if (!(Test-SourceParameter -Source $Source)) {
+    exit $STATUS_CODES["scriptFailed"]
+}
+if (!(Test-MinionVersionParameter -MinionVersion $MinionVersion)) {
+    exit $STATUS_CODES["scriptFailed"]
 }
 
 try {
