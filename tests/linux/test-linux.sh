@@ -19,6 +19,23 @@ yum -y install open-vm-tools
 yum -y install --allowerasing curl
 yum -y install wget
 yum -y install procps-ng
+# Validate --source parameter
+./svtminion.sh --source "https://bad url.com" --install || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad source should exit 126, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --source "notascheme://bad" --install || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad source scheme should exit 126, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --source "https://evil.com/path;bad" --install || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, source with injection char should exit 126, got '${_retn}'"; exit 1; fi; }
+# Validate --minionversion parameter
+./svtminion.sh --minionversion "bad version" --install || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad minionversion should exit 126, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --minionversion "3006;evil" --install || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, minionversion injection should exit 126, got '${_retn}'"; exit 1; fi; }
 ./svtminion.sh --depend --loglevel info || { _retn=$?; echo "test failed, there should be no missing dependencies, returned '${_retn}'"; }
 ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l
 if [[ 2 -eq $(ls -l /var/log/vmware-svtminion.sh-depend-* | wc -l) ]]; then echo "test correct"; else "test failed, should be 2 depend log files"; exit 1; fi

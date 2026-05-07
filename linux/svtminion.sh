@@ -1934,6 +1934,88 @@ _install_fn () {
 
 
 #
+# _validate_source_param
+#
+#   Validates the --source parameter value. Exits with scriptFailed (126)
+#   if the value is empty, contains control characters, contains shell
+#   injection characters, or does not match a recognised protocol prefix.
+#
+# Input:
+#   $1  raw SOURCE_PARAMS string (first word is extracted, matching _source_fn)
+#
+# Results:
+#   Returns 0 if valid; exits 126 via _error_log otherwise
+#
+
+_validate_source_param() {
+
+    local source_val=""
+    source_val=$(echo "$1" | cut -d ' ' -f 1)
+
+    if [[ -z "${source_val}" ]]; then
+        _error_log "$0:${FUNCNAME[0]} Invalid --source: must not be empty"
+    fi
+
+    if [[ "${source_val}" =~ [[:cntrl:]] ]]; then
+        _error_log "$0:${FUNCNAME[0]} Invalid --source: contains control characters"
+    fi
+
+    if echo "${source_val}" | grep -qE '[`;|&<>]'; then
+        _error_log "$0:${FUNCNAME[0]} Invalid --source: contains disallowed characters"
+    fi
+
+    if echo "${source_val}" | grep -qE '^(https?|ftp)://'; then
+        if echo "${source_val}" | grep -q ' '; then
+            _error_log "$0:${FUNCNAME[0]} Invalid --source: URL must not contain whitespace"
+        fi
+        if ! echo "${source_val}" | grep -qE '^(https?|ftp)://[^/]+'; then
+            _error_log "$0:${FUNCNAME[0]} Invalid --source: URL has no host"
+        fi
+    elif echo "${source_val}" | grep -qE '^/|^file://'; then
+        # absolute local path or file URI
+        :
+    else
+        _error_log "$0:${FUNCNAME[0]} Invalid --source: '${source_val}' "\
+            "must start with http://, https://, ftp://, file://, or /"
+    fi
+
+    return 0
+}
+
+
+#
+# _validate_minion_version_param
+#
+#   Validates the --minionversion parameter value. Exits with scriptFailed
+#   (126) if the value does not match the expected Salt CalVer format.
+#
+#   Valid: latest, YYYY, YYYY.N, YYYY.N.N, YYYY.NrcN  (e.g. 3006, 3006.2,
+#          3008.0, 3008.0rc1)
+#
+# Input:
+#   $1  raw MINION_VERSION_PARAMS string (first word is extracted)
+#
+# Results:
+#   Returns 0 if valid; exits 126 via _error_log otherwise
+#
+
+_validate_minion_version_param() {
+
+    local version_val=""
+    version_val=$(echo "$1" | cut -d ' ' -f 1)
+
+    if ! echo "${version_val}" | \
+            grep -qE '^(latest|[0-9]{4}(\.[0-9]+(\.[0-9]+)*(rc[0-9]+)?)?)$'; then
+        _error_log "$0:${FUNCNAME[0]} Invalid --minionversion: '${version_val}'. "\
+            "Must be 'latest', a major version (e.g. 3006), "\
+            "or a full version (e.g. 3006.2, 3008.0rc1)"
+    fi
+
+    return 0
+}
+
+
+#
 #  _source_fn
 #
 #   Set the location to retrieve the Salt Minion from
@@ -2497,12 +2579,14 @@ if [[ ${SOURCE_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
     LOG_ACTION="install"
     # ensure this is processed before install
+    _validate_source_param "${SOURCE_PARAMS}"
     _source_fn "${SOURCE_PARAMS}"
     retn=$?
 fi
 if [[ ${MINION_VERSION_FLAG} -eq 1 ]]; then
     CLI_ACTION=1
     # ensure this is processed before install
+    _validate_minion_version_param "${MINION_VERSION_PARAMS}"
     _set_install_minion_version_fn "${MINION_VERSION_PARAMS}"
     retn=$?
 fi
