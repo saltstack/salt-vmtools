@@ -1951,8 +1951,7 @@ _install_fn () {
 
 _validate_source_param() {
 
-    local source_val=""
-    source_val=$(echo "$1" | cut -d ' ' -f 1)
+    local source_val="$1"
 
     if [[ -z "${source_val}" ]]; then
         _error_log "$0:${FUNCNAME[0]} Invalid --source: must not be empty"
@@ -2003,8 +2002,7 @@ _validate_source_param() {
 
 _validate_minion_version_param() {
 
-    local version_val=""
-    version_val=$(echo "$1" | cut -d ' ' -f 1)
+    local version_val="$1"
 
     if ! echo "${version_val}" | \
             grep -qE '^(latest|[0-9]{4}(\.[0-9]+(\.[0-9]+)*(rc[0-9]+)?)?)$'; then
@@ -2496,7 +2494,7 @@ while true; do
         -j | --source )
             SOURCE_FLAG=1;
             shift;
-            SOURCE_PARAMS="$*";
+            SOURCE_PARAMS="$1";
             ;;
         -l | --loglevel )
             LOG_LEVEL_FLAG=1;
@@ -2506,7 +2504,7 @@ while true; do
         -m | --minionversion )
             MINION_VERSION_FLAG=1;
             shift;
-            MINION_VERSION_PARAMS="$*";
+            MINION_VERSION_PARAMS="$1";
             ;;
         -n | --reconfig )
             RECONFIG_FLAG=1;
