@@ -1990,8 +1990,8 @@ _validate_source_param() {
 #   Validates the --minionversion parameter value. Exits with scriptFailed
 #   (126) if the value does not match the expected Salt CalVer format.
 #
-#   Valid: latest, YYYY, YYYY.N, YYYY.N.N, YYYY.NrcN  (e.g. 3006, 3006.2,
-#          3008.0, 3008.0rc1)
+#   Valid: latest, YYYY, YYYY.N, YYYY.N.N, YYYY.NrcN, YYYY.N.N-N
+#          (e.g. 3006, 3006.2, 3008.0, 3008.0rc1, 3004.2-1)
 #
 # Input:
 #   $1  raw MINION_VERSION_PARAMS string (first word is extracted)
@@ -2005,7 +2005,7 @@ _validate_minion_version_param() {
     local version_val="$1"
 
     if ! echo "${version_val}" | \
-            grep -qE '^(latest|[0-9]{4}(\.[0-9]+(\.[0-9]+)*(rc[0-9]+)?)?)$'; then
+            grep -qE '^(latest|[0-9]{4}(\.[0-9]+(\.[0-9]+)*(rc[0-9]+|-[0-9]+)?)?)$'; then
         _error_log "$0:${FUNCNAME[0]} Invalid --minionversion: '${version_val}'. "\
             "Must be 'latest', a major version (e.g. 3006), "\
             "or a full version (e.g. 3006.2, 3008.0rc1)"
