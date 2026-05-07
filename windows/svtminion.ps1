@@ -112,7 +112,7 @@ param(
     # prerelease build, pass the exact directory name shown on Source (for example
     # "3008.0rc1"). Alternatively, specify a major version number to install the
     # latest GA build in that series (for example pass "3006" for the newest
-    # 3006.x release).
+    # 3006.x release). An invalid value causes the script to exit with code 126.
     [String] $MinionVersion="latest",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -128,7 +128,8 @@ param(
     # https://packages.broadcom.com/artifactory/saltproject-generic/onedir
     #
     # The Source parameter supports common protocols such as HTTP, HTTPS, FTP,
-    # UNC paths, and local file paths.
+    # UNC paths, and local file paths. An invalid value causes the script to
+    # exit with code 126.
     [String] $Source=(
         "https://packages.broadcom.com/artifactory/saltproject-generic/onedir"
     ),
