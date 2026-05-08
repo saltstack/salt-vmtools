@@ -1,3 +1,11 @@
+# v2026.05.08
+
+## What's Changed
+* Add input parameter validation for --source and --minionversion on Windows and Linux by @twangboy in https://github.com/saltstack/salt-vmtools/pull/64
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.05.01...v2026.05.08
+
 # v2026.05.01
 
 ## What's Changed
