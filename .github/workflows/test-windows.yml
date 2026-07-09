@@ -47,6 +47,8 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Test SVT Minion Script
+        env:
+          SALT_TEST_VERSION: ${{ matrix.instance }}
         run: |
           # Make sure we can run the script
           Write-Host "Run Script (no parameters)"

@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import pathlib
+import sys
 
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
@@ -21,6 +22,8 @@ SALT_VERSIONS = [
     "3006-15",
     "3007",
     "3007-7",
+    "3008",
+    "3008-1",
 ]
 
 VERSION_DISPLAY_NAMES = {
@@ -28,7 +31,57 @@ VERSION_DISPLAY_NAMES = {
     "3006-15": "v3006.15",
     "3007": "v3007",
     "3007-7": "v3007.7",
+    "3008": "v3008",
+    "3008-1": "v3008.1",
 }
+
+
+def get_version_pairs():
+    # Derive (major, exact) pairs from SALT_VERSIONS' dash convention, e.g.
+    # "3006-15" -> ("3006", "3006.15"). This is the single source of truth
+    # test suites read to know which exact version to test per major.
+    pairs = []
+    for entry in SALT_VERSIONS:
+        if "-" in entry:
+            major, minor = entry.split("-", 1)
+            pairs.append((major, f"{major}.{minor}"))
+    return pairs
+
+
+def get_major_order():
+    # Ordered list of distinct majors, in the order first seen in
+    # SALT_VERSIONS.
+    seen = []
+    for entry in SALT_VERSIONS:
+        major = entry.split("-", 1)[0]
+        if major not in seen:
+            seen.append(major)
+    return seen
+
+
+def get_upgrade_steps():
+    # One (from_exact, to_major, to_exact) tuple per adjacent major pair,
+    # e.g. ("3006.15", "3007", "3007.7"). Used to derive one CI job per
+    # upgrade step, and for test suites to look up their assigned step.
+    exact_by_major = dict(get_version_pairs())
+    majors = get_major_order()
+    steps = []
+    for prev_major, next_major in zip(majors, majors[1:]):
+        if prev_major in exact_by_major and next_major in exact_by_major:
+            steps.append(
+                (exact_by_major[prev_major], next_major, exact_by_major[next_major])
+            )
+    return steps
+
+
+def print_version_pairs():
+    for major, exact in get_version_pairs():
+        print(f"{major} {exact}")
+
+
+def print_upgrade_steps():
+    for from_exact, to_major, to_exact in get_upgrade_steps():
+        print(f"{from_exact} {to_major} {to_exact}")
 
 
 # TODO: Revert the commit relating to this section, once the Git-based builds
@@ -96,6 +149,8 @@ def generate_test_jobs():
 
         for salt_version in SALT_VERSIONS:
            instances.append(salt_version)
+        for _, to_major, _ in get_upgrade_steps():
+           instances.append(f"upgrade-{to_major}")
 
         if instances:
             needs.append(distro)
@@ -127,6 +182,8 @@ def generate_test_jobs():
 
         for salt_version in SALT_VERSIONS:
            instances.append(salt_version)
+        for _, to_major, _ in get_upgrade_steps():
+           instances.append(f"upgrade-{to_major}")
 
         if instances:
             needs.append(distro)
@@ -152,4 +209,9 @@ def generate_test_jobs():
 
 
 if __name__ == "__main__":
-    generate_test_jobs()
+    if "--print-versions" in sys.argv:
+        print_version_pairs()
+    elif "--print-upgrade-steps" in sys.argv:
+        print_upgrade_steps()
+    else:
+        generate_test_jobs()

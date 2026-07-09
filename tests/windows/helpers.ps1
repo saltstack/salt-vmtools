@@ -55,6 +55,44 @@ function Write-Done {
     Write-Host "Done" -ForegroundColor Yellow
 }
 
+function Get-SaltTestPythonCommand {
+    # Prefer `python`, fall back to the `py` launcher
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        return "python"
+    }
+    return "py"
+}
+
+function Get-SaltTestVersionPairs {
+    # Reads the major/exact version pairs from generate.py, the single
+    # source of truth for which Salt versions the test suites cover. Returns
+    # an ordered array of @{ Major = ...; Exact = ... }.
+    $python = Get-SaltTestPythonCommand
+    $generate_py = ".github\workflows\templates\generate.py"
+    $lines = & $python $generate_py --print-versions
+    $pairs = [System.Collections.ArrayList]::new()
+    foreach ($line in $lines) {
+        $major, $exact = $line -split '\s+'
+        $pairs.Add(@{ Major = $major; Exact = $exact }) | Out-Null
+    }
+    return $pairs
+}
+
+function Get-SaltTestUpgradeSteps {
+    # Reads the upgrade-step list (one per adjacent major pair) from
+    # generate.py. Returns an ordered array of
+    # @{ FromExact = ...; ToMajor = ...; ToExact = ... }.
+    $python = Get-SaltTestPythonCommand
+    $generate_py = ".github\workflows\templates\generate.py"
+    $lines = & $python $generate_py --print-upgrade-steps
+    $steps = [System.Collections.ArrayList]::new()
+    foreach ($line in $lines) {
+        $from_exact, $to_major, $to_exact = $line -split '\s+'
+        $steps.Add(@{ FromExact = $from_exact; ToMajor = $to_major; ToExact = $to_exact }) | Out-Null
+    }
+    return $steps
+}
+
 function Reset-Environment {
     # Stop and remove the salt-minion service if it exists
     $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
