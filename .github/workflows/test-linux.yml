@@ -47,6 +47,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: VMTools Salt
+        if: ${{ !startsWith(matrix.instance, 'upgrade-') }}
         run: |
           # sed 1st - becomes space, 2nd - becomes dot
           bt_parms=$(echo "${{ matrix.instance }}" | sed 's/-/ /' | sed 's/-/./')
@@ -55,6 +56,8 @@ jobs:
           bash -x ./linux/svtminion.sh "$bt_arg1" "$bt_arg2"
 
       - name: Test VMTools
+        env:
+          SALT_TEST_VERSION: ${{ matrix.instance }}
         run: |
           bash -x ./tests/linux/test-linux.sh
 

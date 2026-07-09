@@ -1,25 +1,21 @@
-$start_ver = "3006.0"
-$upgrade_ver = "3006.1"
+function Get-UpgradeStepsUnderTest {
+    $env_value = $env:SALT_TEST_VERSION
+    if (-not $env_value) {
+        # Local ad-hoc run: exercise every upgrade step under test.
+        return @(Get-SaltTestUpgradeSteps)
+    }
+    if ($env_value -match '^upgrade-(\d+)$') {
+        $to_major = $Matches[1]
+        return @(Get-SaltTestUpgradeSteps | Where-Object { $_.ToMajor -eq $to_major })
+    }
+    # Major-only or exact-version job - upgrade isn't its concern.
+    return @()
+}
 
 function setUpScript {
-
     Write-Host "Resetting environment: " -NoNewline
     Reset-Environment *> $null
     Write-Done
-
-    $MinionVersion = $start_ver
-    Write-Host "Installing salt ($MinionVersion): " -NoNewline
-    function Get-GuestVars { "master=existing_master id=existing_minion" }
-    Install *> $null
-    Write-Done
-
-    $MinionVersion = $upgrade_ver
-    $Upgrade = $true
-    Write-Host "Upgrading salt ($MinionVersion): " -NoNewline
-    function Get-GuestVars { "master=gv_master id=gv_minion" }
-    Install *> $null
-    Write-Done
-
 }
 
 function tearDownScript {
@@ -28,80 +24,85 @@ function tearDownScript {
     Write-Done
 }
 
-function test_status_installed {
-    # Is the status set to installed
-    try {
-        $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
-    } catch {
-        $current_status = $STATUS_CODES["notInstalled"]
+function test_upgrade_steps {
+    $steps = Get-UpgradeStepsUnderTest
+    if ($steps.Count -eq 0) {
+        Write-Host "Skipped - this job does not cover upgrade testing"
+        return 0
     }
-    if ($current_status -ne $STATUS_CODES["installed"]) { return 1 }
-    return 0
-}
 
-function test_binaries_present{
-    # Is the SSM Binary present
-    if (!(Test-Path $ssm_bin)) { return 1 }
-    if (!(Test-Path "$salt_dir\salt-call.exe")) { return 1 }
-    if (!(Test-Path "$salt_dir\salt-minion.exe")) { return 1 }
-    return 0
-}
-
-function test_service_installed {
-    # Is the salt-minion service registerd
-    $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
-    if (!($service)) { return 1 }
-    return 0
-}
-
-function test_service_running {
-    # Is the salt minion service running
-    if ((Get-Service -Name salt-minion).Status -ne "Running") { return 1 }
-    return 0
-}
-
-function test_config_present {
-    # Is the minion config file present
-    if (!(Test-Path $salt_config_file)) { return 1 }
-    return 0
-}
-
-function test_config_correct {
-    # We have to do it this way so -bor will return 0 when both are 0
-    $minion_not_found = 1
-    $master_not_found = 1
-    # Verify that the old minion id is commented out
-    foreach ($line in Get-Content $salt_config_file) {
-        if ($line -match "^id: existing_minion$") { $minion_not_found = 0}
-        if ($line -match "^master: existing_master$") { $master_not_found = 0}
-    }
-    return $minion_not_found -bor $master_not_found
-}
-
-function test_salt_added_to_path {
-    # Has salt been added to the system path
-    $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
-    $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
-    if (!($current_path -like "*$salt_dir*")) { return 1 }
-    return 0
-}
-
-function test_salt_call {
     $failed = 0
-    $result = & "$salt_dir\salt-call" --local test.ping
-    if (!($result -like "local:*")) { $failed = 1 }
-    if (!($result -like "*True")) { $failed = 1 }
-    return $failed
-}
-
-function test_version {
-    $failed = 0
-    $result = & "$salt_dir\salt-call" --version
-    if (!($result -like "*$upgrade_ver*")) {
+    foreach ($step in $steps) {
+        $start_ver = $step.FromExact
+        $upgrade_ver = $step.ToExact
         Write-Host ""
-        Write-Host $result
-        Write-Host $upgrade_ver
-        $failed = 1
+        Write-Host "Testing upgrade: $start_ver -> $upgrade_ver"
+
+        $MinionVersion = $start_ver
+        function Get-GuestVars { "master=existing_master id=existing_minion" }
+        Write-Host "Installing salt ($MinionVersion): " -NoNewline
+        Install *> $null
+        Write-Done
+
+        $MinionVersion = $upgrade_ver
+        $Upgrade = $true
+        Write-Host "Upgrading salt ($MinionVersion): " -NoNewline
+        function Get-GuestVars { "master=gv_master id=gv_minion" }
+        Install *> $null
+        Write-Done
+        $Upgrade = $false
+
+        try {
+            $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
+        } catch {
+            $current_status = $STATUS_CODES["notInstalled"]
+        }
+        if ($current_status -ne $STATUS_CODES["installed"]) {
+            $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): status not installed"
+        }
+
+        if (!(Test-Path $ssm_bin)) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): ssm binary missing" }
+        if (!(Test-Path "$salt_dir\salt-call.exe")) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt-call.exe missing" }
+        if (!(Test-Path "$salt_dir\salt-minion.exe")) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt-minion.exe missing" }
+
+        $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
+        if (!($service)) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): service not registered" }
+        elseif ($service.Status -ne "Running") { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): service not running" }
+
+        if (!(Test-Path $salt_config_file)) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): config missing" }
+
+        # An upgrade preserves the existing config - the guest vars passed to
+        # the upgrade call above are expected to be ignored.
+        $minion_not_found = 1
+        $master_not_found = 1
+        foreach ($line in Get-Content $salt_config_file) {
+            if ($line -match "^id: existing_minion$") { $minion_not_found = 0 }
+            if ($line -match "^master: existing_master$") { $master_not_found = 0 }
+        }
+        if ($minion_not_found -or $master_not_found) {
+            $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): config not preserved across upgrade"
+        }
+
+        $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
+        $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
+        if (!($current_path -like "*$salt_dir*")) {
+            $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt not added to path"
+        }
+
+        $result = & "$salt_dir\salt-call" --local test.ping
+        if (!($result -like "local:*") -or !($result -like "*True")) {
+            $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt-call test.ping failed"
+        }
+
+        $result = & "$salt_dir\salt-call" --version
+        if (!($result -like "*$upgrade_ver*")) {
+            $failed = 1
+            Write-Host "FAILED ($start_ver -> $upgrade_ver): expected version $upgrade_ver, got: $result"
+        }
+
+        Write-Host "Resetting environment: " -NoNewline
+        Reset-Environment *> $null
+        Write-Done
     }
     return $failed
 }
