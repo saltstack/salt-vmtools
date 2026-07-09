@@ -114,6 +114,21 @@ TIMEOUT_DEFAULT = 20
 TIMEOUT_OVERRIDES = {}
 VERSION_ONLY_OVERRIDES = []
 
+# Test jobs run on every push, on manual (workflow_dispatch) and scheduled
+# (weekly cron, see templates/ci.yml) runs, and on PRs where the
+# collect-changed-files job found relevant files changed.
+RUN_TESTS_IF = (
+    "\n    if: github.event_name == 'push' || "
+    "github.event_name == 'workflow_dispatch' || "
+    "github.event_name == 'schedule' || "
+    "needs.collect-changed-files.outputs.run-tests == 'true'"
+)
+RUN_ALWAYS_IF = (
+    "\n    if: github.event_name == 'push' || "
+    "github.event_name == 'workflow_dispatch' || "
+    "github.event_name == 'schedule'"
+)
+
 TEMPLATE = """
   {distro}:
     name: {display_name}{ifcheck}
@@ -138,7 +153,7 @@ def generate_test_jobs():
     for distro in WINDOWS:
         test_jobs += "\n"
         runs_on = f"\n      runs-on: {distro}"
-        ifcheck = "\n    if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'"
+        ifcheck = RUN_TESTS_IF
         uses = "./.github/workflows/test-windows.yml"
         instances = []
         timeout_minutes = (
@@ -169,7 +184,7 @@ def generate_test_jobs():
     for distro in LINUX_DISTROS:
         test_jobs += "\n"
         runs_on = ""
-        ifcheck = "\n    if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'"
+        ifcheck = RUN_TESTS_IF
         uses = "./.github/workflows/test-linux.yml"
         instances = []
         timeout_minutes = (
@@ -178,7 +193,7 @@ def generate_test_jobs():
             else TIMEOUT_DEFAULT
         )
         if distro in VERSION_ONLY_OVERRIDES:
-            ifcheck = "\n    if: github.event_name == 'push'"
+            ifcheck = RUN_ALWAYS_IF
 
         for salt_version in SALT_VERSIONS:
            instances.append(salt_version)
