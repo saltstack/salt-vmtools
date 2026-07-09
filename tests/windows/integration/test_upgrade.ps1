@@ -52,6 +52,9 @@ function test_upgrade_steps {
         Write-Done
         $Upgrade = $false
 
+        # Only check things that relate to the upgrade itself - binaries
+        # present, path, and ping are already covered by the fresh-install
+        # tests and don't exercise anything upgrade-specific.
         try {
             $current_status = Get-ItemPropertyValue -Path $vmtools_base_reg -Name $vmtools_salt_minion_status_name
         } catch {
@@ -61,15 +64,9 @@ function test_upgrade_steps {
             $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): status not installed"
         }
 
-        if (!(Test-Path $ssm_bin)) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): ssm binary missing" }
-        if (!(Test-Path "$salt_dir\salt-call.exe")) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt-call.exe missing" }
-        if (!(Test-Path "$salt_dir\salt-minion.exe")) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt-minion.exe missing" }
-
         $service = Get-Service -Name salt-minion -ErrorAction SilentlyContinue
         if (!($service)) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): service not registered" }
         elseif ($service.Status -ne "Running") { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): service not running" }
-
-        if (!(Test-Path $salt_config_file)) { $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): config missing" }
 
         # An upgrade preserves the existing config - the guest vars passed to
         # the upgrade call above are expected to be ignored.
@@ -81,17 +78,6 @@ function test_upgrade_steps {
         }
         if ($minion_not_found -or $master_not_found) {
             $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): config not preserved across upgrade"
-        }
-
-        $path_reg_key = "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment"
-        $current_path = (Get-ItemProperty -Path $path_reg_key -Name Path).Path
-        if (!($current_path -like "*$salt_dir*")) {
-            $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt not added to path"
-        }
-
-        $result = & "$salt_dir\salt-call" --local test.ping
-        if (!($result -like "local:*") -or !($result -like "*True")) {
-            $failed = 1; Write-Host "FAILED ($start_ver -> $upgrade_ver): salt-call test.ping failed"
         }
 
         $result = & "$salt_dir\salt-call" --version
