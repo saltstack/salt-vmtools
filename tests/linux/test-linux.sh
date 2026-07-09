@@ -181,19 +181,66 @@ else
 fi
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
 
-./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug --minionversion 3007
-./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
-sleep 1
-cat /etc/salt/minion
-cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-## wait for RC with 3008
-## ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-## ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/artifactory/saltproject-generic/onedir
-## ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
-## sleep 1
-cat /etc/salt/minion
-cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
+## Major-version, exact-version, and upgrade-chain coverage, data-driven off
+## generate.py's SALT_VERSIONS (the single source of truth for which Salt
+## versions this repo tests). Sourced from the real network default so this
+## also exercises real packages.broadcom.com resolution, not local testarea
+## fixtures. Gated by $SALT_TEST_VERSION so each CI matrix job exercises
+## only its assigned entry; unset (local ad-hoc run) exercises all of them.
+_generate_py="${oldpwd}/.github/workflows/templates/generate.py"
+
+_run_major_check() {
+    local _major="$1"
+    ./svtminion.sh --install master=192.168.0.5 --loglevel debug --minionversion "${_major}"
+    ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed (major ${_major}), returned '${_retn}'"; exit 1; fi; }
+    cat /etc/salt/minion
+    cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+}
+
+_run_exact_check() {
+    local _exact="$1"
+    ./svtminion.sh --install master=192.168.0.5 --loglevel debug --minionversion "${_exact}"
+    ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed (exact ${_exact}), returned '${_retn}'"; exit 1; fi; }
+    _ver_out=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
+    if echo "${_ver_out}" | grep -q "${_exact}"; then echo "test correct"; else echo "test failed: expected ${_exact} in test.version, got '${_ver_out}'"; exit 1; fi
+    ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+}
+
+_run_upgrade_check() {
+    local _from="$1" _to="$2"
+    ./svtminion.sh --install master=192.168.0.5 id="tup" --loglevel debug --minionversion "${_from}"
+    if [[ "$(/usr/bin/salt-call --local test.version --out=pprint | awk '{print $2}' | cut -d "'" -f 2)" != "${_from}" ]]; then echo "test failed, wrong starting version for upgrade ${_from} -> ${_to}"; exit 1; fi
+    ./svtminion.sh --upgrade --install --loglevel debug --minionversion "${_to}"
+    cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+    cat /etc/salt/minion | grep 'id:\ tup' 1>/dev/null
+    if [[ "$(/usr/bin/salt-call --local test.version --out=pprint | awk '{print $2}' | cut -d "'" -f 2)" != "${_to}" ]]; then echo "test failed, wrong version after upgrade ${_from} -> ${_to}"; exit 1; fi
+    ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+}
+
+if [[ "${SALT_TEST_VERSION:-}" =~ ^upgrade-([0-9]+)$ ]]; then
+    _to_major="${BASH_REMATCH[1]}"
+    while read -r _from_exact _to_major_row _to_exact; do
+        if [[ "${_to_major_row}" == "${_to_major}" ]]; then
+            _run_upgrade_check "${_from_exact}" "${_to_exact}"
+        fi
+    done < <(python3 "${_generate_py}" --print-upgrade-steps)
+elif [[ -n "${SALT_TEST_VERSION:-}" ]]; then
+    if [[ "${SALT_TEST_VERSION}" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+        _run_exact_check "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+    elif [[ "${SALT_TEST_VERSION}" =~ ^[0-9]+$ ]]; then
+        _run_major_check "${SALT_TEST_VERSION}"
+    fi
+else
+    while read -r _major _exact; do
+        _run_major_check "${_major}"
+        _run_exact_check "${_exact}"
+    done < <(python3 "${_generate_py}" --print-versions)
+    while read -r _from_exact _to_major _to_exact; do
+        _run_upgrade_check "${_from_exact}" "${_to_exact}"
+    done < <(python3 "${_generate_py}" --print-upgrade-steps)
+fi
+
 # test stop and start
 ./svtminion.sh --install master=192.168.0.5 --loglevel debug --source https://packages.broadcom.com/artifactory/saltproject-generic/onedir
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
@@ -218,23 +265,10 @@ cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.7' 1>/dev/null
 ps -ef | grep salt
 systemctl is-active salt-minion
-# test 3006-3007 and upgrade
+## The 3006->3007->3008 upgrade chain is now covered above by the
+## data-driven _run_upgrade_check loop.
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
 sleep 1
-./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 id="tup" --loglevel debug --minionversion 3006
-cat /etc/salt/minion
-cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-cat /etc/salt/minion | grep 'id:\ tup' 1>/dev/null
-ps -ef | grep salt
-systemctl is-active salt-minion
-if [[ $(/usr/bin/salt-call --local test.version --out=pprint | awk '{print $2}' | cut -d "'" -f 2 | awk -F "." '{print $1}') -eq 3006 ]]; then echo "test correct"; else echo "test failed, wrong major version for salt-minion"; exit 1; fi
-./svtminion.sh --source ${oldpwd}/tests/testarea --upgrade --install --loglevel debug --minionversion 3007
-cat /etc/salt/minion
-cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
-cat /etc/salt/minion | grep 'id:\ tup' 1>/dev/null
-ps -ef | grep salt
-systemctl is-active salt-minion
-if [[ $(/usr/bin/salt-call --local test.version --out=pprint | awk '{print $2}' | cut -d "'" -f 2 | awk -F "." '{print $1}') -eq 3007 ]]; then echo "test correct"; else echo "test failed, wrong major version for salt-minion"; exit 1; fi
 ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
