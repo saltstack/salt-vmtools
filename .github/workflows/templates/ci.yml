@@ -1,7 +1,11 @@
 name: CI
 on:
-  - push
-  - pull_request
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly full test run (all versions), regardless of changed files
+    - cron: "0 0 * * 0"
 
 concurrency:
   # If changes are pushed to a PR, stop all running workflows before starting new ones
@@ -56,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: collect-changed-files
 
-    if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.collect-changed-files.outputs.run-tests == 'true'
     steps:
       - uses: actions/checkout@v6
 
@@ -93,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: collect-changed-files
     container: koalaman/shellcheck-alpine:latest
-    if: github.event_name == 'push' || needs.collect-changed-files.outputs.run-tests == 'true'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.collect-changed-files.outputs.run-tests == 'true'
     steps:
       - uses: actions/checkout@v6
       - name: ShellCheck
