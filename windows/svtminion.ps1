@@ -553,7 +553,7 @@ function Get-ScriptRunningStatus {
 
     #Get all running powershell processes
     $filter = "Name='powershell.exe' AND CommandLine LIKE '%$script_name%'"
-    $processes = Get-WmiObject Win32_Process -Filter $filter | `
+    $processes = Get-CimInstance Win32_Process -Filter $filter | `
                  Select-Object CommandLine,ProcessId
 
     $process_found = $false
@@ -2324,9 +2324,8 @@ function Remove-SaltMinion {
 
         # Delete the service
         Write-Log "Uninstalling salt-minion service" -Level info
-        $service = Get-WmiObject -Class Win32_Service `
-                                 -Filter "Name='salt-minion'"
-        $service.delete() *> $null
+        Get-CimInstance -ClassName Win32_Service -Filter "Name='salt-minion'" |
+            Invoke-CimMethod -MethodName Delete | Out-Null
 
         try {
             # This command will throw an exception if the service is missing
