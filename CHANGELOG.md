@@ -1,3 +1,13 @@
+# v2026.07.23
+
+## What's Changed
+* Add Salt 3008 test coverage, driven off generate.py's version list by @twangboy in https://github.com/saltstack/salt-vmtools/pull/67
+* Support -N package-release suffix in Salt version strings by @twangboy in https://github.com/saltstack/salt-vmtools/pull/68
+* Replace Get-WmiObject with Get-CimInstance to fix removal under PowerShell 7 by @twangboy in https://github.com/saltstack/salt-vmtools/pull/69
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.05.08...v2026.07.23
+
 # v2026.05.08
 
 ## What's Changed
