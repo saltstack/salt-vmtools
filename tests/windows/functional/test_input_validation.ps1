@@ -42,12 +42,15 @@ function test_Test-MinionVersionParameter {
         @{ MinionVersion = "3008.0rc1"; Expected = $true }
         @{ MinionVersion = "3009.0rc2"; Expected = $true }
         @{ MinionVersion = "3009.1.2"; Expected = $true }
+        @{ MinionVersion = "3008.1-1"; Expected = $true }
+        @{ MinionVersion = "3004.2-1"; Expected = $true }
         @{ MinionVersion = "bad version"; Expected = $false }
         @{ MinionVersion = "3006/evil"; Expected = $false }
         @{ MinionVersion = "abc"; Expected = $false }
         @{ MinionVersion = '3006;rm -rf /'; Expected = $false }
         @{ MinionVersion = ""; Expected = $false }
         @{ MinionVersion = "3006 .2"; Expected = $false }
+        @{ MinionVersion = "3008.1-1-2"; Expected = $false }
     )
     $failed = 0
     foreach ($c in $cases) {

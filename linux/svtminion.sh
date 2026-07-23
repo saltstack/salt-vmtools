@@ -408,14 +408,17 @@ _set_log_level() {
 #
 # _salt_onedir_dir_is_ga
 #
-#   True (status 0) if the onedir directory name is GA numeric CalVer only
-#       (digits and dots). Prerelease names (e.g. 3008.0rc1) are not GA.
+#   True (status 0) if the onedir directory name is GA CalVer, optionally
+#       with a -N package-release suffix (e.g. 3008.1 or 3008.1-1).
+#       Prerelease names (e.g. 3008.0rc1) are not GA. A -N suffix is a
+#       repackage of the same version, not a prerelease, so it counts as GA
+#       and can win latest/major-series selection via sort -V.
 #
 # Results:
 #   0 if GA, 1 otherwise
 #
 _salt_onedir_dir_is_ga() {
-    local _ga_re='^[0-9]+\.[0-9]+(\.[0-9]+)*$'
+    local _ga_re='^[0-9]+\.[0-9]+(\.[0-9]+)*(-[0-9]+)?$'
     [[ -n "$1" && "$1" =~ ${_ga_re} ]]
 }
 

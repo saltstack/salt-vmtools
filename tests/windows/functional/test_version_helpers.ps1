@@ -16,6 +16,7 @@ function test_Test-SaltOnedirVersionIsGA {
         @{ Version = "3006.24"; Expected = $true }
         @{ Version = "3008.0"; Expected = $true }
         @{ Version = "3006.1"; Expected = $true }
+        @{ Version = "3008.1-1"; Expected = $true }
         @{ Version = "3008.0rc1"; Expected = $false }
         @{ Version = "3007.1dev1"; Expected = $false }
         @{ Version = "notaversion"; Expected = $false }
@@ -42,6 +43,11 @@ function test_Compare-SaltCalVer {
         @{ Left = "3006.24"; Right = "3006.8"; Expected = 1 }
         @{ Left = "3006.8"; Right = "3006.24"; Expected = -1 }
         @{ Left = "3008.0"; Right = "3007.99"; Expected = 1 }
+        @{ Left = "3008.1-1"; Right = "3008.1"; Expected = 1 }
+        @{ Left = "3008.1"; Right = "3008.1-1"; Expected = -1 }
+        @{ Left = "3008.1-2"; Right = "3008.1-1"; Expected = 1 }
+        @{ Left = "3008.2"; Right = "3008.1-1"; Expected = 1 }
+        @{ Left = "3008.1-1"; Right = "3008.1-1"; Expected = 0 }
     )
     $failed = 0
     foreach ( $c in $cases ) {
