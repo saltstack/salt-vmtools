@@ -692,6 +692,12 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
                     fi
                 elif [[ ${salt_config_flag} -eq 1 ]]; then
                     # read config ahead of section check, better logic flow
+                    if [[ "${line_value}" != *=* ]]; then
+                        _warning_log "$0:${FUNCNAME[0]} ignoring invalid "\
+                            "config line '${line}' (expected key=value) "\
+                            "from ${vmtools_conf_file}"
+                        continue
+                    fi
                     cfg_key=$(echo "${line}" | cut -d '=' -f 1)
                     cfg_value=$(echo "${line}" | cut -d '=' -f 2)
                     _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
@@ -741,6 +747,12 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
 
     for idx in ${gvar_args}
     do
+        if [[ "${idx}" != *=* ]]; then
+            _warning_log "$0:${FUNCNAME[0]} ignoring invalid config token "\
+                "'${idx}' (expected key=value) from guest variables "\
+                "location ${guestvars_salt_args}"
+            continue
+        fi
         cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
         cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
         _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
@@ -781,6 +793,12 @@ _fetch_vmtools_salt_minion_conf_cli_args() {
             # check for start of next option, idx starts with '-' (covers '--')
             if [[ "${idx}" = --* ]]; then
                 break
+            fi
+            if [[ "${idx}" != *=* ]]; then
+                _warning_log "$0:${FUNCNAME[0]} ignoring invalid config "\
+                    "token '${idx}' (expected key=value) from command "\
+                    "line arguments"
+                continue
             fi
             cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
             cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
