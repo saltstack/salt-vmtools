@@ -116,3 +116,28 @@ jobs:
         with:
           name: exitstatus-${{ github.job }}
           path: exitstatus/
+
+  linux-unit-tests:
+    name: Linux Unit Tests
+    runs-on: ubuntu-latest
+    needs: collect-changed-files
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.collect-changed-files.outputs.run-tests == 'true'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Unit Tests
+        run: |
+          bash tests/linux/test_version_resolution.sh
+          bash tests/linux/test_minion_conf_parsing.sh
+
+      - name: Set Exit Status
+        if: always()
+        run: |
+          mkdir exitstatus
+          echo "${{ job.status }}" > exitstatus/${{ github.job }}
+
+      - name: Upload Exit Status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exitstatus-${{ github.job }}
+          path: exitstatus/
