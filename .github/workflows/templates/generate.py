@@ -147,7 +147,7 @@ TEMPLATE = """
 
 def generate_test_jobs():
     test_jobs = ""
-    needs = ["lint", "generate-actions-workflow"]
+    needs = ["lint", "linux-unit-tests", "generate-actions-workflow"]
 
     test_jobs += "\n"
     for distro in WINDOWS:
