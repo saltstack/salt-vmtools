@@ -1,3 +1,13 @@
+# v2026.09.03
+
+## What's Changed
+* Bump urllib3 from 2.6.3 to 2.7.0 in /requirements by @dependabot[bot] in https://github.com/saltstack/salt-vmtools/pull/65
+* Bump idna from 3.10 to 3.15 in /requirements by @dependabot[bot] in https://github.com/saltstack/salt-vmtools/pull/66
+* Fix CLI switches leaking into minion config on Linux by @twangboy in https://github.com/saltstack/salt-vmtools/pull/71
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.07.23...v2026.09.03
+
 # v2026.07.23
 
 ## What's Changed
