@@ -57,8 +57,9 @@ line. Each option is explained in the following sections.
 ### guestVars (lowest preference)
 
 VMware guestVars can contain the action this script performs as well as the
-minion config options to be set by this script. The config values here will
-override any config options defined in `tools.conf` with the same name.
+minion config options to be set by this script. These have the lowest
+preference. Any config options defined in `tools.conf` or on the command line
+with the same name will override the values here.
 
 The guestVars paths are as follows:
 
@@ -108,8 +109,14 @@ Below is an example of the `salt_minion` section as it may be defined in
     conf_file=/etc/salt/minion
     id=dev_minion
 
-**Note:** Only minion config options are available in `tools.conf`. The desired
-script action cannot be obtained from `tools.conf`.
+**Note:** Only minion config options and the [script options](#script-options)
+are available in `tools.conf`. The desired script action cannot be obtained from
+`tools.conf`.
+
+`tools.conf` is read the same way on Linux and Windows. White space around a
+line, the key, and the value is ignored, so `master = 203.0.113.1` is the same
+as `master=203.0.113.1`. Lines that start with `#`, `;` or `,` are comments.
+Windows (CRLF) line endings are fine.
 
 ### Command Line (highest preference)
 
@@ -158,6 +165,66 @@ And the following is defined in guestVars:
 
 Preference is given to the command line argument and the Salt minion package will
 be installed.
+
+### Script options
+
+Three options control this script itself rather than the minion. They are set
+with `key=value` in the same places as the minion config options (guestVars
+`args`, `tools.conf`, and the command line), and are the equivalent of the
+command line switches shown:
+
+| Key             | Equivalent switch                    | Applies to           |
+|-----------------|--------------------------------------|----------------------|
+| `source`        | `--source` / `-Source`               | install              |
+| `minionversion` | `--minionversion` / `-MinionVersion` | install              |
+| `loglevel`      | `--loglevel` / `-LogLevel`           | every action         |
+
+For example, to install from a location in an air-gapped environment, set the
+guestVars config to:
+
+    vmrun writeVariable "<path/to/vmx/file>" guestVar vmware.components.salt_minion.args "source=https://mirror.example.com/onedir minionversion=3007.1 master=203.0.113.1"
+
+The same can be set in `tools.conf`:
+
+    [salt_minion]
+    master=203.0.113.1
+    source=https://mirror.example.com/onedir
+
+Or on the command line:
+
+    [root@fedora]# svtminion.sh --install source=https://mirror.example.com/onedir
+
+    PS> svtminion.ps1 -Install source=https://mirror.example.com/onedir
+
+These options behave the same on Linux and Windows:
+
+- The order of preference is the same as the minion config options: command
+  line, then `tools.conf`, then guestVars. A switch, for example `--source`, has
+  the highest preference of all.
+- The keys `source`, `minionversion` and `loglevel` are not case sensitive. The
+  case of every other key is preserved. Values cannot contain spaces. The value
+  is everything after the first `=`, so a URL can contain `=`.
+- These three keys are never written to the minion config. Every other
+  `key=value` option is still written to it. Salt's own `log_level` setting is a
+  different option from `loglevel`, so it is still written to the minion config.
+- `source` and `minionversion` only apply when installing (including
+  `--upgrade`/`-Upgrade`). They are ignored for other actions. `loglevel`
+  applies to every action.
+- They are validated the same as the switches. An invalid value stops the
+  script with exit code `126`, whatever the log level, including `silent`.
+- They cannot set the action. The action comes from the command line or the
+  `vmware.components.salt_minion` guestVar.
+- Tokens that are not `key=value`, have an empty key or value, or contain
+  control characters are ignored with a warning. Tokens are not expanded in any
+  way, `*` is just a `*`.
+- A switch inside the guestVars value, for example `--source <location>`, is
+  not supported. It is ignored with a warning. Use `source=<location>`.
+- Command line `key=value` options end at the next switch (a token that starts
+  with `-`).
+
+**Note:** Some versions of VMware Tools add the guestVars `args` value to the
+command line when they run this script. Those values then have command line
+preference, and `tools.conf` cannot override them.
 
 
 ## Logging
@@ -267,6 +334,22 @@ pre-requisites:
           -u, --upgrade   upgrade when installing, used with --install
           -v, --version   version of this script
 
+          The following can also be set using key=value, with no spaces,
+          for example: source=https://my_web_server.com/my_salt_onedir
+              source          same as --source, used when installing
+              minionversion   same as --minionversion, used when installing
+              loglevel        same as --loglevel
+          key=value is read from the command line (after --install or
+          --reconfig), tools.conf section [salt_minion] and the guest
+          variable guestinfo./vmware.components.salt_minion.args
+          Precedence, highest first: switch (for example --source),
+              key=value on the command line, tools.conf, guest variables
+          The keys source, minionversion and loglevel are not case
+          sensitive and are not written to the minion configuration (all
+          other key=value options are). An invalid value exits with code 126
+          Note: when VMTools adds the guest variable args to the command
+          line they have command line precedence over tools.conf
+
           salt-minion vmtools integration script
               example: ./svtminion.sh --status
 
@@ -323,6 +406,23 @@ or `Get-Help svtminion.ps1`:
         Additional configuration options are obtained from `tools.conf`, which overrides
         any conflicting options from `guestVars`. CLI options take the highest
         precedence, followed by `tools.conf`, and finally `guestVars`.
+
+        The following can also be set using key=value, with no spaces, in `guestVars`,
+        `tools.conf` or on the CLI. They are the equivalent of the parameters shown:
+        - source=<location> - the `-Source` parameter, used when installing
+        - minionversion=<version> - the `-MinionVersion` parameter, used when installing
+        - loglevel=<level> - the `-LogLevel` parameter
+        For example: `source=https://my.domain.com/vmtools/salt minionversion=3006.8`.
+        Their precedence is the same as the minion configuration options. An explicit
+        parameter, for example `-Source`, takes precedence over all of them. These
+        three keys are not case sensitive and are never written to the minion
+        configuration (all other key=value options are). An invalid value exits with
+        the `scriptFailed` (126) code. `source` and `minionversion` are ignored when
+        not installing. They can not set the action.
+        Note that Salt's own `log_level` setting is different, it is a minion
+        configuration option and is written to the minion configuration. When VMware
+        Tools adds the `guestVars` args to the CLI, those values have CLI precedence and
+        `tools.conf` can not override them.
 
         The script returns the following exit codes to indicate its status:
         - 0 - `scriptSuccess`
@@ -409,6 +509,12 @@ or `Get-Help svtminion.ps1`:
 
             All keys will be automatically converted to lowercase and written to the
             minion configuration.
+
+            The keys `source`, `minionversion` and `loglevel` are the exception. They
+            are options for this script, the same as the `-Source`, `-MinionVersion`
+            and `-LogLevel` parameters. They are not written to the minion
+            configuration. For example: source=https://my.domain.com/vmtools/salt
+            Options end at the next parameter, a token starting with `-`.
 
         -Remove [<SwitchParameter>]
             The Remove action stops and uninstalls the salt-minion service. It exits

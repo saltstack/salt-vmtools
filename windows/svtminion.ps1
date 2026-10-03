@@ -23,6 +23,23 @@ Additional configuration options are obtained from `tools.conf`, which overrides
 any conflicting options from `guestVars`. CLI options take the highest
 precedence, followed by `tools.conf`, and finally `guestVars`.
 
+The following can also be set using key=value, with no spaces, in `guestVars`,
+`tools.conf` or on the CLI. They are the equivalent of the parameters shown:
+- source=<location> - the `-Source` parameter, used when installing
+- minionversion=<version> - the `-MinionVersion` parameter, used when installing
+- loglevel=<level> - the `-LogLevel` parameter
+For example: `source=https://my.domain.com/vmtools/salt minionversion=3006.8`.
+Their precedence is the same as the minion configuration options. An explicit
+parameter, for example `-Source`, takes precedence over all of them. These
+three keys are not case sensitive and are never written to the minion
+configuration (all other key=value options are). An invalid value exits with
+the `scriptFailed` (126) code. `source` and `minionversion` are ignored when
+not installing. They can not set the action.
+Note that Salt's own `log_level` setting is different, it is a minion
+configuration option and is written to the minion configuration. When VMware
+Tools adds the `guestVars` args to the CLI, those values have CLI precedence and
+`tools.conf` can not override them.
+
 The script returns the following exit codes to indicate its status:
 - 0 - `scriptSuccess`
 - 126 - `scriptFailed`
@@ -49,6 +66,9 @@ PS> svtminion.ps1 -Install -MinionVersion 3006.2 master=192.168.10.10 id=dev_box
 
 .EXAMPLE
 PS> svtminion.ps1 -Install -Source https://my.domain.com/vmtools/salt
+
+.EXAMPLE
+PS> svtminion.ps1 -Install source=https://my.domain.com/vmtools/salt minionversion=3006.8 master=192.168.10.10
 
 .EXAMPLE
 PS> svtminion.ps1 -Install -MinionVersion 3006.8 -Upgrade
@@ -113,6 +133,10 @@ param(
     # "3008.0rc1"). Alternatively, specify a major version number to install the
     # latest GA build in that series (for example pass "3006" for the newest
     # 3006.x release). An invalid value causes the script to exit with code 126.
+    #
+    # This can also be set with `minionversion=<version>` in guestVars,
+    # tools.conf or the ConfigOptions on the CLI. This parameter takes
+    # precedence.
     [String] $MinionVersion="latest",
 
     [Parameter(Mandatory=$false, ParameterSetName="Install")]
@@ -130,6 +154,10 @@ param(
     # The Source parameter supports common protocols such as HTTP, HTTPS, FTP,
     # UNC paths, and local file paths. An invalid value causes the script to
     # exit with code 126.
+    #
+    # This can also be set with `source=<location>` in guestVars, tools.conf or
+    # the ConfigOptions on the CLI, for example for an air-gapped environment.
+    # This parameter takes precedence.
     [String] $Source=(
         "https://packages.broadcom.com/artifactory/saltproject-generic/onedir"
     ),
@@ -155,6 +183,12 @@ param(
     #
     # All keys will be automatically converted to lowercase and written to the
     # minion configuration.
+    #
+    # The keys `source`, `minionversion` and `loglevel` are the exception. They
+    # are options for this script, the same as the `-Source`, `-MinionVersion`
+    # and `-LogLevel` parameters. They are not written to the minion
+    # configuration. For example: source=https://my.domain.com/vmtools/salt
+    # Options end at the next parameter, a token starting with `-`.
     [String[]] $ConfigOptions,
 
     [Parameter(Mandatory=$false, ParameterSetName="Remove")]
@@ -243,6 +277,10 @@ param(
     # Logs are stored in `C:\Windows\temp` and named according to the action the
     # script is performing, along with a timestamp. For example:
     # `vmware-svtminion-<action>-<timestamp>.log`
+    #
+    # This can also be set with `loglevel=<level>` in guestVars, tools.conf or
+    # the ConfigOptions on the CLI. This parameter takes precedence. An invalid
+    # `loglevel` value exits with code 126.
     [String] $LogLevel = "warning",
 
     [Parameter(Mandatory=$false)]
@@ -374,17 +412,32 @@ $action_list = @(
 ################################# VARIABLES ####################################
 # Repository locations and names
 # An artifactory url will have "artifactory" in it
-$domain_name, $target_path = $Source -split "/artifactory/"
-# If $target_path is not empty, this is an artifactory url
-if ( $target_path ) {
-    # Create $base_url and $api_url
-    $base_url = "$domain_name/artifactory/$target_path"
-    $api_url = "$domain_name/artifactory/api/storage/$target_path"
-} else {
+function Get-SourceUrls {
+    # Get the base url, and the api url if it's an artifactory url, from the
+    # Source. Source can be changed after the script starts by the script
+    # options in guestVars, tools.conf and the CLI, see Get-ScriptOptions.
+    #
+    # Returns a hashtable with the keys base_url and api_url
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [String] $SourceLocation
+    )
+    $domain_name, $target_path = $SourceLocation -split "/artifactory/"
+    # If $target_path is not empty, this is an artifactory url
+    if ( $target_path ) {
+        # Create base_url and api_url
+        return @{
+            "base_url" = "$domain_name/artifactory/$target_path"
+            "api_url" = "$domain_name/artifactory/api/storage/$target_path"
+        }
+    }
     # This is a non-artifactory url, there is no api
-    $base_url = $domain_name
-    $api_url = ""
+    return @{ "base_url" = $domain_name; "api_url" = "" }
 }
+$source_urls = Get-SourceUrls -SourceLocation $Source
+$base_url = $source_urls["base_url"]
+$api_url = $source_urls["api_url"]
 
 # Salt file and directory locations
 $base_salt_install_location = "$env:ProgramFiles\Salt Project"
@@ -455,6 +508,30 @@ $guestvars_section = "salt_minion"
 $guestvars_salt = "$guestvars_base.$guestvars_section"
 $guestvars_salt_args = "$guestvars_salt.args"
 $guestvars_salt_desired_state = "$guestvars_salt.desiredstate"
+
+## Script options that can be set using key=value
+#
+# The keys source, minionversion and loglevel control this script. They are the
+# key=value equivalents of -Source, -MinionVersion and -LogLevel. They are
+# accepted in the same places as salt-minion configuration:
+#   - CLI       (key=value options, see the ConfigOptions parameter)
+#   - tools.conf (section [salt_minion])
+#   - guestVars  (guestinfo./vmware.components.salt_minion.args)
+# Precedence, highest first:
+#   explicit parameter (-Source) > CLI key=value > tools.conf > guestVars
+# These three keys are not case sensitive and are never written to the minion
+# configuration, all other key=value options are. Note: Salt's own log_level
+# setting is a different key from loglevel and is still written to the minion
+# configuration.
+# source and minionversion only apply when installing (including -Upgrade),
+# loglevel applies to every action. They can not set the action.
+# An invalid value exits with code 126.
+# Note: when VMware Tools adds the guestVars args to the command line, those
+#       values have CLI precedence, and tools.conf can not override them.
+$script_option_keys = @("source", "minionversion", "loglevel")
+# The names of the parameters passed on the CLI. $PSBoundParameters is not
+# available inside functions, this is used to find explicit parameters
+$cli_parameters = @($PSBoundParameters.Keys)
 
 
 ################################ TEST FUNCTIONS ################################
@@ -1129,11 +1206,17 @@ function _parse_config {
 
     $config_options = @{}
     foreach ($key_value in $KeyValues.Split()) {
+        if (!$key_value) { continue }
         if ($key_value -like "*=*") {
             Write-Log "Found config: $key_value" -Level debug
-            $key, $value = $key_value -split "="
+            # Split on the first = only, the value can contain =
+            $key, $value = $key_value -split "=", 2
             if ($key -match '[\x00-\x1f\x7f]' -or $value -match '[\x00-\x1f\x7f]') {
                 Write-Log "Config option with control characters ignored: $key_value" -Level warning
+                continue
+            }
+            if (!$key) {
+                Write-Log "No config key specified: $key_value" -Level warning
                 continue
             }
             if ($value) {
@@ -1163,7 +1246,19 @@ function Get-ConfigCLI {
     # Return hashtable
     Write-Log "Checking for CLI config options" -Level debug
     if ($ConfigOptions) {
-        return _parse_config $ConfigOptions
+        # Config options end at the next switch, a token starting with -
+        $cli_tokens = [System.Collections.ArrayList]::new()
+        foreach ($token in $ConfigOptions.Split()) {
+            if ($token -like "-*") { break }
+            # Extra white space makes empty tokens
+            if (!$token) { continue }
+            $cli_tokens.Add($token) | Out-Null
+        }
+        if ($cli_tokens.Count -eq 0) {
+            Write-Log "Minion config not passed on CLI" -Level debug
+            return
+        }
+        return _parse_config $cli_tokens.ToArray()
     } else {
         Write-Log "Minion config not passed on CLI" -Level debug
     }
@@ -1242,9 +1337,21 @@ function Get-ConfigToolsConf {
     $config_options = Read-IniContent -FilePath $vmtools_conf_file
     Write-Log "Checking for tools.conf config options" -Level debug
     if ($config_options.ContainsKey($guestvars_section)) {
-        $count = $config_options[$guestvars_section].Count
+        # Ignore options with control characters or an empty key or value,
+        # same as the CLI and guestVars options
+        $tc_options = @{}
+        foreach ($row in $config_options[$guestvars_section].GetEnumerator()) {
+            if (!$row.Name -or !$row.Value) {
+                Write-Log "No config key or value specified: $($row.Name)" -Level warning
+            } elseif ("$($row.Name)$($row.Value)" -match '[\x00-\x1f\x7f]') {
+                Write-Log "Config option with control characters ignored: $($row.Name)" -Level warning
+            } else {
+                $tc_options[$row.Name] = $row.Value
+            }
+        }
+        $count = $tc_options.Count
         Write-Log "Found $count config options" -Level debug
-        return $config_options[$guestvars_section]
+        return $tc_options
     } else {
         Write-Log "Minion config not defined in tools.conf" -Level debug
         return @{}
@@ -1272,7 +1379,10 @@ function Get-MinionConfig {
     $gv_config = Get-ConfigGuestVars
     if ($gv_config) {
         foreach ($row in $gv_config.GetEnumerator()) {
-            if ($row.Value) {
+            if (Test-ScriptOptionKey -Key $row.Name) {
+                # Script options are not minion config, see Get-ScriptOptions
+                Write-Log "Skipping script option: $($row.Name)" -Level debug
+            } elseif ($row.Value) {
                 $config_options[$row.Name] = $row.Value
             }
         }
@@ -1281,7 +1391,10 @@ function Get-MinionConfig {
     $tc_config = Get-ConfigToolsConf
     if ($tc_config) {
         foreach ($row in $tc_config.GetEnumerator()) {
-            if ($row.Value) {
+            if (Test-ScriptOptionKey -Key $row.Name) {
+                # Script options are not minion config, see Get-ScriptOptions
+                Write-Log "Skipping script option: $($row.Name)" -Level debug
+            } elseif ($row.Value) {
                 $config_options[$row.Name] = $row.Value
             }
         }
@@ -1290,12 +1403,129 @@ function Get-MinionConfig {
     $cli_config = Get-ConfigCLI
     if ($cli_config) {
         foreach ($row in $cli_config.GetEnumerator()) {
-            if ($row.Value) {
+            if (Test-ScriptOptionKey -Key $row.Name) {
+                # Script options are not minion config, see Get-ScriptOptions
+                Write-Log "Skipping script option: $($row.Name)" -Level debug
+            } elseif ($row.Value) {
                 $config_options[$row.Name] = $row.Value
             }
         }
     }
     return $config_options
+}
+
+
+function Test-ScriptOptionKey {
+    # Check if a key is one of the script options (source, minionversion,
+    # loglevel). Keys are not case sensitive.
+    #
+    # Used by:
+    # - Get-MinionConfig
+    # - Get-ScriptOptions
+    #
+    # Returns $true if the key is a script option, otherwise $false
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [AllowEmptyString()]
+        [String] $Key
+    )
+    return ($script_option_keys -contains $Key.ToLower())
+}
+
+
+function Get-ScriptOptions {
+    # Get the script options (source, minionversion, loglevel) that are set
+    # using key=value in guestVars, tools.conf, or the CLI. They are the
+    # equivalent of the -Source, -MinionVersion and -LogLevel parameters. The
+    # order of priority is as follows:
+    # - Get options from GuestVars (defined by VMware Tools)
+    # - Get options from tools.conf, overwrites guestVars
+    # - Get options from the CLI (key=value options passed to the script),
+    #   overwrites guestVars and tools.conf
+    # - An explicit parameter (for example -Source) is not changed. Parameters
+    #   have the highest precedence
+    #
+    # loglevel applies to every action. source and minionversion only apply
+    # when installing, using -Install or, if no action was passed on the CLI, a
+    # desired state of present in guestVars. They are ignored for other
+    # actions. Main must have determined the action, $Action, before this is
+    # called.
+    #
+    # Used by:
+    # - The main body of the script
+    #
+    # Args:
+    #     BoundParameters (string[]):
+    #         The names of the parameters passed on the CLI, $PSBoundParameters.Keys
+    #
+    # Returns a hash table with the values to use, using the parameter names
+    # Source, MinionVersion, and LogLevel for keys. The hash table is empty if
+    # there is nothing to change. Returns $null, after logging the reason, if a
+    # value is invalid.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [String[]] $BoundParameters = @()
+    )
+
+    # Lowest precedence first, so the last one found wins
+    $configs = @(
+        @{ Name = "guestVars"; Config = (Get-ConfigGuestVars) },
+        @{ Name = "tools.conf"; Config = (Get-ConfigToolsConf) },
+        @{ Name = "CLI"; Config = (Get-ConfigCLI) }
+    )
+    $found = @{}
+    foreach ($item in $configs) {
+        if (!$item.Config) { continue }
+        foreach ($row in $item.Config.GetEnumerator()) {
+            if ((Test-ScriptOptionKey -Key $row.Name) -and $row.Value) {
+                $found[$row.Name.ToLower()] = @{
+                    Value = $row.Value
+                    From = $item.Name
+                }
+                Write-Log "Found script option $($row.Name) in $($item.Name)" -Level debug
+            }
+        }
+    }
+
+    $result = @{}
+
+    # loglevel applies to every action
+    if ($found.ContainsKey("loglevel") -and !($BoundParameters -contains "LogLevel")) {
+        $level = $found["loglevel"].Value.ToLower()
+        if (!$LOG_LEVELS.ContainsKey($level)) {
+            $msg = "Invalid loglevel: $level - Must be one of " +
+                   "[$($LOG_LEVELS.Keys -join ', ')]"
+            Write-Log $msg -Level error
+            Write-Host $msg -ForegroundColor Red
+            return $null
+        }
+        $result["LogLevel"] = $level
+    }
+
+    if (!($found.ContainsKey("source") -or $found.ContainsKey("minionversion"))) {
+        return $result
+    }
+
+    # source and minionversion only apply when installing. $Action is the
+    # action Main found on the CLI or, if none, in guestVars
+    if (!$Action -or ($Action.ToLower() -ne "install")) {
+        Write-Log "Not installing, ignoring script options source and minionversion" -Level debug
+        return $result
+    }
+
+    if ($found.ContainsKey("source") -and !($BoundParameters -contains "Source")) {
+        $value = $found["source"].Value
+        if (!(Test-SourceParameter -Source $value)) { return $null }
+        $result["Source"] = $value
+    }
+    if ($found.ContainsKey("minionversion") -and !($BoundParameters -contains "MinionVersion")) {
+        $value = $found["minionversion"].Value
+        if (!(Test-MinionVersionParameter -MinionVersion $value)) { return $null }
+        $result["MinionVersion"] = $value
+    }
+    return $result
 }
 
 
@@ -2548,6 +2778,28 @@ function Main {
         return $STATUS_CODES["scriptFailed"]
     }
 
+    # Apply the script options set using key=value in guestVars, tools.conf
+    # and the CLI. Explicit parameters take precedence. This has to be done
+    # before the log level, source and minion version are used. The script
+    # scope is set explicitly as this is a function
+    $script_opts = Get-ScriptOptions -BoundParameters $Script:cli_parameters
+    if ($null -eq $script_opts) {
+        return $STATUS_CODES["scriptFailed"]
+    }
+    if ($script_opts.ContainsKey("LogLevel")) {
+        $Script:LogLevel = $script_opts["LogLevel"]
+        $Script:log_level_value = $LOG_LEVELS[$Script:LogLevel.ToLower()]
+    }
+    if ($script_opts.ContainsKey("Source")) {
+        $Script:Source = $script_opts["Source"]
+        $source_urls = Get-SourceUrls -SourceLocation $Script:Source
+        $Script:base_url = $source_urls["base_url"]
+        $Script:api_url = $source_urls["api_url"]
+    }
+    if ($script_opts.ContainsKey("MinionVersion")) {
+        $Script:MinionVersion = $script_opts["MinionVersion"]
+    }
+
     # Let's confirm dependencies
     if (!(Confirm-Dependencies)) {
         Write-Log "Missing script dependencies" -Level error
@@ -2763,6 +3015,34 @@ function Main {
     }
 }
 
+
+function Get-MainExitCode {
+    # Run Main and return only its exit code, the last value it returned.
+    #
+    # VMware Tools relies on the exit code of this script (0, 100 - 107, 126,
+    # 130), so it has to be exactly the number Main returns.
+    #
+    # In PowerShell, everything a function does not capture or suppress is
+    # added to its return value. If a function that Main calls does that, for
+    # example Install-SaltMinion runs Get-Service without capturing it, Main
+    # returns an array like (<service object>, 0) instead of just 0. Passing an
+    # array to exit does not fail, it quietly exits with 0, whatever the number
+    # in the array is.
+    #
+    # Today this goes unnoticed because Main only returns a non-zero code
+    # before it does any work, so nothing can come before it, and the codes it
+    # returns after doing work are 0. Nothing guarantees that stays true. A
+    # function that starts to output something ahead of, for example, a
+    # status code of 100 would make the script exit with 0 and report success.
+    # The number Main returns is always the last value, so use only that.
+    #
+    # Returns the exit code, or nothing if Main returned nothing, which is
+    # handled as "Script Terminated" by the caller.
+    $output = @(Main)
+    return ($output | Select-Object -Last 1)
+}
+
+
 # Allow importing for testing
 if (($Action) -and ($Action.ToLower() -eq "test")) {
     exit $STATUS_CODES["scriptSuccess"]
@@ -2776,7 +3056,7 @@ if (!(Test-MinionVersionParameter -MinionVersion $MinionVersion)) {
 }
 
 try {
-    $exit_code = Main
+    $exit_code = Get-MainExitCode
     exit $exit_code
 } finally {
     if ($null -eq $exit_code) {

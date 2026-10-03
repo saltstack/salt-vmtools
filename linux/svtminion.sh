@@ -131,6 +131,29 @@ guestvars_salt_dir="${guestvars_base_dir}.${vmtools_salt_minion_section_name}"
 readonly guestvars_salt_args="${guestvars_salt_dir}.args"
 readonly guestvars_salt_desiredstate="${guestvars_salt_dir}.desiredstate"
 
+## Script options that can be set using key=value
+#
+# The keys source, minionversion and loglevel control this script (they are
+# the key=value equivalents of --source, --minionversion and --loglevel). They
+# are accepted in the same places as salt-minion configuration:
+#   - command line   (key=value tokens following --install or --reconfig)
+#   - tools.conf     (section [salt_minion])
+#   - guest variables (guestinfo./vmware.components.salt_minion.args)
+# Precedence, highest first:
+#   explicit switch (--source) > command line key=value > tools.conf
+#   > guest variables
+# These three keys are not case sensitive and are never written to the minion
+# configuration, all other key=value options are. Note: Salt's own log_level
+# setting is a different key from loglevel and is still written to the minion
+# configuration.
+# source and minionversion only apply when installing (including --upgrade),
+# loglevel applies to every action. They can not set the action.
+# An invalid value exits with code 126.
+# Note: when VMware Tools adds the guest variables args to the command line,
+#       those values have command line precedence, and tools.conf can not
+#       override them.
+readonly script_opt_keys="source minionversion loglevel"
+
 
 # Array for minion configuration keys and values
 # allows for updates from number of configuration sources before final
@@ -205,6 +228,10 @@ LOG_LEVEL=${LOG_LEVELS_ARY[warning]}
 SOURCE_FLAG=0
 SOURCE_PARAMS=""
 
+# desired state (action) from guest variables, retrieved once when needed
+GVAR_ACTION_FETCHED=0
+GVAR_ACTION=""
+
 
 # helper functions
 
@@ -234,6 +261,24 @@ _error_log() {
         CURRENT_STATUS=${STATUS_CODES_ARY[scriptFailed]}
         exit ${STATUS_CODES_ARY[scriptFailed]}
     fi
+}
+
+#
+# _validation_failed
+#
+#   Log an error for an invalid parameter value and exit with scriptFailed
+#   (126). _error_log only exits when errors are being logged, which is not
+#   the case when the log level is silent. An invalid value must never be
+#   used, whatever the log level.
+#
+# Results:
+#   Exits with scriptFailed (126)
+#
+
+_validation_failed() {
+    _error_log "$@"
+    CURRENT_STATUS=${STATUS_CODES_ARY[scriptFailed]}
+    exit ${STATUS_CODES_ARY[scriptFailed]}
 }
 
 _info_log() {
@@ -314,6 +359,22 @@ esac
      echo "  -s, --status    return status for this script"
      echo "  -u, --upgrade   upgrade when installing, used with --install"
      echo "  -v, --version   version of this script"
+     echo ""
+     echo "  The following can also be set using key=value, with no spaces,"
+     echo "  for example: source=https://my_web_server.com/my_salt_onedir"
+     echo "      source          same as --source, used when installing"
+     echo "      minionversion   same as --minionversion, used when installing"
+     echo "      loglevel        same as --loglevel"
+     echo "  key=value is read from the command line (after --install or"
+     echo "  --reconfig), tools.conf section [salt_minion] and the guest"
+     echo "  variable guestinfo./vmware.components.salt_minion.args"
+     echo "  Precedence, highest first: switch (for example --source),"
+     echo "      key=value on the command line, tools.conf, guest variables"
+     echo "  The keys source, minionversion and loglevel are not case"
+     echo "  sensitive and are not written to the minion configuration (all"
+     echo "  other key=value options are). An invalid value exits with code 126"
+     echo "  Note: when VMTools adds the guest variable args to the command"
+     echo "  line they have command line precedence over tools.conf"
      echo ""
      echo "  salt-minion VMTools integration script"
      echo "      example: $0 --status"
@@ -591,6 +652,103 @@ _set_install_minion_version_fn() {
 
 
 #
+# _is_script_opt_key
+#
+#   Check if input key is one of the script options (source, minionversion,
+#   loglevel), keys are not case sensitive
+#
+# Results:
+#   Returns 0 if a script option key, 1 otherwise
+#
+
+_is_script_opt_key() {
+    local chk_key="${1,,}"
+    local idx=""
+
+    for idx in ${script_opt_keys}
+    do
+        if [[ "${chk_key}" = "${idx}" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+
+#
+# _split_tokens
+#
+#   Split input string on whitespace into array SPLIT_TOKENS, without
+#   expanding any globbing characters (for example * or ?)
+#
+# Results:
+#   Array SPLIT_TOKENS updated
+#
+
+_split_tokens() {
+    local IFS=$' \t\n'
+    local noglob_was_set=0
+
+    if [[ $- == *f* ]]; then noglob_was_set=1; fi
+    set -f
+    # shellcheck disable=SC2206
+    SPLIT_TOKENS=( $1 )
+    if [[ ${noglob_was_set} -eq 0 ]]; then set +f; fi
+    return 0
+}
+
+
+#
+# _parse_kv_token
+#
+#   Split a token on the first '=' into KV_KEY and KV_VALUE. A token without
+#   an '=', with an empty key or value, or with control characters is invalid
+#
+# Input:
+#   $1  token
+#   $2  description of where token was found, used for warning, if empty
+#       no warning is logged (the token has been reported elsewhere)
+#
+# Results:
+#   Returns 0 and sets KV_KEY and KV_VALUE if valid, returns 1 otherwise
+#
+
+_parse_kv_token() {
+    local tok="$1"
+    local where="$2"
+    local reason=""
+    local escaped_tok=""
+
+    KV_KEY=""
+    KV_VALUE=""
+
+    if [[ "${tok}" =~ [[:cntrl:]] ]]; then
+        reason="contains control characters"
+    elif [[ "${tok}" != *=* ]]; then
+        reason="expected key=value"
+    elif [[ -z "${tok%%=*}" ]]; then
+        reason="key is empty"
+    elif [[ -z "${tok#*=}" ]]; then
+        reason="value is empty"
+    fi
+
+    if [[ -n "${reason}" ]]; then
+        if [[ -n "${where}" ]]; then
+            # token may contain control characters, log it escaped
+            printf -v escaped_tok '%q' "${tok}"
+            _warning_log "$0:${FUNCNAME[0]} ignoring invalid config token "\
+                "${escaped_tok} (${reason}) from ${where}"
+        fi
+        return 1
+    fi
+
+    KV_KEY="${tok%%=*}"
+    KV_VALUE="${tok#*=}"
+    return 0
+}
+
+
+#
 # _update_minion_conf_ary
 #
 #   Updates the running minion_conf array with input key and value
@@ -645,10 +803,72 @@ _update_minion_conf_ary() {
 
 
 #
+# _read_tools_conf_salt_minion_lines
+#
+#   Read the lines in section [salt_minion] of VMTools configuration file
+#   tools.conf, blank lines and comment lines (starting with #, ; or ,) are
+#   skipped. White space around the line, the key and the value is removed, so
+#   'key = value' is the same as 'key=value'. This is the same as the Windows
+#   script reads tools.conf.
+#
+# Results:
+#   Array TOOLS_CONF_LINES updated, empty if no file or section
+#
+
+_read_tools_conf_salt_minion_lines() {
+    local line=""
+    local key=""
+    local value=""
+    local salt_config_flag=0
+
+    TOOLS_CONF_LINES=()
+    if [[ ! -f "${vmtools_base_dir_etc}/${vmtools_conf_file}" ]]; then
+        return 0
+    fi
+
+    # need to extract configuration for salt-minion
+    # find section name ${vmtools_salt_minion_section_name}
+    # read configuration till next section
+    while IFS= read -r line || [[ -n "${line}" ]]
+    do
+        # comment lines start in the first column
+        if [[ "${line}" = [\#\;,]* ]]; then continue; fi
+        # remove white space from both ends, includes a CR from CRLF
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        if [[ -z "${line}" ]]; then continue; fi
+        if [[ "${line}" = "["* ]]; then
+            if [[ ${salt_config_flag} -eq 1 ]]; then
+                # if new section after doing Salt config, we are done
+                break;
+            fi
+            if [[ "${line}" = "[${vmtools_salt_minion_section_name}]" ]]; then
+                salt_config_flag=1
+            fi
+        elif [[ ${salt_config_flag} -eq 1 ]]; then
+            if [[ "${line}" = *=* ]]; then
+                # remove white space around the first =
+                key="${line%%=*}"
+                key="${key%"${key##*[![:space:]]}"}"
+                value="${line#*=}"
+                value="${value#"${value%%[![:space:]]*}"}"
+                line="${key}=${value}"
+            fi
+            TOOLS_CONF_LINES+=( "${line}" )
+        fi
+    done < "${vmtools_base_dir_etc}/${vmtools_conf_file}"
+    return 0
+}
+
+
+#
 # _fetch_vmtools_salt_minion_conf_tools_conf
 #
 #   Retrieve the configuration for salt-minion from VMTools
 #                                           configuration file tools.conf
+#
+#   Script options (source, minionversion, loglevel) are not minion
+#   configuration, they are handled by _fetch_script_opts
 #
 # Results:
 #   Exits with new VMTools configuration file if none found or salt-minion
@@ -660,6 +880,7 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
     # fetch the current configuration for section salt_minion
     # from vmtoolsd configuration file
     local _retn=0
+    local line=""
     if [[ ! -f "${vmtools_base_dir_etc}/${vmtools_conf_file}" ]]; then
         # conf file doesn't exist, create it
         mkdir -p "${vmtools_base_dir_etc}"
@@ -668,49 +889,22 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
         _warning_log "$0:${FUNCNAME[0]} creating empty configuration "\
             "file ${vmtools_base_dir_etc}/${vmtools_conf_file}"
     else
-        # need to extract configuration for salt-minion
-        # find section name ${vmtools_salt_minion_section_name}
-        # read configuration till next section, output salt-minion conf file
-
-        local salt_config_flag=0
-        while IFS= read -r line
+        _read_tools_conf_salt_minion_lines
+        for line in "${TOOLS_CONF_LINES[@]}"
         do
-            line_value=$(_trim "${line}")
-            if [[ -n "${line_value}" ]]; then
-                _debug_log "$0:${FUNCNAME[0]} processing tools.conf "\
-                    "line '${line}'"
-                if echo "${line_value}" | grep -q '^\[' ; then
-                    if [[ ${salt_config_flag} -eq 1 ]]; then
-                        # if new section after doing Salt config, we are done
-                        break;
-                    fi
-                    if [[ ${line_value} = \
-                        "[${vmtools_salt_minion_section_name}]" ]]; then
-                        # have section, get configuration values, set flag and
-                        #  start fresh salt-minion configuration file
-                        salt_config_flag=1
-                    fi
-                elif [[ ${salt_config_flag} -eq 1 ]]; then
-                    # read config ahead of section check, better logic flow
-                    if [[ "${line_value}" != *=* ]]; then
-                        _warning_log "$0:${FUNCNAME[0]} ignoring invalid "\
-                            "config line '${line}' (expected key=value) "\
-                            "from ${vmtools_conf_file}"
-                        continue
-                    fi
-                    cfg_key=$(echo "${line}" | cut -d '=' -f 1)
-                    cfg_value=$(echo "${line}" | cut -d '=' -f 2)
-                    _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
-                        _error_log "$0:${FUNCNAME[0]} error updating minion "\
-                            "configuration array with key '${cfg_key}' and "\
-                            "value '${cfg_value}', retcode '$?'";
-                    }
-                else
-                    _debug_log "$0:${FUNCNAME[0]} skipping tools.conf "\
-                        "line '${line}'"
-                fi
+            _parse_kv_token "${line}" "${vmtools_conf_file}" || continue
+            if _is_script_opt_key "${KV_KEY}"; then
+                _debug_log "$0:${FUNCNAME[0]} skipping script option "\
+                    "'${KV_KEY}' from ${vmtools_conf_file}, not minion "\
+                    "configuration"
+                continue
             fi
-        done < "${vmtools_base_dir_etc}/${vmtools_conf_file}"
+            _update_minion_conf_ary "${KV_KEY}" "${KV_VALUE}" || {
+                _error_log "$0:${FUNCNAME[0]} error updating minion "\
+                    "configuration array with key '${KV_KEY}' and "\
+                    "value '${KV_VALUE}', retcode '$?'";
+            }
+        done
     fi
     return ${_retn}
 }
@@ -720,6 +914,9 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
 # _fetch_vmtools_salt_minion_conf_guestvars
 #
 #   Retrieve the configuration for salt-minion from VMTools guest variables
+#
+#   Script options (source, minionversion, loglevel) are not minion
+#   configuration, they are handled by _fetch_script_opts
 #
 # Results:
 #   salt-minion configuration file updated with configuration read
@@ -733,6 +930,7 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
 
     local _retn=0
     local gvar_args=""
+    local idx=""
 
     gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null)\
         || { _warning_log "$0:${FUNCNAME[0]} unable to retrieve arguments "\
@@ -745,20 +943,20 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
     _debug_log "$0:${FUNCNAME[0]} processing arguments from guest variables "\
         "location ${guestvars_salt_args}"
 
-    for idx in ${gvar_args}
+    _split_tokens "${gvar_args}"
+    for idx in "${SPLIT_TOKENS[@]}"
     do
-        if [[ "${idx}" != *=* ]]; then
-            _warning_log "$0:${FUNCNAME[0]} ignoring invalid config token "\
-                "'${idx}' (expected key=value) from guest variables "\
-                "location ${guestvars_salt_args}"
+        _parse_kv_token "${idx}" \
+            "guest variables location ${guestvars_salt_args}" || continue
+        if _is_script_opt_key "${KV_KEY}"; then
+            _debug_log "$0:${FUNCNAME[0]} skipping script option "\
+                "'${KV_KEY}' from guest variables, not minion configuration"
             continue
         fi
-        cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
-        cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
-        _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
+        _update_minion_conf_ary "${KV_KEY}" "${KV_VALUE}" || {
             _error_log "$0:${FUNCNAME[0]} error updating minion "\
-                "configuration array with key '${cfg_key}' and value "\
-                "'${cfg_value}', retcode '$?'";
+                "configuration array with key '${KV_KEY}' and value "\
+                "'${KV_VALUE}', retcode '$?'";
         }
     done
 
@@ -772,6 +970,9 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
 #   Retrieve the configuration for salt-minion from any args '$@' passed
 #                                               on the command line
 #
+#   Script options (source, minionversion, loglevel) are not minion
+#   configuration, they are handled by _fetch_script_opts
+#
 # Results:
 #   Exits with new VMTools configuration file if none found
 #   or salt-minion configuration file updated with configuration read
@@ -782,34 +983,265 @@ _fetch_vmtools_salt_minion_conf_cli_args() {
     local _retn=0
     local cli_args=""
     local cli_no_args=0
+    local idx=""
 
     cli_args="$*"
     cli_no_args=$#
     if [[ ${cli_no_args} -ne 0 ]]; then
         _debug_log "$0:${FUNCNAME[0]} processing command line "\
             "arguments '${cli_args}'"
-        for idx in ${cli_args}
+        _split_tokens "${cli_args}"
+        for idx in "${SPLIT_TOKENS[@]}"
         do
             # check for start of next option, idx starts with '-' (covers '--')
-            if [[ "${idx}" = --* ]]; then
+            if [[ "${idx}" = -* ]]; then
                 break
             fi
-            if [[ "${idx}" != *=* ]]; then
-                _warning_log "$0:${FUNCNAME[0]} ignoring invalid config "\
-                    "token '${idx}' (expected key=value) from command "\
-                    "line arguments"
+            _parse_kv_token "${idx}" "command line arguments" || continue
+            if _is_script_opt_key "${KV_KEY}"; then
+                _debug_log "$0:${FUNCNAME[0]} skipping script option "\
+                    "'${KV_KEY}' from command line, not minion configuration"
                 continue
             fi
-            cfg_key=$(echo "${idx}" | cut -d '=' -f 1)
-            cfg_value=$(echo "${idx}" | cut -d '=' -f 2)
-            _update_minion_conf_ary "${cfg_key}" "${cfg_value}" || {
+            _update_minion_conf_ary "${KV_KEY}" "${KV_VALUE}" || {
                 _error_log "$0:${FUNCNAME[0]} error updating minion "\
-                "configuration array with key '${cfg_key}' and "\
-                "value '${cfg_value}', retcode '$?'";
+                "configuration array with key '${KV_KEY}' and "\
+                "value '${KV_VALUE}', retcode '$?'";
             }
         done
     fi
     return ${_retn}
+}
+
+
+#
+# _get_desired_state
+#
+#   Retrieve the desired state (action) set by VMTools in the guest variables,
+#   present, absent, status or depend. Only retrieved once
+#
+# Results:
+#   GVAR_ACTION set to the desired state, empty if not set
+#
+
+_get_desired_state() {
+    if [[ ${GVAR_ACTION_FETCHED} -eq 1 ]]; then
+        return 0
+    fi
+    GVAR_ACTION_FETCHED=1
+    GVAR_ACTION=$(vmtoolsd --cmd "info-get ${guestvars_salt_desiredstate}" \
+        2>/dev/null) || {
+            _warning_log "$0 unable to retrieve any action arguments from "\
+                "guest variables ${guestvars_salt_desiredstate}, retcode '$?'";
+    }
+    return 0
+}
+
+
+#
+# _collect_script_opts
+#
+#   Record any script options (source, minionversion, loglevel) found in the
+#   input key=value tokens, other tokens are ignored (they are reported when
+#   read as minion configuration)
+#
+# Input:
+#   $1  where the tokens are from, GV (guest variables), TC (tools.conf)
+#       or CLI (command line)
+#   $@  tokens, after the first
+#
+# Results:
+#   Variables SCRIPT_OPT_<GV|TC|CLI>_<key> updated, last token for a key wins
+#
+
+_collect_script_opts() {
+    local where="$1"
+    local tok=""
+
+    shift
+    for tok in "$@"
+    do
+        _parse_kv_token "${tok}" "" || continue
+        _is_script_opt_key "${KV_KEY}" || continue
+        printf -v "SCRIPT_OPT_${where}_${KV_KEY,,}" '%s' "${KV_VALUE}"
+    done
+    return 0
+}
+
+
+#
+# _fetch_script_opts
+#
+#   Retrieve the script options (source, minionversion, loglevel) set using
+#   key=value, from the guest variables, tools.conf and command line
+#       precedence order: L -> H
+#           from VMTools guest variables
+#           from VMTools configuration file tools.conf
+#           from any key=value on the command line, after --install
+#                                                       or --reconfig
+#   An explicit switch, for example --source, is higher still and is not
+#   changed, see _apply_script_opts
+#
+# Results:
+#   Variables SCRIPT_OPT_<key> set to the value to use, empty if not set
+#
+
+_fetch_script_opts() {
+    local key=""
+    local where=""
+    local gvar_args=""
+    local cli_args=""
+    local tok=""
+    local -a cli_tokens=()
+
+    for key in ${script_opt_keys}
+    do
+        printf -v "SCRIPT_OPT_${key}" '%s' ""
+        for where in GV TC CLI
+        do
+            printf -v "SCRIPT_OPT_${where}_${key}" '%s' ""
+        done
+    done
+
+    # guest variables
+    gvar_args=$(vmtoolsd --cmd "info-get ${guestvars_salt_args}" 2>/dev/null) \
+        || gvar_args=""
+    _split_tokens "${gvar_args}"
+    _collect_script_opts GV "${SPLIT_TOKENS[@]}"
+
+    # tools.conf, each line is a token
+    _read_tools_conf_salt_minion_lines
+    _collect_script_opts TC "${TOOLS_CONF_LINES[@]}"
+
+    # command line, tokens stop at the next switch
+    for cli_args in "${INSTALL_PARAMS}" "${RECONFIG_PARAMS}"
+    do
+        cli_tokens=()
+        _split_tokens "${cli_args}"
+        for tok in "${SPLIT_TOKENS[@]}"
+        do
+            if [[ "${tok}" = -* ]]; then break; fi
+            cli_tokens+=( "${tok}" )
+        done
+        _collect_script_opts CLI "${cli_tokens[@]}"
+    done
+
+    # now apply precedence
+    for key in ${script_opt_keys}
+    do
+        for where in CLI TC GV
+        do
+            tok="SCRIPT_OPT_${where}_${key}"
+            if [[ -n "${!tok}" ]]; then
+                printf -v "SCRIPT_OPT_${key}" '%s' "${!tok}"
+                _debug_log "$0:${FUNCNAME[0]} script option '${key}' set to "\
+                    "'${!tok}' from ${where}"
+                break
+            fi
+        done
+    done
+    return 0
+}
+
+
+#
+# _validate_loglevel_param
+#
+#   Validates a loglevel set using key=value. Exits with scriptFailed (126)
+#   if the value is not one of silent, error, warning, info or debug
+#
+# Input:
+#   $1  loglevel value, not case sensitive
+#
+# Results:
+#   Returns 0 if valid; exits 126 via _error_log otherwise
+#
+
+_validate_loglevel_param() {
+    local level_val="${1,,}"
+    local idx=""
+    local escaped_val=""
+
+    for idx in "${LOG_MODES_AVAILABLE[@]}"
+    do
+        if [[ "${level_val}" = "${idx}" ]]; then
+            return 0
+        fi
+    done
+    printf -v escaped_val '%q' "$1"
+    _validation_failed "$0:${FUNCNAME[0]} Invalid loglevel: ${escaped_val} must be one of "\
+        "${LOG_MODES_AVAILABLE[*]}"
+    return 1
+}
+
+
+#
+# _apply_script_opts
+#
+#   Apply the script options (source, minionversion, loglevel) found by
+#   _fetch_script_opts, unless the equivalent switch was used on the command
+#   line, switches have the highest precedence.
+#
+#   loglevel is applied for every action. source and minionversion are applied
+#   only when installing, using --install or, when no switch was used on the
+#   command line, a desired state of 'present' in the guest variables.
+#
+#   Note: does not set CLI_ACTION as that would stop the desired state in the
+#         guest variables from being used
+#
+# Results:
+#   Log level, source and minion version updated, exits 126 if a value
+#   is invalid
+#
+
+_apply_script_opts() {
+    local will_install=0
+    local sum_switches=0
+
+    _fetch_script_opts
+
+    if [[ ${LOG_LEVEL_FLAG} -eq 0 && -n "${SCRIPT_OPT_loglevel}" ]]; then
+        _validate_loglevel_param "${SCRIPT_OPT_loglevel}"
+        _set_log_level "${SCRIPT_OPT_loglevel,,}"
+    fi
+
+    if [[ -z "${SCRIPT_OPT_source}" && -z "${SCRIPT_OPT_minionversion}" ]]; then
+        return 0
+    fi
+
+    if [[ ${INSTALL_FLAG} -eq 1 ]]; then
+        will_install=1
+    else
+        sum_switches=$(( STATUS_CHK + DEPS_CHK + SOURCE_FLAG + \
+            MINION_VERSION_FLAG + UPGRADE_FLAG + CLEAR_ID_KEYS_FLAG + \
+            UNINSTALL_FLAG + VERSION_FLAG + RECONFIG_FLAG + STOP_FLAG + \
+            RESTART_FLAG + LOG_LEVEL_FLAG ))
+        if [[ ${sum_switches} -eq 0 ]]; then
+            # no action on the command line, action from guest variables
+            _get_desired_state
+            if [[ "${GVAR_ACTION}" = "present" ]]; then
+                will_install=1
+            fi
+        fi
+    fi
+
+    if [[ ${will_install} -ne 1 ]]; then
+        _debug_log "$0:${FUNCNAME[0]} not installing, ignoring script "\
+            "options source and minionversion"
+        return 0
+    fi
+
+    if [[ ${SOURCE_FLAG} -eq 0 && -n "${SCRIPT_OPT_source}" ]]; then
+        LOG_ACTION="install"
+        _validate_source_param "${SCRIPT_OPT_source}"
+        _source_fn "${SCRIPT_OPT_source}"
+    fi
+    if [[ ${MINION_VERSION_FLAG} -eq 0 && -n "${SCRIPT_OPT_minionversion}" ]]; then
+        LOG_ACTION="install"
+        _validate_minion_version_param "${SCRIPT_OPT_minionversion}"
+        _set_install_minion_version_fn "${SCRIPT_OPT_minionversion}"
+    fi
+    return 0
 }
 
 
@@ -970,12 +1402,12 @@ _fetch_salt_minion() {
         "local file using base_url '${base_url}'"
 
         # curl on Linux doesn't support file:// support
-        if echo "${base_url}" | grep -q '^/' ; then
+        if grep -q '^/' <<< "${base_url}" ; then
             local_base_url="${base_url}"
             local_file_flag=1
             _debug_log "$0:${FUNCNAME[0]} using source '${local_base_url}'"\
             "from '${base_url}'"
-        elif echo "${base_url}" | grep -q '^file://' ; then
+        elif grep -q '^file://' <<< "${base_url}" ; then
             local_base_url="${base_url//file:/}"
             local_file_flag=1
             _debug_log "$0:${FUNCNAME[0]} using source '${local_base_url}'"\
@@ -1107,7 +1539,7 @@ _fetch_salt_minion() {
             mkdir -p "${salt_dir}"
         fi
         # 3. create user if not existing
-        if ! getent passwd | grep -q "^${_SALT_USER}:"; then
+        if ! grep -q "^${_SALT_USER}:" < <(getent passwd); then
           useradd --system --no-create-home -s /sbin/nologin -g \
             "${_SALT_GROUP}" "${_SALT_USER}" 2>/dev/null
         fi
@@ -1975,29 +2407,29 @@ _validate_source_param() {
     local source_val="$1"
 
     if [[ -z "${source_val}" ]]; then
-        _error_log "$0:${FUNCNAME[0]} Invalid --source: must not be empty"
+        _validation_failed "$0:${FUNCNAME[0]} Invalid --source: must not be empty"
     fi
 
     if [[ "${source_val}" =~ [[:cntrl:]] ]]; then
-        _error_log "$0:${FUNCNAME[0]} Invalid --source: contains control characters"
+        _validation_failed "$0:${FUNCNAME[0]} Invalid --source: contains control characters"
     fi
 
-    if echo "${source_val}" | grep -qE '[`;|&<>]'; then
-        _error_log "$0:${FUNCNAME[0]} Invalid --source: contains disallowed characters"
+    if grep -qE '[`;|&<>]' <<< "${source_val}"; then
+        _validation_failed "$0:${FUNCNAME[0]} Invalid --source: contains disallowed characters"
     fi
 
-    if echo "${source_val}" | grep -qE '^(https?|ftp)://'; then
-        if echo "${source_val}" | grep -q ' '; then
-            _error_log "$0:${FUNCNAME[0]} Invalid --source: URL must not contain whitespace"
+    if grep -qE '^(https?|ftp)://' <<< "${source_val}"; then
+        if grep -q ' ' <<< "${source_val}"; then
+            _validation_failed "$0:${FUNCNAME[0]} Invalid --source: URL must not contain whitespace"
         fi
-        if ! echo "${source_val}" | grep -qE '^(https?|ftp)://[^/]+'; then
-            _error_log "$0:${FUNCNAME[0]} Invalid --source: URL has no host"
+        if ! grep -qE '^(https?|ftp)://[^/]+' <<< "${source_val}"; then
+            _validation_failed "$0:${FUNCNAME[0]} Invalid --source: URL has no host"
         fi
-    elif echo "${source_val}" | grep -qE '^/|^file://'; then
+    elif grep -qE '^/|^file://' <<< "${source_val}"; then
         # absolute local path or file URI
         :
     else
-        _error_log "$0:${FUNCNAME[0]} Invalid --source: '${source_val}' "\
+        _validation_failed "$0:${FUNCNAME[0]} Invalid --source: '${source_val}' "\
             "must start with http://, https://, ftp://, file://, or /"
     fi
 
@@ -2025,9 +2457,9 @@ _validate_minion_version_param() {
 
     local version_val="$1"
 
-    if ! echo "${version_val}" | \
-            grep -qE '^(latest|[0-9]{4}(\.[0-9]+(\.[0-9]+)*(rc[0-9]+|-[0-9]+)?)?)$'; then
-        _error_log "$0:${FUNCNAME[0]} Invalid --minionversion: '${version_val}'. "\
+    if ! grep -qE '^(latest|[0-9]{4}(\.[0-9]+(\.[0-9]+)*(rc[0-9]+|-[0-9]+)?)?)$' \
+            <<< "${version_val}"; then
+        _validation_failed "$0:${FUNCNAME[0]} Invalid --minionversion: '${version_val}'. "\
             "Must be 'latest', a major version (e.g. 3006), "\
             "or a full version (e.g. 3006.2, 3008.0rc1)"
     fi
@@ -2121,7 +2553,7 @@ _generate_minion_id () {
     do
         line_value=$(_trim "${line}")
         if [[ -n "${line_value}" ]]; then
-            if echo "${line_value}" | grep -q '^# id:' ; then
+            if grep -q '^# id:' <<< "${line_value}" ; then
                 # get value and write out value_<random>
                 cfg_value=$(echo "${line_value}" | cut -d ' ' -f 3)
                 if [[ -n "${cfg_value}" ]]; then
@@ -2130,7 +2562,7 @@ _generate_minion_id () {
                     _debug_log "$0:${FUNCNAME[0]} found previously used id "\
                         "field, randomizing it"
                 fi
-            elif echo "${line_value}" | grep -q -w 'id:' ; then
+            elif grep -q -w 'id:' <<< "${line_value}" ; then
                 # might have commented out id, get value and
                 # write out value_<random>
                 tfields=$(echo "${line_value}"|awk -F ':' '{print $2}'|xargs)
@@ -2578,6 +3010,16 @@ fi
 
 retn=0
 
+# script options set using key=value (source, minionversion, loglevel),
+# switches on the command line take precedence. Not needed, and must not be
+# able to fail, when only the version of this script was asked for. The
+# Windows script exits for -Version before it reads any options.
+if [[ ${VERSION_FLAG} -eq 0 || $(( INSTALL_FLAG + RECONFIG_FLAG + STATUS_CHK + \
+        DEPS_CHK + CLEAR_ID_KEYS_FLAG + UNINSTALL_FLAG + STOP_FLAG + \
+        RESTART_FLAG )) -ne 0 ]]; then
+    _apply_script_opts
+fi
+
 if [[ ${LOG_LEVEL_FLAG} -eq 1 ]]; then
     # ensure logging level changes are processed before any actions
     CLI_ACTION=1
@@ -2661,14 +3103,10 @@ fi
 if [[ ${CLI_ACTION} -eq 0 ]]; then
     # check if guest variables have an action since none from CLI
     # since none presented on the command line
-    gvar_action=$(vmtoolsd --cmd "info-get ${guestvars_salt_desiredstate}" \
-        2>/dev/null) || {
-            _warning_log "$0 unable to retrieve any action arguments from "\
-                "guest variables ${guestvars_salt_desiredstate}, retcode '$?'";
-    }
+    _get_desired_state
 
-    if [[ -n "${gvar_action}" ]]; then
-        case "${gvar_action}" in
+    if [[ -n "${GVAR_ACTION}" ]]; then
+        case "${GVAR_ACTION}" in
             depend)
                 LOG_ACTION="depend"
                 _deps_chk_fn

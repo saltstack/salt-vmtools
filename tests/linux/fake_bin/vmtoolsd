@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+# Stand-in for vmtoolsd, for testing linux/svtminion.sh. Put this directory
+# first in PATH. The Windows equivalent is New-FakeVmtoolsd in
+# tests/windows/helpers.ps1, the variables are the same.
+#
+# The script reads guest variables by running
+#     vmtoolsd --cmd "info-get guestinfo./vmware.components.salt_minion.<name>"
+# and there is no VMware Tools, or host to set the values, on a test system.
+# This answers that command from environment variables:
+#     FAKE_GV_ARGS  - the value of the ".args" guest variable
+#     FAKE_GV_STATE - the value of the ".desiredstate" guest variable
+# A guest variable whose variable is not set fails with exit code 1, like a guest
+# variable that is not set on the host. One that is set to an empty string is
+# an empty value.
+#
+# If FAKE_GV_LOG is set to a file, every call is appended to it, so a test can
+# check what the script asked for, and that it did not ask at all.
+
+if [[ -n "${FAKE_GV_LOG:-}" ]]; then
+    echo "$*" >> "${FAKE_GV_LOG}"
+fi
+
+if [[ "$1" != "--cmd" ]]; then
+    echo "fake vmtoolsd: unsupported arguments: $*" >&2
+    exit 2
+fi
+
+case "$2" in
+    "info-get "*".args")
+        [[ -v FAKE_GV_ARGS ]] || { echo "No value found" >&2; exit 1; }
+        printf '%s\n' "${FAKE_GV_ARGS}"
+        ;;
+    "info-get "*".desiredstate")
+        [[ -v FAKE_GV_STATE ]] || { echo "No value found" >&2; exit 1; }
+        printf '%s\n' "${FAKE_GV_STATE}"
+        ;;
+    *)
+        echo "No value found" >&2
+        exit 1
+        ;;
+esac
+exit 0
