@@ -44,8 +44,14 @@ _extracted="$(mktemp)"
 _fixture_dir="$(mktemp -d)"
 trap 'rm -f "${_extracted}"; rm -rf "${_fixture_dir}"' EXIT
 
-sed -n '/^_update_minion_conf_ary() {/,/^}/p' "${_script}" > "${_extracted}"
-sed -n '/^_fetch_vmtools_salt_minion_conf_guestvars() {/,/^}/p' "${_script}" >> "${_extracted}"
+: > "${_extracted}"
+for _fn in _is_script_opt_key _split_tokens _parse_kv_token \
+    _update_minion_conf_ary _fetch_vmtools_salt_minion_conf_guestvars; do
+    sed -n "/^${_fn}() {/,/^}/p" "${_script}" >> "${_extracted}"
+done
+
+# script option keys are set in the real script, not a function
+eval "$(grep -E '^readonly script_opt_keys=' "${_script}")"
 
 # shellcheck disable=SC1090
 source "${_extracted}"
