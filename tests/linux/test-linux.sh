@@ -305,6 +305,73 @@ cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed, returned '${_retn}'"; exit 1; fi; }
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
 
+# test script options (source, minionversion, loglevel) set using key=value
+# on the command line, in tools.conf, and in the guest variables
+## command line
+./svtminion.sh --install master=192.168.0.5 source=${oldpwd}/tests/testarea minionversion=3006.9 loglevel=debug
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed using key=value options, returned '${_retn}'"; exit 1; fi; }
+cat /etc/salt/minion
+cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+if grep -E '^(source|minionversion|loglevel):' /etc/salt/minion; then echo "test failed, script options should not be in the minion configuration"; exit 1; else echo "test correct, script options are not in the minion configuration"; fi
+_salt_ver_kv=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
+if echo "${_salt_ver_kv}" | grep -q "3006.9"; then echo "test correct: key=value source and minionversion installed 3006.9"; else echo "test failed: expected 3006.9 from key=value options, got '${_salt_ver_kv}'"; exit 1; fi
+./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+## an invalid value never installs, even when silent
+./svtminion.sh --install source=ftp:/bad || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad key=value source should exit 126, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --install loglevel=silent source=${oldpwd}/tests/testarea minionversion=bad || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad key=value minionversion should exit 126 when silent, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --install loglevel=loud source=${oldpwd}/tests/testarea || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad key=value loglevel should exit 126, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, nothing should have been installed, returned '${_retn}'"; exit 1; fi; }
+## tools.conf, with white space around the =, and the command line beats it
+_tools_conf="/etc/vmware-tools/tools.conf"
+mkdir -p /etc/vmware-tools
+if [[ -f "${_tools_conf}" ]]; then cp -a "${_tools_conf}" /tmp/tools.conf.bak; fi
+printf '[salt_minion]\nsource = %s/tests/testarea\nminionversion = 3007.1\n' "${oldpwd}" > "${_tools_conf}"
+./svtminion.sh --install master=192.168.0.5 --loglevel debug
+_salt_ver_tc=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
+if echo "${_salt_ver_tc}" | grep -q "3007.1"; then echo "test correct: tools.conf source and minionversion installed 3007.1"; else echo "test failed: expected 3007.1 from tools.conf, got '${_salt_ver_tc}'"; exit 1; fi
+./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+./svtminion.sh --install master=192.168.0.5 minionversion=3006.9 --loglevel debug
+_salt_ver_tc=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
+if echo "${_salt_ver_tc}" | grep -q "3006.9"; then echo "test correct: command line minionversion beat tools.conf"; else echo "test failed: expected 3006.9 from the command line, got '${_salt_ver_tc}'"; exit 1; fi
+./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+if [[ -f /tmp/tools.conf.bak ]]; then cp -a /tmp/tools.conf.bak "${_tools_conf}"; rm -f /tmp/tools.conf.bak; else rm -f "${_tools_conf}"; fi
+## guest variables, using a vmtoolsd that returns what a host would have set.
+## The action is the desired state, the way VMware Tools can run the script
+## tests/linux/fake_bin/vmtoolsd answers the guest variable reads from the
+## FAKE_GV_ARGS and FAKE_GV_STATE environment variables (and fails when not set)
+_fake_bin="${oldpwd}/tests/linux/fake_bin"
+chmod +x "${_fake_bin}/vmtoolsd"
+## the exit codes VMware Tools gets for guest variables it can run into
+## an invalid value in the guest variables, even when silent, is 126 and installs nothing
+FAKE_GV_STATE=present FAKE_GV_ARGS="loglevel=silent source=http://x/a;id" PATH=${_fake_bin}:${PATH} ./svtminion.sh || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad guest variable source should exit 126, got '${_retn}'"; exit 1; fi; }
+FAKE_GV_STATE=present FAKE_GV_ARGS="minionversion=abc" PATH=${_fake_bin}:${PATH} ./svtminion.sh || \
+    { _retn=$?; if [[ ${_retn} -eq 126 ]]; then echo "test correct"; \
+      else echo "test failed, bad guest variable minionversion should exit 126, got '${_retn}'"; exit 1; fi; }
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, nothing should have been installed, returned '${_retn}'"; exit 1; fi; }
+## nothing set, or a desired state that is not an action, is not an error
+PATH=${_fake_bin}:${PATH} ./svtminion.sh || { _retn=$?; echo "test failed, no guest variables should exit 0, got '${_retn}'"; exit 1; }
+FAKE_GV_STATE=bogus PATH=${_fake_bin}:${PATH} ./svtminion.sh || { _retn=$?; echo "test failed, an unknown desired state should exit 0, got '${_retn}'"; exit 1; }
+FAKE_GV_STATE=status PATH=${_fake_bin}:${PATH} ./svtminion.sh || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, desired state status should exit 102 when not installed, got '${_retn}'"; exit 1; fi; }
+## the install, then removal, by the desired state
+FAKE_GV_STATE=present FAKE_GV_ARGS="master=192.168.0.5 source=${oldpwd}/tests/testarea minionversion=3006.9" PATH=${_fake_bin}:${PATH} ./svtminion.sh
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 100 ]]; then echo "test correct"; else echo "test failed, salt-minion should be installed using the guest variables, returned '${_retn}'"; exit 1; fi; }
+cat /etc/salt/minion
+cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
+_salt_ver_gv=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
+if echo "${_salt_ver_gv}" | grep -q "3006.9"; then echo "test correct: guest variables source and minionversion installed 3006.9"; else echo "test failed: expected 3006.9 from the guest variables, got '${_salt_ver_gv}'"; exit 1; fi
+FAKE_GV_STATE=absent FAKE_GV_ARGS="source=${oldpwd}/tests/testarea" PATH=${_fake_bin}:${PATH} ./svtminion.sh
+./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct"; else echo "test failed, salt-minion should be removed by the desired state, returned '${_retn}'"; exit 1; fi; }
+## bad guest variables can not stop --version
+FAKE_GV_ARGS="loglevel=loud source=http://x/a;id" PATH=${_fake_bin}:${PATH} ./svtminion.sh --version || { _retn=$?; echo "test failed, --version should not read the script options, returned '${_retn}'"; exit 1; }
+
 # test with classic package installed
 # Use 3005 Redhat 9 for Rocky 9 container
 rpm --import ${oldpwd}/tests/classic/SALTSTACK-GPG-KEY2.pub
