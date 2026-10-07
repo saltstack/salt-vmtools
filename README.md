@@ -21,6 +21,7 @@ sum** of the downloaded `svtminion.sh` file.
 
 The SHA256 sum of the `svtminion.sh` file, per release, is:
 
+- 2026.10.07: `9729545299104fc376f5839e600a3cc4e23346ce597b7700888938e3deef5f8b`
 - 2026.09.03: `17d0c77d804270bade1989c239ce9883f67cf24a2b655a438b4e6c6cd74f4be3`
 - 2026.07.23: `0b004fafdaa147ee5af9d53a931d0e90ca1d72e1676dc5186ecab6897381529b`
 - 2026.05.08: `c10353160af24cfb90ffba896268cf320d8e0dd568fb590dd0b8f4e16f17eabb`
