@@ -1,3 +1,11 @@
+# v2026.10.07
+
+## What's Changed
+* Support source, minionversion and loglevel as key=value on Linux and Windows by @twangboy in https://github.com/saltstack/salt-vmtools/pull/73
+
+
+**Full Changelog**: https://github.com/saltstack/salt-vmtools/compare/v2026.09.03...v2026.10.07
+
 # v2026.09.03
 
 ## What's Changed
