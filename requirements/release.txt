@@ -8,7 +8,7 @@ annotated-types==0.7.0
     # via pydantic
 attrs==24.2.0
     # via python-tools-scripts
-certifi==2024.8.30
+certifi==2026.10.18
     # via requests
 cfgv==3.4.0
     # via pre-commit
