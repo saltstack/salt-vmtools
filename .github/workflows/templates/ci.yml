@@ -130,6 +130,7 @@ jobs:
           bash tests/linux/test_minion_conf_parsing.sh
           bash tests/linux/test_script_opts.sh
           bash tests/linux/test_script_opts_main.sh
+          bash tests/linux/test_onedir_detection.sh
 
       - name: Set Exit Status
         if: always()
