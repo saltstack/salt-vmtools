@@ -84,10 +84,6 @@ reconfig
 default
 "
 
-readonly salt_wrapper_file_list="minion
-call
-"
-
 readonly salt_minion_service_wrapper=\
 "# Copyright (c) 2021-2026 Broadcom Inc. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2
@@ -113,11 +109,9 @@ WantedBy=multi-user.target
 
 # Onedir detection locations
 readonly onedir_post_3005_location="${salt_dir}/salt-minion"
-readonly onedir_pre_3006_location="${salt_dir}/run/run"
 
 declare -a list_of_onedir_locations_check
-list_of_onedir_locations_check[0]="${onedir_pre_3006_location}"
-list_of_onedir_locations_check[1]="${onedir_post_3005_location}"
+list_of_onedir_locations_check[0]="${onedir_post_3005_location}"
 
 ## VMware file and directory locations
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
@@ -1728,36 +1722,29 @@ _check_classic_minion_install() {
 #
 # _check_onedir_minion_install
 #
-#   Checks whether a 'pre_3006' or 'post_3005' onedir salt-minion package is
-#   installed on the OS (e.g., via an RPM or DEB package).
+#   Checks whether a onedir salt-minion package (3006 and later) is installed
+#   on the OS (e.g., via an RPM or DEB package).
 #
 # Results:
 #   Outputs one of the following status codes to stdout:
 #   - 0: No onedir installation found (empty string output).
-#   - 1: 'pre_3006' onedir installation found.
-#   - 2: 'post_3005' onedir installation found.
+#   - 1: onedir installation found.
 #
 
 _check_onedir_minion_install() {
 
-    # checks for following executables:
-    # post_3005 - /opt/saltstack/salt/salt-minion
-    # pre_3006  - /opt/saltstack/salt/run/run
+    # checks for following executable:
+    # /opt/saltstack/salt/salt-minion
 
     local _retn=0
-    local pre_3006=1
-    local post_3005=2
+    local onedir_found=1
 
     _info_log "$0:${FUNCNAME[0]} check if standard onedir-minion installed"
 
     if [[ -f "${list_of_onedir_locations_check[0]}" ]]; then
-        _debug_log "$0:${FUNCNAME[0]} found pre 3006 version of Salt, "\
+        _debug_log "$0:${FUNCNAME[0]} found onedir version of Salt, "\
                     "at location ${list_of_onedir_locations_check[0]}"
-        _retn=${pre_3006}
-    elif [[ -f "${list_of_onedir_locations_check[1]}" ]]; then
-        _debug_log "$0:${FUNCNAME[0]} found post 3005 version of Salt, "\
-                    "at location ${list_of_onedir_locations_check[1]}"
-        _retn=${post_3005}
+        _retn=${onedir_found}
     else
         _debug_log "$0:${FUNCNAME[0]} failed to find a onedir installation"
     fi
@@ -1778,12 +1765,7 @@ _check_onedir_minion_install() {
 _find_salt_pid() {
     # find the pid for salt-minion if active
     local salt_pid=0
-    if [[ ${POST_3005_FLAG} -eq 1 ]]; then
-        salt_pid=$(pgrep -f "\/usr\/bin\/salt-minion" | head -n 1)
-    else
-        salt_pid=$(pgrep -f "${salt_name}\/run\/run minion" | head -n 1 |
-            awk -F " " '{print $1}')
-    fi
+    salt_pid=$(pgrep -f "\/usr\/bin\/salt-minion" | head -n 1)
     _debug_log "$0:${FUNCNAME[0]} checking for salt-minion process id, "\
         "found '${salt_pid}'"
     echo "${salt_pid}"
@@ -1843,63 +1825,6 @@ _ensure_id_or_fqdn () {
 
 
 #
-# _create_pre_3006_helper_scripts
-#
-#   Creates wrapper helper scripts for 'salt-call' and 'salt-minion' in
-#   pre-3006 onedir installations.
-#
-# Example:
-#   _create_pre_3006_helper_scripts
-#
-# Side Effects:
-#   Writes helper scripts for 'salt-call' and 'salt-minion' to the filesystem.
-#
-# Results:
-#   Returns 0 on success, or exits with an error code on failure.
-#
-
-_create_pre_3006_helper_scripts() {
-
-    for idx in ${salt_wrapper_file_list}
-    do
-        local abs_filepath=""
-        abs_filepath="/usr/bin/salt-${idx}"
-
-        _debug_log "$0:${FUNCNAME[0]} creating helper file 'salt-${idx}' "\
-            "in directory /usr/bin"
-
-        echo "#!/usr/bin/env bash
-
-# Copyright (c) 2021-2026 Broadcom Inc. All Rights Reserved.
-" > "${abs_filepath}" || {
-            _error_log "$0:${FUNCNAME[0]} failed to create helper file "\
-                "'salt-${idx}' in directory /usr/bin, retcode '$?'";
-        }
-        {
-            echo -n "exec /opt/saltstack/salt/run/run ${idx}";
-            echo -n "\"$";
-            echo -n "{";
-            echo -n "@";
-            echo -n ":";
-            echo -n "1}";
-            echo -n "\"";
-        } >> "${abs_filepath}" || {
-            _error_log "$0:${FUNCNAME[0]} failed to finish creating helper "\
-                "file 'salt-${idx}' in directory /usr/bin, retcode '$?'";
-        }
-        echo  "" >> "${abs_filepath}"
-
-        # ensure executable
-        chmod 755 "${abs_filepath}" || {
-            _error_log "$0:${FUNCNAME[0]} failed to make helper file "\
-                "'salt-${idx}' executable in directory /usr/bin, retcode '$?'";
-        }
-    done
-
-}
-
-
-#
 # _status_fn
 #
 #   Discovers and returns the current salt-minion installation and service
@@ -1942,10 +1867,6 @@ _status_fn() {
         _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
 
         install_onedir_chk=$(_check_onedir_minion_install)
-        if [[ ${install_onedir_chk} -eq 2 ]]; then
-            POST_3005_FLAG=1    # ensure note 3006 and above
-        fi
-
         svpid=$(_find_salt_pid)
         if [[ ${install_onedir_chk} -eq 0 && -z ${svpid} ]]; then
             # not installed and no process id
@@ -2025,10 +1946,6 @@ _stop_fn() {
         _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
 
         install_onedir_chk=$(_check_onedir_minion_install)
-        if [[ ${install_onedir_chk} -eq 2 ]]; then
-            POST_3005_FLAG=1    # ensure note 3006 and above
-        fi
-
         if [[ ${install_onedir_chk} -eq 0 ]]; then
             # not installed
             CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
@@ -2116,10 +2033,6 @@ _restart_fn() {
         _debug_log "$0:${FUNCNAME[0]} no standardized classic install found"
 
         install_onedir_chk=$(_check_onedir_minion_install)
-        if [[ ${install_onedir_chk} -eq 2 ]]; then
-            POST_3005_FLAG=1    # ensure note 3006 and above
-        fi
-
         if [[ ${install_onedir_chk} -eq 0 ]]; then
             # not installed
             CURRENT_STATUS=${STATUS_CODES_ARY[notInstalled]}
@@ -2374,17 +2287,7 @@ _install_fn () {
             "read configuration for salt-minion";
     fi
 
-    if [[ ${_retn} -eq 0 && -f "${onedir_pre_3006_location}" ]]; then
-        # create helper scripts for /usr/bin to ensure they are present
-        # before attempting to use them in _ensure_id_or_fqdn
-        # this is for earlier than 3006 versions of Salt onedir
-        _debug_log "$0:${FUNCNAME[0]} creating helper files salt-call "\
-            "and salt-minion in directory /usr/bin"
-        _create_pre_3006_helper_scripts || {
-            _error_log "$0:${FUNCNAME[0]} failed to create helper files "\
-                "salt-call or salt-minion in directory /usr/bin, retcode '$?'";
-        }
-    elif [[ ${_retn} -eq 0 && -f "${onedir_post_3005_location}" ]]; then
+    if [[ ${_retn} -eq 0 && -f "${onedir_post_3005_location}" ]]; then
         # create symbolic links for /usr/bin to ensure they are present
         _debug_log "$0:${FUNCNAME[0]} creating symbolic links for salt-call "\
             "and salt-minion in directory /usr/bin"
