@@ -109,9 +109,13 @@ WantedBy=multi-user.target
 
 # Onedir detection locations
 readonly onedir_post_3005_location="${salt_dir}/salt-minion"
+# pre-3006 layout, can no longer be installed by this script, but is still
+# detected so an existing installation can be reported on and removed
+readonly onedir_pre_3006_location="${salt_dir}/run/run"
 
 declare -a list_of_onedir_locations_check
-list_of_onedir_locations_check[0]="${onedir_post_3005_location}"
+list_of_onedir_locations_check[0]="${onedir_pre_3006_location}"
+list_of_onedir_locations_check[1]="${onedir_post_3005_location}"
 
 ## VMware file and directory locations
 readonly vmtools_base_dir_etc="/etc/vmware-tools"
@@ -1722,29 +1726,38 @@ _check_classic_minion_install() {
 #
 # _check_onedir_minion_install
 #
-#   Checks whether a onedir salt-minion package (3006 and later) is installed
-#   on the OS (e.g., via an RPM or DEB package).
+#   Checks whether a 'pre_3006' or 'post_3005' onedir salt-minion package is
+#   installed on the OS (e.g., via an RPM or DEB package). A 'pre_3006'
+#   installation can no longer be installed by this script, it is detected so
+#   it can still be reported on and removed.
 #
 # Results:
 #   Outputs one of the following status codes to stdout:
 #   - 0: No onedir installation found (empty string output).
-#   - 1: onedir installation found.
+#   - 1: 'pre_3006' onedir installation found.
+#   - 2: 'post_3005' onedir installation found.
 #
 
 _check_onedir_minion_install() {
 
-    # checks for following executable:
-    # /opt/saltstack/salt/salt-minion
+    # checks for following executables:
+    # post_3005 - /opt/saltstack/salt/salt-minion
+    # pre_3006  - /opt/saltstack/salt/run/run
 
     local _retn=0
-    local onedir_found=1
+    local pre_3006=1
+    local post_3005=2
 
     _info_log "$0:${FUNCNAME[0]} check if standard onedir-minion installed"
 
     if [[ -f "${list_of_onedir_locations_check[0]}" ]]; then
-        _debug_log "$0:${FUNCNAME[0]} found onedir version of Salt, "\
+        _debug_log "$0:${FUNCNAME[0]} found pre 3006 version of Salt, "\
                     "at location ${list_of_onedir_locations_check[0]}"
-        _retn=${onedir_found}
+        _retn=${pre_3006}
+    elif [[ -f "${list_of_onedir_locations_check[1]}" ]]; then
+        _debug_log "$0:${FUNCNAME[0]} found post 3005 version of Salt, "\
+                    "at location ${list_of_onedir_locations_check[1]}"
+        _retn=${post_3005}
     else
         _debug_log "$0:${FUNCNAME[0]} failed to find a onedir installation"
     fi
@@ -1765,7 +1778,9 @@ _check_onedir_minion_install() {
 _find_salt_pid() {
     # find the pid for salt-minion if active
     local salt_pid=0
-    salt_pid=$(pgrep -f "\/usr\/bin\/salt-minion" | head -n 1)
+    # 3006 and later runs /usr/bin/salt-minion, pre-3006 onedir runs run/run
+    salt_pid=$(pgrep -f "\/usr\/bin\/salt-minion|${salt_name}\/run\/run minion" |
+        head -n 1)
     _debug_log "$0:${FUNCNAME[0]} checking for salt-minion process id, "\
         "found '${salt_pid}'"
     echo "${salt_pid}"

@@ -63,19 +63,19 @@ _assert_eq "no onedir installed returns 0" "0" \
 
 _reset_install
 touch "${salt_dir}/salt-minion"
-_assert_eq "salt/salt-minion (3006 and later layout) returns 1" "1" \
+_assert_eq "salt/salt-minion (3006 and later layout) returns 2" "2" \
     "$(_check_onedir_minion_install)"
 
 _reset_install
 mkdir -p "${salt_dir}/run"
 touch "${salt_dir}/run/run"
-_assert_eq "salt/run/run (pre-3006 layout, unsupported) returns 0" "0" \
+_assert_eq "salt/run/run (pre-3006 layout) is still detected, returns 1" "1" \
     "$(_check_onedir_minion_install)"
 
 _reset_install
 mkdir -p "${salt_dir}/run"
 touch "${salt_dir}/run/run" "${salt_dir}/salt-minion"
-_assert_eq "salt-minion found when a stale run/run is also present" "1" \
+_assert_eq "both layouts present, run/run takes precedence" "1" \
     "$(_check_onedir_minion_install)"
 
 # --- _find_salt_pid ---
@@ -87,8 +87,10 @@ pgrep() {
 }
 
 _assert_eq "minion pid found" "4242" "$(_find_salt_pid)"
-_assert_eq "searches for /usr/bin/salt-minion" \
-    '\/usr\/bin\/salt-minion' "$(cat "${_work_dir}/pgrep_pattern")"
+_assert_eq "pid lookup matches /usr/bin/salt-minion" "1" \
+    "$(grep -c -F '\/usr\/bin\/salt-minion' "${_work_dir}/pgrep_pattern")"
+_assert_eq "pid lookup matches salt/run/run minion (pre-3006)" "1" \
+    "$(grep -c -F 'salt\/run\/run minion' "${_work_dir}/pgrep_pattern")"
 
 # no process running
 pgrep() { return 1; }
