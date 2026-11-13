@@ -266,13 +266,13 @@ _error_log() {
 #
 # _validation_failed
 #
-#   Log an error for an invalid parameter value and exit with scriptFailed
-#   (126). _error_log only exits when errors are being logged, which is not
-#   the case when the log level is silent. An invalid value must never be
-#   used, whatever the log level.
+#   Logs an error for an invalid parameter value and exits with scriptFailed
+#   (126). Unlike _error_log—which only exits when error logging is active and
+#   does not terminate execution when the log level is silent—this function
+#   ensures execution always halts on invalid values regardless of log level.
 #
 # Results:
-#   Exits with scriptFailed (126)
+#   Exits with scriptFailed (126).
 #
 
 _validation_failed() {
@@ -386,11 +386,11 @@ esac
 #
 # _cleanup_int
 #
-#   Cleanups any running process and areas on control-C
-#
+#   Cleans up running processes and temporary areas upon receiving an interrupt
+#   signal (Ctrl+C / SIGINT).
 #
 # Results:
-#   Exits with hard-coded value 130
+#   Exits with 130.
 #
 # shellcheck disable=SC2329
 
@@ -404,7 +404,7 @@ _cleanup_int() {
 #
 # _cleanup_exit
 #
-#   Cleanups any running process and areas on exit
+#   Cleans up running processes and temporary areas upon script exit.
 #
 # shellcheck disable=SC2329
 _cleanup_exit() {
@@ -417,8 +417,8 @@ trap _cleanup_int INT
 trap _cleanup_exit EXIT
 
 
-# cheap trim relying on echo to convert tabs to spaces and
-# all multiple spaces to a single space
+# Trims leading/trailing whitespace and collapses tabs and consecutive spaces
+# into single spaces by relying on unquoted `echo` word splitting.
 _trim() {
     echo "$1"
 }
@@ -427,12 +427,14 @@ _trim() {
 #
 # _set_log_level
 #
-#   Set log_level for logging,
-#       log_level 'silent','error','warning','info','debug'
-#       default 'warning'
+#   Sets the global logging verbosity level.
+#
+# Input:
+#   Optional log level string: 'silent', 'error', 'warning', 'info', or 'debug'
+#   (defaults to 'warning').
 #
 # Results:
-#   Returns with exit code
+#   Returns 0 on success, or a non-zero exit code on invalid input.
 #
 
 _set_log_level() {
@@ -469,14 +471,17 @@ _set_log_level() {
 #
 # _salt_onedir_dir_is_ga
 #
-#   True (status 0) if the onedir directory name is GA CalVer, optionally
-#       with a -N package-release suffix (e.g. 3008.1 or 3008.1-1).
-#       Prerelease names (e.g. 3008.0rc1) are not GA. A -N suffix is a
-#       repackage of the same version, not a prerelease, so it counts as GA
-#       and can win latest/major-series selection via sort -V.
+#   Checks whether a onedir directory name matches a General Availability (GA)
+#   CalVer version, optionally followed by a '-N' package-release suffix
+#   (e.g., '3008.1' or '3008.1-1'). Prerelease identifiers (e.g., '3008.0rc1')
+#   are excluded, while '-N' repackages are treated as GA so they can be
+#   selected as the latest version in a major series via 'sort -V'.
+#
+# Input:
+#   Onedir directory name string to validate.
 #
 # Results:
-#   0 if GA, 1 otherwise
+#   Returns 0 if the directory name is a GA release, or 1 otherwise.
 #
 _salt_onedir_dir_is_ga() {
     local _ga_re='^[0-9]+\.[0-9]+(\.[0-9]+)*(-[0-9]+)?$'
@@ -487,24 +492,29 @@ _salt_onedir_dir_is_ga() {
 #
 # _get_desired_salt_version_fn
 #
-#   Get the appropriate desirted salt version based on salt_url_version,
-#       latest or specified input Salt version, 3008, 3006.9, 3008.0rc1
-#       and set salt_specific_version accordinly
-#
-#   Note: 'latest' and four-digit major (e.g. 3006) choose the newest GA
-#         onedir only (sort -V among dirs matching ^[0-9]+\\.[0-9]+(\\.[0-9]+)*$).
-#         Prerelease directories must be requested by exact name (directory
-#         match or legacy CalVer pattern).
-#
-#       if an unsupported version is input, for example: 3004.2
-#       it will default to installing the latest GA version
+#   Determines the target Salt version from 'salt_url_version' (e.g., 'latest',
+#   a major release like '3008', a specific GA version like '3006.9', or a
+#   prerelease like '3008.0rc1') and sets 'salt_specific_version' accordingly.
 #
 # Input:
-#       directory contains directory list of current available
-#           Salt versions, e.g. 3006.x, 3007.1, 3008.0rc1
+#   Directory listing of available Salt versions (e.g., '3006.x', '3007.1',
+#   '3008.0rc1').
+#
+# Note:
+#   - 'latest' and four-digit major versions (e.g., '3006') select only the
+#     newest GA onedir release via 'sort -V' among directories matching
+#     ^[0-9]+\.[0-9]+(\.[0-9]+)*$.
+#   - Prerelease builds must be requested by exact name (matching a directory
+#     name or legacy CalVer pattern).
+#   - Unsupported input versions (e.g., '3004.2') fall back to installing the
+#     latest GA release.
+#
+# Side Effects:
+#   Sets the 'salt_specific_version' variable.
 #
 # Results:
-#   Returns with exit code (1 if no GA match for latest/major/default)
+#   Returns 0 on success, or 1 if no matching GA release is found for 'latest',
+#   a major series, or the default fallback.
 #
 _get_desired_salt_version_fn() {
 
@@ -606,18 +616,22 @@ _get_desired_salt_version_fn() {
 #
 # _set_install_minion_version_fn
 #
-#   Set the version of Salt Minion wanted to install
-#       default 'latest'
+#   Sets the target Salt Minion version for installation (defaults to 'latest').
 #
-#   Note: typically Salt version includes the release number in addition to
-#         version number or 'latest' for the most recent release
+# Input:
+#   Optional version string (e.g., 'latest', a major series like '3006' or
+#   '3007', or a full release version such as '3006.8').
 #
-#           for example: 3006.8
+# Note:
+#   A full Salt version typically includes both the major and minor/point
+#   release numbers (e.g., '3006.8'), or 'latest' to select the most recent
+#   GA release.
+#
+# Side Effects:
+#   Sets the 'salt_url_version' variable to 'latest' or the specified input.
 #
 # Results:
-#   Sets salt_url_version to latest or specified input
-#       Salt version, 3007, 3006, 3006.x
-#   Returns with exit code
+#   Returns 0 on success, or a non-zero exit code on failure.
 #
 
 _set_install_minion_version_fn() {
@@ -654,11 +668,14 @@ _set_install_minion_version_fn() {
 #
 # _is_script_opt_key
 #
-#   Check if input key is one of the script options (source, minionversion,
-#   loglevel), keys are not case sensitive
+#   Checks whether the input key matches a valid script option ('source',
+#   'minionversion', or 'loglevel'), ignoring case.
+#
+# Input:
+#   Option key string to validate.
 #
 # Results:
-#   Returns 0 if a script option key, 1 otherwise
+#   Returns 0 if the input is a valid script option key, or 1 otherwise.
 #
 
 _is_script_opt_key() {
@@ -678,11 +695,14 @@ _is_script_opt_key() {
 #
 # _split_tokens
 #
-#   Split input string on whitespace into array SPLIT_TOKENS, without
-#   expanding any globbing characters (for example * or ?)
+#   Splits the input string on whitespace into the 'SPLIT_TOKENS' array without
+#   expanding globbing characters (e.g., '*' or '?').
 #
-# Results:
-#   Array SPLIT_TOKENS updated
+# Input:
+#   String to tokenize.
+#
+# Side Effects:
+#   Populates the global 'SPLIT_TOKENS' array.
 #
 
 _split_tokens() {
@@ -701,16 +721,20 @@ _split_tokens() {
 #
 # _parse_kv_token
 #
-#   Split a token on the first '=' into KV_KEY and KV_VALUE. A token without
-#   an '=', with an empty key or value, or with control characters is invalid
+#   Splits a token on the first '=' into 'KV_KEY' and 'KV_VALUE'. Rejects
+#   tokens that lack an '=', contain control characters, or have an empty key
+#   or value.
 #
 # Input:
-#   $1  token
-#   $2  description of where token was found, used for warning, if empty
-#       no warning is logged (the token has been reported elsewhere)
+#   $1  Token string to parse.
+#   $2  Optional source description used in warning messages (omitting this
+#       suppresses logging when the token has already been reported).
+#
+# Side Effects:
+#   Sets 'KV_KEY' and 'KV_VALUE' upon successful parsing.
 #
 # Results:
-#   Returns 0 and sets KV_KEY and KV_VALUE if valid, returns 1 otherwise
+#   Returns 0 if the token is valid, or 1 otherwise.
 #
 
 _parse_kv_token() {
@@ -751,11 +775,14 @@ _parse_kv_token() {
 #
 # _update_minion_conf_ary
 #
-#   Updates the running minion_conf array with input key and value
-#   updating with the new value if the key is already found
+#   Updates the running 'minion_conf' array with the given key and value,
+#   overwriting the existing entry if the key is already present.
 #
-# Results:
-#   Updated array
+# Input:
+#   Configuration key and value to insert or update.
+#
+# Side Effects:
+#   Modifies the global 'minion_conf' array.
 #
 
 _update_minion_conf_ary() {
@@ -805,14 +832,15 @@ _update_minion_conf_ary() {
 #
 # _read_tools_conf_salt_minion_lines
 #
-#   Read the lines in section [salt_minion] of VMTools configuration file
-#   tools.conf, blank lines and comment lines (starting with #, ; or ,) are
-#   skipped. White space around the line, the key and the value is removed, so
-#   'key = value' is the same as 'key=value'. This is the same as the Windows
-#   script reads tools.conf.
+#   Reads entries from the '[salt_minion]' section of the VMTools configuration
+#   file ('tools.conf'). Blank lines and comments (lines starting with '#', ';',
+#   or ',') are skipped, and surrounding whitespace around lines, keys, and
+#   values is trimmed so 'key = value' is normalized to 'key=value' (matching
+#   the Windows script behavior).
 #
-# Results:
-#   Array TOOLS_CONF_LINES updated, empty if no file or section
+# Side Effects:
+#   Populates the global 'TOOLS_CONF_LINES' array (empty if the file or
+#   '[salt_minion]' section does not exist).
 #
 
 _read_tools_conf_salt_minion_lines() {
@@ -864,16 +892,20 @@ _read_tools_conf_salt_minion_lines() {
 #
 # _fetch_vmtools_salt_minion_conf_tools_conf
 #
-#   Retrieve the configuration for salt-minion from VMTools
-#                                           configuration file tools.conf
+#   Retrieves salt-minion configuration settings from the '[salt_minion]'
+#   section of the VMTools configuration file ('tools.conf').
 #
-#   Script options (source, minionversion, loglevel) are not minion
-#   configuration, they are handled by _fetch_script_opts
+# Note:
+#   Script options ('source', 'minionversion', and 'loglevel') are excluded
+#   from minion configuration and are handled separately by
+#   '_fetch_script_opts'.
+#
+# Side Effects:
+#   Creates a new VMTools configuration file if none exists, or updates the
+#   salt-minion configuration with settings read from 'tools.conf'.
 #
 # Results:
-#   Exits with new VMTools configuration file if none found or salt-minion
-#   configuration file updated with configuration read from VMTools
-#   configuration file section for salt_minion
+#   Returns 0 on success, or a non-zero exit code on failure.
 #
 
 _fetch_vmtools_salt_minion_conf_tools_conf() {
@@ -913,15 +945,19 @@ _fetch_vmtools_salt_minion_conf_tools_conf() {
 #
 # _fetch_vmtools_salt_minion_conf_guestvars
 #
-#   Retrieve the configuration for salt-minion from VMTools guest variables
+#   Retrieves salt-minion configuration settings from VMTools guest variables.
 #
-#   Script options (source, minionversion, loglevel) are not minion
-#   configuration, they are handled by _fetch_script_opts
+# Note:
+#   Script options ('source', 'minionversion', and 'loglevel') are excluded
+#   from minion configuration and are handled separately by
+#   '_fetch_script_opts'.
+#
+# Side Effects:
+#   Updates the salt-minion configuration file with settings read from VMTools
+#   guest variables.
 #
 # Results:
-#   salt-minion configuration file updated with configuration read
-#                                           from VMTools guest variables
-#   configuration file section for salt_minion
+#   Returns 0 on success, or a non-zero exit code on failure.
 #
 
 _fetch_vmtools_salt_minion_conf_guestvars() {
@@ -967,16 +1003,23 @@ _fetch_vmtools_salt_minion_conf_guestvars() {
 #
 # _fetch_vmtools_salt_minion_conf_cli_args
 #
-#   Retrieve the configuration for salt-minion from any args '$@' passed
-#                                               on the command line
+#   Retrieves salt-minion configuration settings from command-line arguments
+#   ('$@').
 #
-#   Script options (source, minionversion, loglevel) are not minion
-#   configuration, they are handled by _fetch_script_opts
+# Input:
+#   Command-line arguments passed to the script ('$@').
+#
+# Note:
+#   Script options ('source', 'minionversion', and 'loglevel') are excluded
+#   from minion configuration and are handled separately by
+#   '_fetch_script_opts'.
+#
+# Side Effects:
+#   Updates the salt-minion configuration with settings parsed from the
+#   command-line arguments.
 #
 # Results:
-#   Exits with new VMTools configuration file if none found
-#   or salt-minion configuration file updated with configuration read
-#   from VMTools configuration file section for salt_minion
+#   Returns 0 on success, or a non-zero exit code on failure.
 #
 
 _fetch_vmtools_salt_minion_conf_cli_args() {
@@ -1017,11 +1060,12 @@ _fetch_vmtools_salt_minion_conf_cli_args() {
 #
 # _get_desired_state
 #
-#   Retrieve the desired state (action) set by VMTools in the guest variables,
-#   present, absent, status or depend. Only retrieved once
+#   Retrieves the desired state action ('present', 'absent', 'status', or
+#   'depend') configured by VMTools in the guest variables. Only queries the
+#   guest variable once.
 #
-# Results:
-#   GVAR_ACTION set to the desired state, empty if not set
+# Side Effects:
+#   Sets 'GVAR_ACTION' to the retrieved state (or empty if unset).
 #
 
 _get_desired_state() {
@@ -1041,17 +1085,19 @@ _get_desired_state() {
 #
 # _collect_script_opts
 #
-#   Record any script options (source, minionversion, loglevel) found in the
-#   input key=value tokens, other tokens are ignored (they are reported when
-#   read as minion configuration)
+#   Extracts script options ('source', 'minionversion', and 'loglevel') from
+#   the provided 'key=value' tokens and records them in source-specific
+#   variables. Non-option tokens are ignored (and handled when parsed as
+#   minion configuration).
 #
 # Input:
-#   $1  where the tokens are from, GV (guest variables), TC (tools.conf)
-#       or CLI (command line)
-#   $@  tokens, after the first
+#   $1  Token source identifier: 'GV' (guest variables), 'TC' ('tools.conf'),
+#       or 'CLI' (command-line arguments).
+#   $@  Remaining 'key=value' tokens to inspect (after '$1').
 #
-# Results:
-#   Variables SCRIPT_OPT_<GV|TC|CLI>_<key> updated, last token for a key wins
+# Side Effects:
+#   Sets or updates 'SCRIPT_OPT_<GV|TC|CLI>_<key>' variables, with the last
+#   occurrence of a key taking precedence.
 #
 
 _collect_script_opts() {
@@ -1072,18 +1118,21 @@ _collect_script_opts() {
 #
 # _fetch_script_opts
 #
-#   Retrieve the script options (source, minionversion, loglevel) set using
-#   key=value, from the guest variables, tools.conf and command line
-#       precedence order: L -> H
-#           from VMTools guest variables
-#           from VMTools configuration file tools.conf
-#           from any key=value on the command line, after --install
-#                                                       or --reconfig
-#   An explicit switch, for example --source, is higher still and is not
-#   changed, see _apply_script_opts
+#   Retrieves script options ('source', 'minionversion', and 'loglevel') set as
+#   'key=value' pairs across all configuration sources in ascending precedence
+#   order (lowest to highest):
+#     1. VMTools guest variables
+#     2. VMTools configuration file ('tools.conf')
+#     3. Command-line 'key=value' arguments following '--install' or
+#        '--reconfig'
 #
-# Results:
-#   Variables SCRIPT_OPT_<key> set to the value to use, empty if not set
+# Note:
+#   Explicit CLI flags (e.g., '--source') take higher precedence and are not
+#   overwritten here (see '_apply_script_opts').
+#
+# Side Effects:
+#   Sets 'SCRIPT_OPT_<key>' variables to the resolved values (or empty if
+#   unset).
 #
 
 _fetch_script_opts() {
@@ -1147,14 +1196,15 @@ _fetch_script_opts() {
 #
 # _validate_loglevel_param
 #
-#   Validates a loglevel set using key=value. Exits with scriptFailed (126)
-#   if the value is not one of silent, error, warning, info or debug
+#   Validates a log level specified via a 'key=value' parameter against the
+#   allowed values ('silent', 'error', 'warning', 'info', or 'debug').
 #
 # Input:
-#   $1  loglevel value, not case sensitive
+#   $1  Log level value string (case-insensitive).
 #
 # Results:
-#   Returns 0 if valid; exits 126 via _error_log otherwise
+#   Returns 0 if valid, or exits with scriptFailed (126) via '_error_log'
+#   otherwise.
 #
 
 _validate_loglevel_param() {
@@ -1169,8 +1219,8 @@ _validate_loglevel_param() {
         fi
     done
     printf -v escaped_val '%q' "$1"
-    _validation_failed "$0:${FUNCNAME[0]} Invalid loglevel: ${escaped_val} must be one of "\
-        "${LOG_MODES_AVAILABLE[*]}"
+    _validation_failed "$0:${FUNCNAME[0]} Invalid loglevel: ${escaped_val} "\
+        "must be one of ${LOG_MODES_AVAILABLE[*]}"
     return 1
 }
 
@@ -1178,20 +1228,25 @@ _validate_loglevel_param() {
 #
 # _apply_script_opts
 #
-#   Apply the script options (source, minionversion, loglevel) found by
-#   _fetch_script_opts, unless the equivalent switch was used on the command
-#   line, switches have the highest precedence.
+#   Applies the script options ('source', 'minionversion', and 'loglevel')
+#   resolved by '_fetch_script_opts', unless overridden by an explicit CLI
+#   flag (which holds the highest precedence).
 #
-#   loglevel is applied for every action. source and minionversion are applied
-#   only when installing, using --install or, when no switch was used on the
-#   command line, a desired state of 'present' in the guest variables.
+# Note:
+#   - 'loglevel' is applied for all actions.
+#   - 'source' and 'minionversion' are applied only during installation
+#     (via '--install', or when no CLI action flag is specified and the guest
+#     variables define a desired state of 'present').
+#   - Does not set 'CLI_ACTION', ensuring the desired state in guest variables
+#     is still evaluated when no CLI action flag is passed.
 #
-#   Note: does not set CLI_ACTION as that would stop the desired state in the
-#         guest variables from being used
+# Side Effects:
+#   Updates the active log level, installation source, and target minion
+#   version.
 #
 # Results:
-#   Log level, source and minion version updated, exits 126 if a value
-#   is invalid
+#   Returns 0 on success, or exits with scriptFailed (126) if any option value
+#   is invalid.
 #
 
 _apply_script_opts() {
@@ -1248,14 +1303,13 @@ _apply_script_opts() {
 #
 # _randomize_minion_id
 #
-#   Added 5 digit random number to input minion identifier
+#   Appends a random 5-digit number to the provided minion identifier prefix.
 #
 # Input:
-#       String to add random number to
-#       if no input, default string 'minion_' used
+#   Optional minion identifier prefix string (defaults to 'minion_' if omitted).
 #
 # Results:
-#   exit, return value etc
+#   Outputs the randomized minion identifier string to stdout and returns 0.
 #
 
 _randomize_minion_id() {
@@ -1278,14 +1332,17 @@ _randomize_minion_id() {
 #
 # _fetch_vmtools_salt_minion_conf
 #
-#   Retrieve the configuration for salt-minion
-#       precedence order: L -> H
-#           from VMware Tools guest Variables
-#           from VMware Tools configuration file tools.conf
-#           from any command line parameters
+#   Retrieves and merges salt-minion configuration settings from all supported
+#   sources in ascending precedence order (lowest to highest):
+#     1. VMware Tools guest variables
+#     2. VMware Tools configuration file ('tools.conf')
+#     3. Command-line arguments
+#
+# Side Effects:
+#   Writes the consolidated settings to the salt-minion configuration file.
 #
 # Results:
-#   Exits with new salt-minion configuration file written
+#   Returns 0 on success, or exits with an error code on failure.
 #
 
 _fetch_vmtools_salt_minion_conf() {
@@ -1350,17 +1407,19 @@ _fetch_vmtools_salt_minion_conf() {
 #
 # _fetch_salt_minion
 #
-#   Retrieve the salt-minion from Salt repository
+#   Downloads the salt-minion package from the Salt repository.
 #
-# Note: Only support Salt 3006 and higher with new Broadcom infrastructure
-#       salt_url_version is always set with desired version of Salt
-#       for example: latest, 3006, 3007, 3006.8, 3007.1
+# Note:
+#   - Supports only Salt 3006 and newer via the new Broadcom repository
+#     infrastructure.
+#   - Expects 'salt_url_version' to be set to the target Salt version
+#     (e.g., 'latest', '3006', '3007', '3006.8', or '3007.1').
 #
 # Side Effects:
-#   CURRENT_STATUS updated
+#   Updates 'CURRENT_STATUS'.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 
 _fetch_salt_minion() {
@@ -1574,12 +1633,16 @@ _fetch_salt_minion() {
 #
 # _check_multiple_script_running
 #
-#   check if more than one version of the script is running
+#   Checks whether another instance of the script is already running.
+#
+# Note:
+#   Accounts for subshells and process forks created by the shell or privilege
+#   escalation: a single running instance produces 3 matching processes when
+#   executed directly as 'root', and 4 when invoked via 'sudo'.
 #
 # Results:
-#   Checks the number of scripts running, allowing for forks etc
-#   from bash etc, as root a single instance of the script returns 3
-#   as sudo root a single instance of the script returns 4
+#   Returns 0 if only a single instance is running, or exits/returns a non-zero
+#   code if multiple instances are detected.
 #
 
 _check_multiple_script_running() {
@@ -1608,12 +1671,13 @@ _check_multiple_script_running() {
 #
 # _check_classic_minion_install
 #
-# Check if classic salt-minion is installed for the OS
-#   for example: install salt-minion from rpm or deb package
+#   Checks whether a classic (non-onedir) salt-minion package is installed on
+#   the OS (e.g., via an RPM or DEB package).
 #
 # Results:
-#   0 - No standard classic install found and empty string output
-#   !0 - Standard  classic install found and Salt version found output
+#   - Returns 0 and outputs an empty string if no classic installation is found.
+#   - Returns a non-zero exit code and outputs the detected Salt version if a
+#     classic installation is present.
 #
 
 _check_classic_minion_install() {
@@ -1664,14 +1728,14 @@ _check_classic_minion_install() {
 #
 # _check_onedir_minion_install
 #
-# Check if onedir pre_3006 or post_3005 salt-minion is installed on the OS
-#   for example: install salt-minion from rpm or deb package
+#   Checks whether a 'pre_3006' or 'post_3005' onedir salt-minion package is
+#   installed on the OS (e.g., via an RPM or DEB package).
 #
 # Results:
-#   Echos the following values:
-#   0 - No onedir install found and empty string output
-#   1 - pre_3006 onedir install found
-#   2 - post_3005 onedir install found
+#   Outputs one of the following status codes to stdout:
+#   - 0: No onedir installation found (empty string output).
+#   - 1: 'pre_3006' onedir installation found.
+#   - 2: 'post_3005' onedir installation found.
 #
 
 _check_onedir_minion_install() {
@@ -1704,10 +1768,11 @@ _check_onedir_minion_install() {
 #
 # _find_salt_pid
 #
-#   finds the pid for the Salt process
+#   Finds the process ID (PID) of the running Salt process.
 #
 # Results:
-#   Echos ${salt_pid} which could be empty '' if Salt process not found
+#   Outputs '${salt_pid}' to stdout (empty string '' if no matching process is
+#   found).
 #
 
 _find_salt_pid() {
@@ -1780,12 +1845,17 @@ _ensure_id_or_fqdn () {
 #
 # _create_pre_3006_helper_scripts
 #
-#   Create helper scripts for salt-call and salt-minion
+#   Creates wrapper helper scripts for 'salt-call' and 'salt-minion' in
+#   pre-3006 onedir installations.
 #
-#       Example: _create_pre_3006_helper_scripts
+# Example:
+#   _create_pre_3006_helper_scripts
+#
+# Side Effects:
+#   Writes helper scripts for 'salt-call' and 'salt-minion' to the filesystem.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 
 _create_pre_3006_helper_scripts() {
@@ -1832,23 +1902,23 @@ _create_pre_3006_helper_scripts() {
 #
 # _status_fn
 #
-#   discover and return the current status
-#
-#       0 => installed (and running)
-#       1 => installing
-#       2 => notInstalled
-#       3 => installFailed
-#       4 => removing
-#       5 => removeFailed
-#       6 => externalInstall
-#       7 => installedStopped
-#       126 => scriptFailed
+#   Discovers and returns the current salt-minion installation and service
+#   status.
 #
 # Side Effects:
-#   CURRENT_STATUS updated
+#   Updates 'CURRENT_STATUS'.
 #
 # Results:
-#   Exits numerical status
+#   Exits with one of the following numerical status codes:
+#     0   - installed (and running)
+#     1   - installing
+#     2   - notInstalled
+#     3   - installFailed
+#     4   - removing
+#     5   - removeFailed
+#     6   - externalInstall
+#     7   - installedStopped
+#     126 - scriptFailed
 #
 
 _status_fn() {
@@ -1914,23 +1984,23 @@ _status_fn() {
 #
 # _stop_fn
 #
-#   stop the salt-minion if running and return the current status
-#
-#       0 => installed (and running)
-#       1 => installing
-#       2 => notInstalled
-#       3 => installFailed
-#       4 => removing
-#       5 => removeFailed
-#       6 => externalInstall
-#       7 => installedStopped
-#       126 => scriptFailed
+#   Stops the salt-minion service if it is currently running and returns the
+#   resulting status.
 #
 # Side Effects:
-#   CURRENT_STATUS updated
+#   Updates 'CURRENT_STATUS'.
 #
 # Results:
-#   Exits numerical status
+#   Exits with one of the following numerical status codes:
+#     0   - installed (and running)
+#     1   - installing
+#     2   - notInstalled
+#     3   - installFailed
+#     4   - removing
+#     5   - removeFailed
+#     6   - externalInstall
+#     7   - installedStopped
+#     126 - scriptFailed
 #
 
 _stop_fn() {
@@ -2004,23 +2074,23 @@ _stop_fn() {
 #
 # _restart_fn
 #
-#   restart the salt-minion if not running and return the current status
-#
-#       0 => installed (and running)
-#       1 => installing
-#       2 => notInstalled
-#       3 => installFailed
-#       4 => removing
-#       5 => removeFailed
-#       6 => externalInstall
-#       7 => installedStopped
-#       126 => scriptFailed
+#   Restarts the salt-minion service if it is not currently running and returns
+#   the resulting status.
 #
 # Side Effects:
-#   CURRENT_STATUS updated
+#   Updates 'CURRENT_STATUS'.
 #
 # Results:
-#   Exits numerical status
+#   Exits with one of the following numerical status codes:
+#     0   - installed (and running)
+#     1   - installing
+#     2   - notInstalled
+#     3   - installFailed
+#     4   - removing
+#     5   - removeFailed
+#     6   - externalInstall
+#     7   - installedStopped
+#     126 - scriptFailed
 #
 
 _restart_fn() {
@@ -2084,11 +2154,14 @@ _restart_fn() {
 #
 # _deps_chk_fn
 #
-#   Check dependencies for using salt-minion
+#   Checks system dependencies required to run salt-minion.
 #
 # Side Effects:
+#   Logs missing dependencies or check results if applicable.
+#
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 if all dependencies are satisfied, or exits with an error code
+#   otherwise.
 #
 _deps_chk_fn() {
     # return dependency check
@@ -2115,23 +2188,20 @@ _deps_chk_fn() {
 #
 # _find_system_lib_path
 #
-# find with systemd library path to use
-#
-# Result:
-#   echos the systemd library path
-#   will error if no systemd library path can be determined
+#   Determines and outputs the appropriate systemd unit library path to use.
 #
 # Note:
-#   /lib/systemd/system
-#       System units installed by the distribution package manage
-#   /usr/lib/systemd/system
-#       System units installed by the Administrator
-#   /usr/local/lib/systemd/system
-#       System units installed by the Administrator (possible on some OS)
+#   Standard systemd unit directories:
+#     - '/lib/systemd/system': System units installed by the distribution
+#       package manager (used on older OSes such as Debian 9 and Ubuntu 18.04).
+#     - '/usr/lib/systemd/system': Default directory used by salt-minion on
+#       modern Linux distributions when available.
+#     - '/usr/local/lib/systemd/system': Administrator-installed system units
+#       (applicable on certain OSes).
 #
-# Will use /usr/lib/systemd/system available, since this is generally
-# the default used on modern Linux OS by salt-minion, some earlier OS's
-# (Debian 9, Ubuntu 18.04) use /lib/systemd/system
+# Results:
+#   Outputs the resolved systemd library path to stdout and returns 0, or exits
+#   with an error if no valid systemd library path can be determined.
 #
 _find_system_lib_path () {
 
@@ -2155,12 +2225,15 @@ _find_system_lib_path () {
 #
 # _reconfig_fn
 #
-# Executes scripts to stop the salt-minion, if active
-# Re-read the configuration
-# Restart the salt-minion, if it had been active
+#   Stops the salt-minion service if active, reloads its configuration, and
+#   restarts the service if it was previously running.
+#
+# Side Effects:
+#   Updates the salt-minion configuration and restarts the salt-minion service
+#   when applicable.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 _reconfig_fn () {
     local _retn=0
@@ -2223,15 +2296,18 @@ _reconfig_fn () {
 }
 
 
-
 #
-#  _install_fn
+# _install_fn
 #
-#   Executes scripts to install Salt from Salt repository
-#       and start the salt-minion using systemd
+#   Executes the installation routine to install salt-minion from the Salt
+#   repository and start the salt-minion service via systemd.
+#
+# Side Effects:
+#   Installs the salt-minion package, configures it, and starts its systemd
+#   service.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 
 _install_fn () {
@@ -2391,15 +2467,17 @@ _install_fn () {
 #
 # _validate_source_param
 #
-#   Validates the --source parameter value. Exits with scriptFailed (126)
-#   if the value is empty, contains control characters, contains shell
-#   injection characters, or does not match a recognised protocol prefix.
+#   Validates the '--source' parameter value against formatting and security
+#   constraints (rejecting empty values, control characters, shell injection
+#   characters, or unrecognized protocol prefixes).
 #
 # Input:
-#   $1  raw SOURCE_PARAMS string (first word is extracted, matching _source_fn)
+#   $1  Raw 'SOURCE_PARAMS' string (the first word is extracted, matching
+#       '_source_fn' behavior).
 #
 # Results:
-#   Returns 0 if valid; exits 126 via _error_log otherwise
+#   Returns 0 if valid, or exits with scriptFailed (126) via '_error_log'
+#   otherwise.
 #
 
 _validate_source_param() {
@@ -2440,17 +2518,20 @@ _validate_source_param() {
 #
 # _validate_minion_version_param
 #
-#   Validates the --minionversion parameter value. Exits with scriptFailed
-#   (126) if the value does not match the expected Salt CalVer format.
+#   Validates the '--minionversion' parameter value against the expected Salt
+#   CalVer format.
 #
-#   Valid: latest, YYYY, YYYY.N, YYYY.N.N, YYYY.NrcN, YYYY.N.N-N
-#          (e.g. 3006, 3006.2, 3008.0, 3008.0rc1, 3004.2-1)
+#   Accepted formats:
+#     - 'latest'
+#     - 'YYYY', 'YYYY.N', 'YYYY.N.N', 'YYYY.NrcN', or 'YYYY.N.N-N'
+#       (e.g., '3006', '3006.2', '3008.0', '3008.0rc1', '3004.2-1')
 #
 # Input:
-#   $1  raw MINION_VERSION_PARAMS string (first word is extracted)
+#   $1  Raw 'MINION_VERSION_PARAMS' string (the first word is extracted).
 #
 # Results:
-#   Returns 0 if valid; exits 126 via _error_log otherwise
+#   Returns 0 if valid, or exits with scriptFailed (126) via '_error_log'
+#   otherwise.
 #
 
 _validate_minion_version_param() {
@@ -2469,28 +2550,27 @@ _validate_minion_version_param() {
 
 
 #
-#  _source_fn
+# _source_fn
 #
-#   Set the location to retrieve the Salt Minion from
-#       default is to use the Salt Project repository
+#   Configures the installation source location (defaulting to the Salt Project
+#   repository) and target salt-minion version (defaulting to 'latest').
 #
-#   Set the version of Salt Minion wanted to install
-#       default 'latest'
+# Note:
+#   - Supports multiple URI/path protocols (e.g., 'http', 'https', 'ftp',
+#     'file', UNC paths):
+#       http://my_web_server.com/my_salt_onedir
+#       https://my_web_server.com/my_salt_onedir
+#       ftp://my_ftp_server.com/my_salt_onedir
+#       file://mytopdir/mymiddledir/my_salt_onedir
+#       ///mytopdir/mymiddledir/my_salt_onedir
+#   - Appends the specified salt-minion version to the source location, or
+#     defaults to 'latest' when no explicit version is provided.
 #
-#   Note: handle all protocols (http, https, ftp, file, unc, etc)
-#           for example:
-#               http://my_web_server.com/my_salt_onedir
-#               https://my_web_server.com/my_salt_onedir
-#               ftp://my_ftp_server.com/my_salt_onedir
-#               file://mytopdir/mymiddledir/my_salt_onedir
-#               ///mytopdir/mymiddledir/my_salt_onedir
-#
-#           If a specific version of the Salt Minion is specified
-#           then it will be appended to the specified source location
-#           otherwise a default of 'latest' is applied.
+# Side Effects:
+#   Updates the active installation source location and target minion version.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 
 _source_fn () {
@@ -2521,19 +2601,17 @@ _source_fn () {
 #
 # _generate_minion_id
 #
-#   Searches salt-minion configuration file for current id, and disables it
-#   and generates a new id based on the existing id found,
-#   or an older commented out id, and provides it with a randomized 5 digit
-#   post-pended to it, for example: myminion_12345
-#
-#   If no previous id found, a generated minion_<random number> is output
+#   Searches the salt-minion configuration file for an existing or previously
+#   commented-out 'id' setting, comments out any active 'id', and generates a
+#   new identifier by appending a random 5-digit suffix (e.g., 'myminion_12345').
+#   Defaults to 'minion_<random_number>' if no prior identifier is found.
 #
 # Side Effects:
-#   Disables any id found in minion configuration file
+#   Comments out any active 'id' entry in the salt-minion configuration file.
 #
-# Result:
-#   Outputs randomized minion id for use in a minion configuration file
-#   Exits with 0 or error code
+# Results:
+#   Outputs the generated randomized minion identifier to stdout and returns
+#   0, or exits with an error code on failure.
 #
 
 _generate_minion_id () {
@@ -2592,32 +2670,27 @@ _generate_minion_id () {
 }
 
 
-#
 # _clear_id_key_fn
 #
-#   Executes scripts to clear the minion identifier and keys and
-#   re-generates new identifier, allows for a VM containing a salt-minion,
-#   to be cloned and not have conflicting id and keys
-#   salt-minion is stopped, id and keys cleared, and restarted
-#   if it was previously running, and not an upgrade
+#   Clears the existing salt-minion identifier and cryptographic keys, then
+#   generates a new identifier so cloned VMs do not conflict. Stops the
+#   salt-minion service, removes the old ID and keys, and restarts the service
+#   if it was previously running (unless an upgrade is in progress).
 #
 # Input:
-#   Optional specified input ID to be used, default generate randomized value
+#   Optional minion ID string (defaults to a randomly generated value).
 #
 # Note:
-#   Normally a salt-minion if no id is specified will rely on
-#   it's Fully Qualified Domain Name but with VM Cloning, there is no surety
-#   that the FQDN will have been altered, and duplicates can occur.
-#   Also if there is no FQDN, then default 'Unknown.example.org' is used,
-#   again with the issue of duplicates for multiple salt-minions
-#   with no FQDN specified
+#   By default, a salt-minion without an explicit ID relies on its Fully
+#   Qualified Domain Name (FQDN). When cloning VMs, the FQDN may remain
+#   unchanged or unset (falling back to 'Unknown.example.org'), which causes
+#   duplicate minion IDs across clones.
 #
 # Side Effects:
-#   New minion identifier in configuration file and keys for the salt-minion
+#   Updates the minion ID in the configuration file and regenerates minion keys.
 #
 # Results:
-#   Exits with 0 or error code
-#
+#   Exits with 0 on success, or a non-zero error code on failure.
 
 _clear_id_key_fn () {
     # execute clearing of Salt minion id and keys
@@ -2701,13 +2774,17 @@ _clear_id_key_fn () {
 #
 # _remove_installed_files_dirs
 #
-#   Removes all Salt files and directories that may be used
+#   Removes all Salt-related files and directories from the system.
 #
 # Note:
-#   funciton only call when performing an uninstall
+#   Call this function only when performing an uninstallation.
+#
+# Side Effects:
+#   Deletes installed Salt binaries, configuration files, cache, and runtime
+#   directories from the filesystem.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 
 _remove_installed_files_dirs() {
@@ -2726,16 +2803,17 @@ _remove_installed_files_dirs() {
 
 
 #
-#  _uninstall_fn
+# _uninstall_fn
 #
-#   Executes scripts to uninstall Salt from system
-#       stopping the salt-minion using systemd
+#   Stops the salt-minion service via systemd and executes the uninstallation
+#   routine to remove Salt from the system.
 #
 # Side Effects:
-#   CURRENT_STATUS updated
+#   Stops the salt-minion service, removes Salt packages and files, and
+#   updates 'CURRENT_STATUS'.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 
 _uninstall_fn () {
@@ -2841,13 +2919,16 @@ _uninstall_fn () {
 
 
 #
-#  _clean_up_log_files
+# _clean_up_log_files
 #
-#   Limits number of log files by removing oldest log files which exceed
-#   limit LOG_FILE_NUMBER
+#   Enforces log file retention by removing the oldest log files when the
+#   total count exceeds 'LOG_FILE_NUMBER'.
+#
+# Side Effects:
+#   Deletes excess log files from the filesystem.
 #
 # Results:
-#   Exits with 0 or error code
+#   Returns 0 on success, or exits with an error code on failure.
 #
 _clean_up_log_files() {
 
