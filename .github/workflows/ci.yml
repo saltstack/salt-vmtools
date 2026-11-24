@@ -190,7 +190,7 @@ jobs:
     with:
       distro-slug: rockylinux-9-arm64
       display-name: Rocky Linux 9 Arm64
-      container-slug: rockylinux-9
+      container-slug: systemd-rockylinux-9
       timeout: 20
       runs-on: ubuntu-24.04-arm
       instances: '["3006", "3006-15", "3007", "3007-7", "3008", "3008-1", "upgrade-3007", "upgrade-3008"]'

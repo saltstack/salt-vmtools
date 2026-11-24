@@ -2,7 +2,7 @@
 
 ## What's Changed
 * Add Linux arm64 support for `svtminion.sh` (map `aarch64`/`arm64` to Salt onedir `arm64` packages)
-* Add Rocky Linux 9 Arm64 CI on `ubuntu-24.04-arm`
+* Add Rocky Linux 9 Arm64 CI on `ubuntu-24.04-arm` using the multi-arch `systemd-rockylinux-9` container
 * Fetch Linux onedir GA testarea fixtures at test time instead of storing them in git; align GA/RC local tests with Windows stubs
 * Keep Tiamat/3005 classic RPMs for external-install detection on x86_64; skip that check on other arches
 

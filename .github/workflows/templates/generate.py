@@ -109,8 +109,8 @@ DISTRO_DISPLAY_NAMES = {
 ##    "photon-5": "systemd-photon-5",
 CONTAINER_SLUG_NAMES = {
     "rockylinux-9": "systemd-rockylinux-9",
-    # Multi-arch rockylinux-9 image (linux/amd64 + linux/arm64)
-    "rockylinux-9-arm64": "rockylinux-9",
+    # Same systemd image as x86; multi-arch (linux/amd64 + linux/arm64)
+    "rockylinux-9-arm64": "systemd-rockylinux-9",
     "windows-2022": "windows-2022",
 }
 
