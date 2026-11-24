@@ -5,6 +5,9 @@
 __pycache__/
 *.py[co]
 pkg/arch/*.tar.xz
+
+# Linux onedir fixtures are fetched at test time (see tests/linux/fetch_testarea_onedirs.sh)
+tests/testarea/**/salt-*-onedir-linux-*.tar.xz
 *.sw[a-p]
 doc/_build
 doc/doc-archive.tar.gz

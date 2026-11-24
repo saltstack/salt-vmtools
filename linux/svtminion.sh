@@ -2882,14 +2882,44 @@ _clean_up_log_files() {
     return 0
 }
 
+#
+# _map_salt_onedir_arch
+#
+#   Maps a host machine architecture from 'uname -m' to the arch token used
+#   in Salt onedir package filenames (e.g. salt-*-onedir-linux-arm64.tar.xz).
+#
+# Results:
+#   - Echoes the onedir arch token and returns 0 for supported arches.
+#   - Returns non-zero for unsupported arches (no output).
+#
+_map_salt_onedir_arch() {
+    case "$1" in
+        x86_64)
+            echo "x86_64"
+            ;;
+        aarch64|arm64)
+            echo "arm64"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
 ################################### MAIN ####################################
 
 # static definitions
 
 CURRDIR=$(pwd)
 
-# get machine architecture once
-MACHINE_ARCH=$(uname -m)
+# Map uname -m to the Salt onedir package arch token once
+_raw_machine_arch=$(uname -m)
+if ! MACHINE_ARCH=$(_map_salt_onedir_arch "${_raw_machine_arch}"); then
+    echo "Unsupported architecture '${_raw_machine_arch}'" 1>&2
+    CURRENT_STATUS=${STATUS_CODES_ARY[scriptFailed]}
+    exit ${STATUS_CODES_ARY[scriptFailed]}
+fi
 
 # setup work-area
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

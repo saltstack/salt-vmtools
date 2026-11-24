@@ -131,6 +131,7 @@ jobs:
           bash tests/linux/test_script_opts.sh
           bash tests/linux/test_script_opts_main.sh
           bash tests/linux/test_onedir_detection.sh
+          bash tests/linux/test_arch_mapping.sh
 
       - name: Set Exit Status
         if: always()

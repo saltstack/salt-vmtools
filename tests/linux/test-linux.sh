@@ -1,6 +1,9 @@
 #!/bin/bash
 
-# Testing assumes RedHat family
+# Testing assumes RedHat family.
+# Before a local run, fetch Linux onedir fixtures:
+#   bash tests/linux/fetch_testarea_onedirs.sh
+# CI runs that helper automatically from test-linux.yml.
 
 oldpwd=$(pwd)
 mkdir -p /root/ || true
@@ -153,8 +156,9 @@ sleep 1
 cat /etc/salt/minion
 cat /etc/salt/minion | grep 'master:\ 192.168.0.5' 1>/dev/null
 ./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; }
-# GA vs RC (testarea includes 3008.0rc1 Linux onedir): default latest must be
-# max GA (3007.1), not the RC; major 3008 has no GA yet; exact 3008.0rc1 installs RC.
+# GA vs RC (testarea has GA onedirs plus a 3008.0rc1 stub for resolution only,
+# matching Windows testarea placeholders). Default latest must be max GA
+# (3007.1), not the RC; major 3008 has no GA in testarea.
 ./svtminion.sh --source ${oldpwd}/tests/testarea --install master=192.168.0.5 --loglevel debug
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -ne 100 ]]; then echo "test failed, salt-minion should be installed (latest GA), returned '${_retn}'"; exit 1; fi; }
 _salt_ver_out=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
@@ -170,16 +174,31 @@ fi
 ./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 102 ]]; then echo "test correct: no GA for major 3008, minion not installed"; else echo "test failed, expected status 102 after install with -m 3008 and no GA, got '${_retn}'"; exit 1; fi; }
 ./svtminion.sh --remove || true
 
-./svtminion.sh --source ${oldpwd}/tests/testarea --minionversion 3008.0rc1 --install master=192.168.0.5 --loglevel debug
-./svtminion.sh --status --loglevel debug || { _retn=$?; if [[ ${_retn} -ne 100 ]]; then echo "test failed, salt-minion should be installed (3008.0rc1), returned '${_retn}'"; exit 1; fi; }
-_salt_ver_rc=$(/usr/bin/salt-call --local test.version --out=txt 2>/dev/null || true)
-if echo "${_salt_ver_rc}" | grep -qi "3008.0rc1"; then
-    echo "test correct: exact RC 3008.0rc1 installed"
-else
-    echo "test failed: expected 3008.0rc1 in test.version, got '${_salt_ver_rc}'"
-    exit 1
-fi
-./svtminion.sh --remove || { _retn=$?; echo "test failed, did not uninstall the salt-minion, returned '${_retn}'"; exit 1; }
+# Exact RC: resolution only (stub package; no install). Same idea as Windows
+# Get-SaltPackageInfo exact-RC against testarea placeholders.
+(
+    _error_log() { echo "ERROR: $*" 1>&2; }
+    _info_log() { :; }
+    _debug_log() { :; }
+    _rc_extract="$(mktemp)"
+    sed -n '/^_salt_onedir_dir_is_ga() {/,/^}/p' ./svtminion.sh > "${_rc_extract}"
+    sed -n '/^_get_desired_salt_version_fn() {/,/^}/p' ./svtminion.sh >> "${_rc_extract}"
+    # shellcheck disable=SC1090
+    source "${_rc_extract}"
+    rm -f "${_rc_extract}"
+    salt_url_version="3008.0rc1"
+    salt_specific_version=""
+    if ! _get_desired_salt_version_fn "${oldpwd}/tests/testarea"; then
+        echo "test failed: exact RC 3008.0rc1 should resolve from testarea"
+        exit 1
+    fi
+    if [[ "${salt_specific_version}" = "3008.0rc1" ]]; then
+        echo "test correct: exact RC 3008.0rc1 resolved from testarea (stub, not installed)"
+    else
+        echo "test failed: expected salt_specific_version 3008.0rc1, got '${salt_specific_version}'"
+        exit 1
+    fi
+) || exit 1
 
 ## Major-version, exact-version, and upgrade-chain coverage, data-driven off
 ## generate.py's SALT_VERSIONS (the single source of truth for which Salt
@@ -372,15 +391,20 @@ FAKE_GV_STATE=absent FAKE_GV_ARGS="source=${oldpwd}/tests/testarea" PATH=${_fake
 ## bad guest variables can not stop --version
 FAKE_GV_ARGS="loglevel=loud source=http://x/a;id" PATH=${_fake_bin}:${PATH} ./svtminion.sh --version || { _retn=$?; echo "test failed, --version should not read the script options, returned '${_retn}'"; exit 1; }
 
-# test with classic package installed
-# Use 3005 Redhat 9 for Rocky 9 container
-rpm --import ${oldpwd}/tests/classic/SALTSTACK-GPG-KEY2.pub
-cp -a ${oldpwd}/tests/classic/3005.repo /etc/yum.repos.d/salt.repo
-echo "baseurl=file:///${oldpwd}/testarea/classic" >> /etc/yum.repos.d/salt.repo
-echo "gpgkey=file:///${oldpwd}/testarea/classic/SALTSTACK-GPG-KEY2.pub" >> /etc/yum.repos.d/salt.repo
-yum makecache
-yum -y install salt-minion
+# Tiamat/classic 3005 RPMs are x86_64-only fixtures (unavailable upstream).
+# Skip on other arches; detection of non-relenv installs still matters on x86.
+if [[ "$(uname -m)" = "x86_64" ]]; then
+    # Use local classic repo (vendored Tiamat RPMs). gpgcheck off: the GPG key
+    # is not in-repo and repo.saltproject.io no longer hosts it.
+    cp -a ${oldpwd}/tests/classic/3005.repo /etc/yum.repos.d/salt.repo
+    sed -i 's/^gpgcheck=.*/gpgcheck=0/' /etc/yum.repos.d/salt.repo
+    echo "baseurl=file://${oldpwd}/tests/classic" >> /etc/yum.repos.d/salt.repo
+    yum makecache
+    yum -y install salt-minion
 
-./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
-./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, classic salt-minion should be installed and external install detected, returned '${_retn}'"; exit 1; fi; }
-./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
+    ./svtminion.sh --install master=192.168.0.5 --loglevel debug || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed, returned '${_retn}'"; exit 1; fi; }
+    ./svtminion.sh --status --loglevel info || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, classic salt-minion should be installed and external install detected, returned '${_retn}'"; exit 1; fi; }
+    ./svtminion.sh --remove || { _retn=$?; if [[ ${_retn} -eq 106 ]]; then echo "test correct"; else echo "test failed, should fail since be standard salt-minion installed and script remove not valid, returned '${_retn}'"; exit 1; fi; }
+else
+    echo "test skip: classic/Tiamat RPM conflict check is x86_64-only (uname=$(uname -m))"
+fi

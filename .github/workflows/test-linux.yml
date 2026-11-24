@@ -27,11 +27,17 @@ on:
         required: false
         default: 20
 
+      runs-on:
+        type: string
+        required: false
+        default: ubuntu-latest
+        description: The GitHub-hosted runner label
+
 
 jobs:
   Test:
     name: ${{ matrix.instance }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     container:
       image: ghcr.io/saltstack/salt-ci-containers/testing:${{ inputs.container-slug }}
       options: --privileged
@@ -44,6 +50,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Fetch Linux testarea onedirs
+        run: |
+          bash ./tests/linux/fetch_testarea_onedirs.sh
 
       - name: VMTools Salt
         if: ${{ !startsWith(matrix.instance, 'upgrade-') }}

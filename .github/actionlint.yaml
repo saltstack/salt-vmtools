@@ -2,3 +2,5 @@ self-hosted-runner:
   # Labels of self-hosted runner in array of string
   labels:
     - repo-release
+    # GitHub-hosted arm64 runner (also used so actionlint accepts the label)
+    - ubuntu-24.04-arm

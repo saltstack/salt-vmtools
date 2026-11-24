@@ -11,6 +11,7 @@ os.chdir(os.path.abspath(os.path.dirname(__file__)))
 ##    "photon-5",
 LINUX_DISTROS = [
     "rockylinux-9",
+    "rockylinux-9-arm64",
 ]
 
 WINDOWS = [
@@ -100,6 +101,7 @@ LATEST_PKG_BLACKLIST = []
 ##    "photon-5": "Photon OS 5",
 DISTRO_DISPLAY_NAMES = {
     "rockylinux-9": "Rocky Linux 9",
+    "rockylinux-9-arm64": "Rocky Linux 9 Arm64",
     "windows-2022": "Windows 2022",
 }
 
@@ -107,7 +109,15 @@ DISTRO_DISPLAY_NAMES = {
 ##    "photon-5": "systemd-photon-5",
 CONTAINER_SLUG_NAMES = {
     "rockylinux-9": "systemd-rockylinux-9",
+    # Multi-arch rockylinux-9 image (linux/amd64 + linux/arm64)
+    "rockylinux-9-arm64": "rockylinux-9",
     "windows-2022": "windows-2022",
+}
+
+# Optional override of the GitHub-hosted runner label for Linux jobs.
+# Unlisted distros use test-linux.yml's default (ubuntu-latest).
+LINUX_RUNS_ON = {
+    "rockylinux-9-arm64": "ubuntu-24.04-arm",
 }
 
 TIMEOUT_DEFAULT = 20
@@ -183,7 +193,8 @@ def generate_test_jobs():
     test_jobs += "\n"
     for distro in LINUX_DISTROS:
         test_jobs += "\n"
-        runs_on = ""
+        runs_on_label = LINUX_RUNS_ON.get(distro)
+        runs_on = f"\n      runs-on: {runs_on_label}" if runs_on_label else ""
         ifcheck = RUN_TESTS_IF
         uses = "./.github/workflows/test-linux.yml"
         instances = []
